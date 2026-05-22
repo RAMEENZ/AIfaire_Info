@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import useSWR from "swr";
 import dynamic from "next/dynamic";
 
@@ -25,11 +25,9 @@ export default function HomePage() {
   const [filters, setFilters] = useState<EventFilters>({
     categories: ALL_CATEGORIES,
     gravite_min: 0,
-    bbox: null,
   });
 
   const eventsParams = {
-    bbox: filters.bbox ?? undefined,
     categories: filters.categories,
     gravite_min: filters.gravite_min > 0 ? filters.gravite_min : undefined,
   };
@@ -58,17 +56,13 @@ export default function HomePage() {
     (e) => e.lieu_niveau === "national" || (e.lieu_lat === null && e.lieu_lon === null)
   );
 
-  const handleBboxChange = useCallback((bbox: string) => {
-    setFilters((prev) => ({ ...prev, bbox }));
-  }, []);
-
-  const handleCategoriesChange = useCallback((categories: Categorie[]) => {
+  const handleCategoriesChange = (categories: Categorie[]) => {
     setFilters((prev) => ({ ...prev, categories }));
-  }, []);
+  };
 
-  const handleGraviteChange = useCallback((gravite_min: number) => {
+  const handleGraviteChange = (gravite_min: number) => {
     setFilters((prev) => ({ ...prev, gravite_min }));
-  }, []);
+  };
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -102,7 +96,6 @@ export default function HomePage() {
         <div className="flex-1 min-w-0 relative">
           <MapWrapper
             events={localEvents}
-            onBboxChange={handleBboxChange}
           />
         </div>
 

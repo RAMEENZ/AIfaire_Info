@@ -5,13 +5,12 @@ import FranceMap from "./FranceMap";
 
 interface MapWrapperProps {
   events: Event[];
-  onBboxChange: (bbox: string) => void;
 }
 
-export default function MapWrapper({ events, onBboxChange }: MapWrapperProps) {
+export default function MapWrapper({ events }: MapWrapperProps) {
   return (
     <div className="w-full h-full">
-      <FranceMap events={events} onBboxChange={onBboxChange} />
+      <FranceMap events={events} />
     </div>
   );
 }

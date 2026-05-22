@@ -54,5 +54,4 @@ export interface HealthResponse {
 export interface EventFilters {
   categories: Categorie[];
   gravite_min: number;
-  bbox: string | null;
 }
