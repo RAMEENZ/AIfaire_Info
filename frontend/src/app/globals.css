@@ -1,9 +1,8 @@
+@import "leaflet/dist/leaflet.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Leaflet reset — must come after Tailwind base */
-@import "leaflet/dist/leaflet.css";
 
 html,
 body {
@@ -17,14 +16,12 @@ main {
   height: 100%;
 }
 
-/* Leaflet container must have an explicit height */
 .leaflet-container {
   width: 100%;
   height: 100%;
   font-family: inherit;
 }
 
-/* Custom marker icon */
 .faire-marker {
   display: flex;
   align-items: center;
@@ -43,7 +40,6 @@ main {
   transform: scale(1.15);
 }
 
-/* Popup overrides */
 .leaflet-popup-content-wrapper {
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
