@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import Event
 from app.schemas import EventDetail, EventList
+from app.pipeline.ingestor import ingest_all
 
 router = APIRouter()
 
@@ -82,6 +83,14 @@ async def list_events(
         total=total,
         generated_at=datetime.now(timezone.utc),
     )
+
+
+@router.post("/ingest/run")
+async def trigger_ingest() -> dict:
+    """Déclenche manuellement l'ingestion de tous les connecteurs."""
+    import asyncio
+    asyncio.create_task(ingest_all())
+    return {"status": "started", "message": "Ingestion déclenchée en arrière-plan"}
 
 
 @router.get("/events/{event_id}", response_model=EventDetail)

@@ -4,9 +4,15 @@ from typing import Any
 
 from app.connectors.base import BaseConnector
 
-RENASS_URL = (
-    "https://renass.unistra.fr/fdsnws/event/1/query"
-    "?format=geojson&minmagnitude=1.5&orderby=time&limit=50"
+# USGS FDSNWS filtrée sur la bounding box France + DOM proches
+USGS_URL = (
+    "https://earthquake.usgs.gov/fdsnws/event/1/query"
+    "?format=geojson"
+    "&minlatitude=41&maxlatitude=52"
+    "&minlongitude=-6&maxlongitude=10"
+    "&minmagnitude=1.5"
+    "&orderby=time"
+    "&limit=50"
 )
 
 
@@ -27,14 +33,13 @@ class RenassConnector(BaseConnector):
 
     async def fetch(self) -> list[dict[str, Any]]:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(RENASS_URL)
+            response = await client.get(USGS_URL)
             response.raise_for_status()
             data = response.json()
 
         results: list[dict[str, Any]] = []
-        features = data.get("features", [])
 
-        for feature in features:
+        for feature in data.get("features", []):
             try:
                 props = feature.get("properties", {})
                 geometry = feature.get("geometry", {})
@@ -47,34 +52,33 @@ class RenassConnector(BaseConnector):
                 lat = float(coords[1])
                 depth_km = float(coords[2]) if len(coords) > 2 else None
 
-                mag = float(props.get("mag", 0.0))
+                mag = float(props.get("mag") or 0.0)
                 gravite = magnitude_to_gravite(mag)
 
                 time_raw = props.get("time")
-                if time_raw:
-                    if isinstance(time_raw, (int, float)):
-                        date_pub = datetime.fromtimestamp(time_raw / 1000, tz=timezone.utc)
-                    else:
-                        date_pub = datetime.fromisoformat(str(time_raw).replace("Z", "+00:00"))
+                if isinstance(time_raw, (int, float)):
+                    date_pub = datetime.fromtimestamp(time_raw / 1000, tz=timezone.utc)
+                elif time_raw:
+                    date_pub = datetime.fromisoformat(str(time_raw).replace("Z", "+00:00"))
                 else:
                     date_pub = datetime.now(timezone.utc)
 
-                place = props.get("place") or props.get("flynn_region") or "France"
-                event_id = props.get("publicid") or props.get("evid") or feature.get("id", "")
+                place = props.get("place") or "France"
+                event_id = feature.get("id") or props.get("code") or ""
                 mag_type = props.get("magType") or "M"
 
                 titre = f"Séisme {mag_type}{mag:.1f} – {place}"
                 if depth_km is not None:
                     titre += f" (prof. {depth_km:.0f} km)"
 
-                source_url = props.get("url") or f"https://renass.unistra.fr/evenements/{event_id}"
+                source_url = props.get("url") or f"https://earthquake.usgs.gov/earthquakes/eventpage/{event_id}"
 
                 results.append(
                     {
                         "source": self.name,
                         "source_url": source_url,
                         "titre": titre,
-                        "auteur": "RéNaSS",
+                        "auteur": "USGS / RéNaSS",
                         "date_publication": date_pub.isoformat(),
                         "date_evenement": date_pub.isoformat(),
                         "categorie": "seisme",
@@ -85,13 +89,13 @@ class RenassConnector(BaseConnector):
                         "lieu_lon": lon,
                         "lieu_niveau": "commune",
                         "lieu_confiance_geo": 1.0,
+                        "resume_ia": f"Séisme de magnitude {mag:.1f} détecté à {place}.",
                         "skip_geocoding": True,
                         "skip_extraction": True,
-                        "raw": props,
                     }
                 )
             except Exception as exc:
-                self._logger.warning("Skipping renass feature: %s", exc)
+                self._logger.warning("Skipping seismic feature: %s", exc)
                 continue
 
         return results
