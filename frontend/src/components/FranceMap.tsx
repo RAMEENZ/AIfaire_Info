@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { MapContainer, TileLayer, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer } from "react-leaflet";
 import type { Map as LeafletMap } from "leaflet";
 
 import EventMarker from "./EventMarker";
@@ -10,26 +10,9 @@ import { Event } from "@/lib/types";
 
 interface FranceMapProps {
   events: Event[];
-  onBboxChange: (bbox: string) => void;
 }
 
-function BboxTracker({ onBboxChange }: { onBboxChange: (bbox: string) => void }) {
-  const map = useMapEvents({
-    moveend() {
-      const b = map.getBounds();
-      const bbox = [
-        b.getWest().toFixed(6),
-        b.getSouth().toFixed(6),
-        b.getEast().toFixed(6),
-        b.getNorth().toFixed(6),
-      ].join(",");
-      onBboxChange(bbox);
-    },
-  });
-  return null;
-}
-
-export default function FranceMap({ events, onBboxChange }: FranceMapProps) {
+export default function FranceMap({ events }: FranceMapProps) {
   const mapRef = useRef<LeafletMap | null>(null);
 
   useEffect(() => {
@@ -61,7 +44,6 @@ export default function FranceMap({ events, onBboxChange }: FranceMapProps) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <BboxTracker onBboxChange={onBboxChange} />
         {events.map((event) => (
           <EventMarker key={event.id} event={event} />
         ))}
