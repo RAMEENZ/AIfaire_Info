@@ -43,6 +43,18 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Actu Pays de la Loire",   "url": "https://actu.fr/pays-de-la-loire/rss.xml", "region": "Pays de la Loire"},
     {"name": "Actu Hauts-de-France",    "url": "https://actu.fr/hauts-de-france/rss.xml", "region": "Hauts-de-France"},
 
+    # ── DOM-TOM — LA 1ÈRE (France Télévisions) ───────────────────────────────
+    {"name": "La 1ère Guadeloupe",       "url": "https://la1ere.francetvinfo.fr/guadeloupe/rss",          "region": "Guadeloupe"},
+    {"name": "La 1ère Martinique",       "url": "https://la1ere.francetvinfo.fr/martinique/rss",          "region": "Martinique"},
+    {"name": "La 1ère Guyane",           "url": "https://la1ere.francetvinfo.fr/guyane/rss",              "region": "Guyane"},
+    {"name": "La 1ère Réunion",          "url": "https://la1ere.francetvinfo.fr/reunion/rss",             "region": "La Réunion"},
+    {"name": "La 1ère Mayotte",          "url": "https://la1ere.francetvinfo.fr/mayotte/rss",             "region": "Mayotte"},
+    {"name": "La 1ère Nouvelle-Calédonie","url": "https://la1ere.francetvinfo.fr/nouvellecaledonie/rss",  "region": "Nouvelle-Calédonie"},
+    {"name": "La 1ère Polynésie",        "url": "https://la1ere.francetvinfo.fr/polynesie/rss",           "region": "Polynésie française"},
+    {"name": "La 1ère St-Pierre",        "url": "https://la1ere.francetvinfo.fr/saint-pierre-et-miquelon/rss", "region": "Saint-Pierre-et-Miquelon"},
+    {"name": "La 1ère Wallis-Futuna",    "url": "https://la1ere.francetvinfo.fr/wallis-et-futuna/rss",    "region": "Wallis-et-Futuna"},
+    {"name": "La 1ère St-Martin",        "url": "https://la1ere.francetvinfo.fr/saint-martin/rss",        "region": "Saint-Martin"},
+
     # ── GRANDS QUOTIDIENS RÉGIONAUX (PQR) ────────────────────────────────────
     {"name": "Ouest-France",                  "url": "https://www.ouest-france.fr/rss/une",                "region": None},
     {"name": "Sud Ouest",                     "url": "https://www.sudouest.fr/rss/toute-l-actualite",      "region": "Nouvelle-Aquitaine"},
