@@ -85,6 +85,56 @@ async def list_events(
     )
 
 
+@router.get("/stats")
+async def get_stats(db: AsyncSession = Depends(get_db)) -> dict:
+    """Statistiques générales sur les événements en base."""
+    # Total
+    total_result = await db.execute(select(func.count()).select_from(Event))
+    total_events: int = total_result.scalar_one()
+
+    # Par source
+    by_source_result = await db.execute(
+        select(Event.source, func.count().label("cnt"))
+        .group_by(Event.source)
+        .order_by(func.count().desc())
+    )
+    by_source = {row.source: row.cnt for row in by_source_result}
+
+    # Par catégorie
+    by_cat_result = await db.execute(
+        select(Event.categorie, func.count().label("cnt"))
+        .group_by(Event.categorie)
+        .order_by(func.count().desc())
+    )
+    by_categorie = {row.categorie: row.cnt for row in by_cat_result}
+
+    # Localisés vs nationaux
+    localized_result = await db.execute(
+        select(func.count()).select_from(Event).where(Event.lieu_lat.is_not(None))
+    )
+    localized: int = localized_result.scalar_one()
+    national: int = total_events - localized
+
+    # Dates extrêmes
+    dates_result = await db.execute(
+        select(
+            func.min(Event.date_publication).label("oldest"),
+            func.max(Event.date_publication).label("newest"),
+        )
+    )
+    dates_row = dates_result.one()
+
+    return {
+        "total_events": total_events,
+        "by_source": by_source,
+        "by_categorie": by_categorie,
+        "localized": localized,
+        "national": national,
+        "oldest_event": dates_row.oldest,
+        "newest_event": dates_row.newest,
+    }
+
+
 @router.post("/ingest/run")
 async def trigger_ingest() -> dict:
     """Déclenche manuellement l'ingestion de tous les connecteurs."""

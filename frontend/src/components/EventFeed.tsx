@@ -1,6 +1,6 @@
 "use client";
 
-import { format, parseISO } from "date-fns";
+import { formatDistanceToNow, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
 import { CATEGORY_CONFIG, SOURCE_LABELS } from "@/lib/constants";
@@ -11,9 +11,9 @@ interface EventFeedProps {
   isLoading: boolean;
 }
 
-function formatDate(iso: string): string {
+function formatRelative(iso: string): string {
   try {
-    return format(parseISO(iso), "d MMM yyyy, HH:mm", { locale: fr });
+    return formatDistanceToNow(parseISO(iso), { locale: fr, addSuffix: true });
   } catch {
     return iso;
   }
@@ -52,10 +52,15 @@ function EventCard({ event }: { event: Event }) {
         )}
       </div>
 
-      <div className="mt-1.5 flex justify-between text-xs text-gray-400">
-        <span>{sourceLabel}</span>
-        <time dateTime={event.date_publication}>
-          {formatDate(event.date_publication)}
+      <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-gray-400">
+        <span
+          className="inline-block px-1.5 py-0.5 rounded text-white font-medium shrink-0"
+          style={{ backgroundColor: catConfig?.color ?? "#6B7280" }}
+        >
+          {sourceLabel}
+        </span>
+        <time dateTime={event.date_publication} className="text-right">
+          {formatRelative(event.date_publication)}
         </time>
       </div>
     </article>
