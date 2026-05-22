@@ -25,15 +25,18 @@ function buildQuery(params: Record<string, string | number | boolean | undefined
 export async function fetchEvents(params: FetchEventsParams = {}): Promise<EventsResponse> {
   const { bbox, categories, gravite_min, niveau, depuis, limit, national_only } = params;
 
-  const query = buildQuery({
-    bbox: bbox ?? undefined,
-    categories: categories && categories.length > 0 ? categories.join(",") : undefined,
-    gravite_min,
-    niveau,
-    depuis,
-    limit,
-    national_only,
-  });
+  // FastAPI list params must be repeated (?categories=a&categories=b), not comma-joined
+  const search = new URLSearchParams();
+  if (bbox) search.set("bbox", bbox);
+  if (categories && categories.length > 0) {
+    categories.forEach((c) => search.append("categories", c));
+  }
+  if (gravite_min !== undefined) search.set("gravite_min", String(gravite_min));
+  if (niveau) search.set("niveau", niveau);
+  if (depuis) search.set("depuis", depuis);
+  if (limit !== undefined) search.set("limit", String(limit));
+  if (national_only !== undefined) search.set("national_only", String(national_only));
+  const query = search.toString() ? `?${search.toString()}` : "";
 
   const response = await fetch(`${API_BASE_URL}/events${query}`, {
     next: { revalidate: 0 },
