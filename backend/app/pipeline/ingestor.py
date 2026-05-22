@@ -175,10 +175,18 @@ async def _save_events(events: list[dict[str, Any]]) -> int:
     return saved
 
 
+_GEO_SEMAPHORE = asyncio.Semaphore(8)  # max 8 items traitables en parallèle (geocoding API)
+
+
+async def _process_item_limited(item: dict[str, Any]) -> dict[str, Any] | None:
+    async with _GEO_SEMAPHORE:
+        return await _process_item(item)
+
+
 async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
     raw_items = await connector.run()
 
-    process_tasks = [_process_item(item) for item in raw_items]
+    process_tasks = [_process_item_limited(item) for item in raw_items]
     processed = await asyncio.gather(*process_tasks, return_exceptions=True)
 
     valid_events: list[dict[str, Any]] = []

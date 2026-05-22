@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import EventFeed from "@/components/EventFeed";
 import FilterBar from "@/components/FilterBar";
 import StatusBar from "@/components/StatusBar";
+import StatsBar from "@/components/StatsBar";
 import { fetchEvents, fetchHealth } from "@/lib/api";
 import { ALL_CATEGORIES, REFRESH_INTERVAL } from "@/lib/constants";
 import { Categorie, Event, EventFilters } from "@/lib/types";
@@ -86,7 +87,9 @@ export default function HomePage() {
         />
         <div className="ml-auto text-xs text-gray-400 hidden md:block whitespace-nowrap">
           {eventsData
-            ? `${eventsData.total} événement${eventsData.total > 1 ? "s" : ""}`
+            ? localEvents.length > 0
+              ? `${eventsData.total} événement${eventsData.total > 1 ? "s" : ""} (${localEvents.length} localisé${localEvents.length > 1 ? "s" : ""} · ${nationalEvents.length} national${nationalEvents.length > 1 ? "aux" : ""})`
+              : `${eventsData.total} événement${eventsData.total > 1 ? "s" : ""} · tout national`
             : eventsLoading
             ? "Chargement…"
             : ""}
@@ -105,6 +108,11 @@ export default function HomePage() {
 
         {/* Sidebar — 30% */}
         <aside className="w-[30%] min-w-[260px] max-w-sm border-l border-gray-200 bg-white flex flex-col overflow-hidden">
+          <StatsBar
+            localCount={localEvents.length}
+            nationalCount={nationalEvents.length}
+            generatedAt={eventsData?.generated_at ?? null}
+          />
           <EventFeed events={nationalEvents} isLoading={eventsLoading} />
         </aside>
       </main>

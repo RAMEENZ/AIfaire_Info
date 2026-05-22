@@ -1,10 +1,12 @@
 import json
 import logging
+import re
 from typing import Any
 
 import anthropic
 
 from app.config import settings
+from app.pipeline.geocoder import geocode
 
 logger = logging.getLogger(__name__)
 
@@ -22,16 +24,88 @@ Format exact :
 {"lieu_nom": "...", "categorie": "...", "resume_ia": "...", "gravite": 0}
 """
 
+CATEGORY_KEYWORDS: dict[str, list[str]] = {
+    "crue":         ["crue", "inondation", "débordement", "vigicrues", "montée des eaux"],
+    "meteo":        ["météo", "météorologique", "tempête", "orage", "canicule", "verglas",
+                     "neige", "vigilance météo", "vague de chaleur", "gel", "grêle"],
+    "seisme":       ["séisme", "tremblement de terre", "magnitude", "secousse sismique", "sismique"],
+    "energie":      ["coupure électricité", "réseau électrique", "enedis", "délestage",
+                     "blackout", "panne de courant"],
+    "transport":    ["sncf", "grève des transports", "perturbation trafic", "retard train",
+                     "ratp", "autoroute", "accident de la route", "bouchon"],
+    "ordre_public": ["manifestation", "émeute", "violence urbaine", "attentat", "terrorisme",
+                     "incendie criminel", "fusillades", "agression"],
+    "sante":        ["épidémie", "pandémie", "virus", "contamination", "hôpital débordé",
+                     "urgences saturées", "santé publique"],
+}
+
+GRAVITY_KEYWORDS: dict[int, list[str]] = {
+    3: ["catastrophe", "alerte rouge", "mort", "tués", "victimes", "bilan humain",
+        "urgence absolue", "décès", "en danger", "situation dramatique"],
+    2: ["alerte orange", "important", "danger", "risque élevé", "blessés graves",
+        "situation critique", "état d'urgence"],
+    1: ["vigilance", "attention", "prudence", "perturbation", "risque"],
+}
+
+TOPONYM_PATTERNS: list[str] = [
+    r'\bà\s+([A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+(?:[- ][A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+){0,3})',
+    r'\ben\s+([A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+(?:[- ][A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+){0,2})',
+    r'\bdans\s+(?:le |la |les |l\')?([A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+(?:[- ][A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+){0,2})',
+    r'\bprès\s+de\s+([A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+(?:[- ][A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+){0,2})',
+    r'\bau\s+large\s+de\s+([A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+)',
+    r'\bsur\s+(?:le |la |les |l\')?([A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+(?:[- ][A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+){0,2})',
+]
+
+
+async def _rule_based_extract(titre: str, description: str | None) -> dict[str, Any]:
+    """Extraction par règles (sans IA) : catégorie, gravité et lieu par regex + géocodage."""
+    text = (titre + " " + (description or "")).lower()
+
+    # --- Catégorie ---
+    categorie = "actualite"
+    for cat, keywords in CATEGORY_KEYWORDS.items():
+        if any(kw.lower() in text for kw in keywords):
+            categorie = cat
+            break
+
+    # --- Gravité ---
+    gravite = 0
+    for level in (3, 2, 1):
+        if any(kw.lower() in text for kw in GRAVITY_KEYWORDS[level]):
+            gravite = level
+            break
+
+    # --- Lieu par regex sur le titre ---
+    lieu_nom = "national"
+    full_titre = titre  # patterns operate on original case
+    for pattern in TOPONYM_PATTERNS:
+        for match in re.finditer(pattern, full_titre):
+            candidate = match.group(1).strip()
+            try:
+                geo = await geocode(candidate)
+                if geo.get("confiance_geo", 0.0) >= 0.5:
+                    lieu_nom = candidate
+                    break
+            except Exception as exc:
+                logger.debug("Geocoding candidate '%s' failed: %s", candidate, exc)
+        if lieu_nom != "national":
+            break
+
+    # --- Résumé ---
+    resume_ia = (description[:280] if description else None) or titre[:200]
+
+    return {
+        "lieu_nom": lieu_nom,
+        "categorie": categorie,
+        "resume_ia": resume_ia,
+        "gravite": gravite,
+    }
+
 
 async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
     if not settings.ANTHROPIC_API_KEY:
-        logger.warning("ANTHROPIC_API_KEY not set, skipping extraction")
-        return {
-            "lieu_nom": "national",
-            "categorie": "actualite",
-            "resume_ia": titre[:200],
-            "gravite": 0,
-        }
+        logger.info("ANTHROPIC_API_KEY not set, using rule-based extraction")
+        return await _rule_based_extract(titre, description)
 
     client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
