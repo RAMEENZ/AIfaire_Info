@@ -1,19 +1,23 @@
+import asyncio
 import httpx
 from datetime import datetime, timezone
 from typing import Any
 
 from app.connectors.base import BaseConnector
 
-# USGS FDSNWS filtrée sur la bounding box France + DOM proches
-USGS_URL = (
+USGS_BASE = (
     "https://earthquake.usgs.gov/fdsnws/event/1/query"
-    "?format=geojson"
-    "&minlatitude=41&maxlatitude=52"
-    "&minlongitude=-6&maxlongitude=10"
-    "&minmagnitude=1.5"
-    "&orderby=time"
-    "&limit=50"
+    "?format=geojson&minmagnitude=1.5&orderby=time&limit=50"
 )
+
+# Zones sismiques françaises : métropole + territoires d'outre-mer actifs
+SEISMIC_ZONES = [
+    {"name": "Métropole",            "params": "minlatitude=41&maxlatitude=52&minlongitude=-6&maxlongitude=10"},
+    {"name": "Antilles (Guadeloupe/Martinique)", "params": "minlatitude=14&maxlatitude=17&minlongitude=-63&maxlongitude=-60"},
+    {"name": "Guyane",               "params": "minlatitude=2&maxlatitude=6&minlongitude=-55&maxlongitude=-51"},
+    {"name": "La Réunion",           "params": "minlatitude=-22&maxlatitude=-20&minlongitude=55&maxlongitude=56"},
+    {"name": "Mayotte",              "params": "minlatitude=-13.1&maxlatitude=-12.5&minlongitude=45&maxlongitude=45.5"},
+]
 
 
 def magnitude_to_gravite(mag: float) -> int:
@@ -31,15 +35,35 @@ class RenassConnector(BaseConnector):
     def name(self) -> str:
         return "renass"
 
+    async def _fetch_zone(self, client: httpx.AsyncClient, zone: dict) -> list[dict]:
+        url = f"{USGS_BASE}&{zone['params']}"
+        response = await client.get(url)
+        response.raise_for_status()
+        return response.json().get("features", [])
+
     async def fetch(self) -> list[dict[str, Any]]:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(USGS_URL)
-            response.raise_for_status()
-            data = response.json()
+            zone_results = await asyncio.gather(
+                *[self._fetch_zone(client, z) for z in SEISMIC_ZONES],
+                return_exceptions=True,
+            )
+
+        # Dédupliquer par ID USGS
+        seen: set[str] = set()
+        all_features: list[dict] = []
+        for i, res in enumerate(zone_results):
+            if isinstance(res, Exception):
+                self._logger.warning("Zone %s failed: %s", SEISMIC_ZONES[i]["name"], res)
+                continue
+            for f in res:
+                fid = f.get("id", "")
+                if fid and fid not in seen:
+                    seen.add(fid)
+                    all_features.append(f)
 
         results: list[dict[str, Any]] = []
 
-        for feature in data.get("features", []):
+        for feature in all_features:
             try:
                 props = feature.get("properties", {})
                 geometry = feature.get("geometry", {})
