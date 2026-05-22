@@ -7,34 +7,53 @@ from typing import Any
 
 from app.connectors.base import BaseConnector
 
-# Flux RSS accessibles depuis un environnement serveur.
-# Les PQR (Ouest-France, La Dépêche…) bloquent les IPs de datacenter via 403.
+# Flux RSS accessibles depuis un serveur.
+# Les PQR peuvent bloquer les IPs de datacenter (403) mais fonctionnent
+# généralement depuis une VM domestique ou un VPS résidentiel.
 RSS_FEEDS: list[dict[str, Any]] = [
-    {
-        "name": "France 24",
-        "url": "https://www.france24.com/fr/rss",
-        "region": None,
-    },
-    {
-        "name": "Euronews France",
-        "url": "https://fr.euronews.com/rss",
-        "region": None,
-    },
-    {
-        "name": "CNews",
-        "url": "https://www.cnews.fr/rss.xml",
-        "region": None,
-    },
-    {
-        "name": "Google News France",
-        "url": "https://news.google.com/rss/search?q=france+actualité&hl=fr&gl=FR&ceid=FR:fr",
-        "region": None,
-    },
-    {
-        "name": "Google News Régions",
-        "url": "https://news.google.com/rss/search?q=région+commune+france&hl=fr&gl=FR&ceid=FR:fr",
-        "region": None,
-    },
+    # ── ACTUALITÉS NATIONALES — GÉNÉRALISTES ─────────────────────────────────
+    {"name": "France Info",         "url": "https://www.francetvinfo.fr/titres.rss",               "region": None},
+    {"name": "France 24",           "url": "https://www.france24.com/fr/rss",                       "region": None},
+    {"name": "France Inter",        "url": "https://www.radiofrance.fr/franceinter/rss",             "region": None},
+    {"name": "RFI",                 "url": "https://www.rfi.fr/fr/rss",                              "region": None},
+    {"name": "Euronews France",     "url": "https://fr.euronews.com/rss",                            "region": None},
+    {"name": "CNews",               "url": "https://www.cnews.fr/rss.xml",                           "region": None},
+    {"name": "20 Minutes",          "url": "https://www.20minutes.fr/rss/actu-france.xml",           "region": None},
+    {"name": "Le Monde",            "url": "https://www.lemonde.fr/rss/une.xml",                     "region": None},
+    {"name": "Le Figaro",           "url": "https://plus.lefigaro.fr/page/flux-rss",                 "region": None},
+    {"name": "Libération",          "url": "https://www.liberation.fr/arc/outboundfeeds/rss-all/",  "region": None},
+    {"name": "L'Humanité",          "url": "https://www.humanite.fr/rss/toute-l-actualite",          "region": None},
+    {"name": "La Croix",            "url": "https://www.la-croix.com/RSS/",                          "region": None},
+    {"name": "Vie Publique",        "url": "https://www.vie-publique.fr/rss/tous",                   "region": None},
+    {"name": "Google News France",  "url": "https://news.google.com/rss/search?q=france+actualit%C3%A9&hl=fr&gl=FR&ceid=FR:fr",         "region": None},
+    {"name": "Google News Régions", "url": "https://news.google.com/rss/search?q=r%C3%A9gion+commune+france&hl=fr&gl=FR&ceid=FR:fr",    "region": None},
+
+    # ── ACTUALITÉS ÉCONOMIQUES ET TECH ───────────────────────────────────────
+    {"name": "La Tribune",          "url": "https://www.latribune.fr/flux-rss.html",                "region": None},
+    {"name": "Les Échos",           "url": "https://www.lesechos.fr/rss",                           "region": None},
+    {"name": "Boursorama",          "url": "https://www.boursorama.com/rss/actualites/",             "region": None},
+    {"name": "Le Journal du Net",   "url": "https://www.journaldunet.com/rss/",                     "region": None},
+    {"name": "L'Usine Nouvelle",    "url": "https://www.usinenouvelle.com/rss/",                    "region": None},
+
+    # ── ACTUALITÉS RÉGIONALES — RÉSEAU ACTU.FR ──────────────────────────────
+    {"name": "Actu Bretagne",           "url": "https://actu.fr/bretagne/rss.xml",         "region": "Bretagne"},
+    {"name": "Actu Normandie",          "url": "https://actu.fr/normandie/rss.xml",        "region": "Normandie"},
+    {"name": "Actu Île-de-France",      "url": "https://actu.fr/ile-de-france/rss.xml",    "region": "Île-de-France"},
+    {"name": "Actu Occitanie",          "url": "https://actu.fr/occitanie/rss.xml",        "region": "Occitanie"},
+    {"name": "Actu Pays de la Loire",   "url": "https://actu.fr/pays-de-la-loire/rss.xml", "region": "Pays de la Loire"},
+    {"name": "Actu Hauts-de-France",    "url": "https://actu.fr/hauts-de-france/rss.xml", "region": "Hauts-de-France"},
+
+    # ── GRANDS QUOTIDIENS RÉGIONAUX (PQR) ────────────────────────────────────
+    {"name": "Ouest-France",                  "url": "https://www.ouest-france.fr/rss/une",                "region": None},
+    {"name": "Sud Ouest",                     "url": "https://www.sudouest.fr/rss/toute-l-actualite",      "region": "Nouvelle-Aquitaine"},
+    {"name": "La Voix du Nord",               "url": "https://www.lavoixdunord.fr/rss/toute-l-actualite",  "region": "Hauts-de-France"},
+    {"name": "La Provence",                   "url": "https://www.laprovence.com/rss",                     "region": "Provence-Alpes-Côte d'Azur"},
+    {"name": "Nice-Matin",                    "url": "https://www.nicematin.com/rss",                      "region": "Provence-Alpes-Côte d'Azur"},
+    {"name": "La Dépêche du Midi",            "url": "https://www.ladepeche.fr/rss.xml",                   "region": "Occitanie"},
+    {"name": "Dernières Nouvelles d'Alsace",  "url": "https://www.dna.fr/rss",                             "region": "Grand Est"},
+    {"name": "Le Progrès",                    "url": "https://www.leprogres.fr/rss",                       "region": "Auvergne-Rhône-Alpes"},
+    {"name": "La Montagne",                   "url": "https://www.lamontagne.fr/rss",                      "region": "Auvergne-Rhône-Alpes"},
+    {"name": "La Nouvelle République",        "url": "https://www.lanouvellerepublique.fr/rss",             "region": "Centre-Val de Loire"},
 ]
 
 UA = "Mozilla/5.0 (compatible; FaireInfo/1.0; aggregator)"
