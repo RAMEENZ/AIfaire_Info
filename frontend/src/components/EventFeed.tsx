@@ -110,13 +110,10 @@ function EventCard({
       </div>
 
       <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-gray-400">
-        <span
-          className="inline-block px-1.5 py-0.5 rounded text-white font-medium shrink-0"
-          style={{ backgroundColor: catConfig?.color ?? "#6B7280" }}
-        >
+        <span className="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-medium shrink-0 truncate max-w-[120px]">
           {sourceLabel}
         </span>
-        <time dateTime={event.date_publication} className="text-right">
+        <time dateTime={event.date_publication} className="text-right shrink-0">
           {formatRelative(event.date_publication)}
         </time>
       </div>

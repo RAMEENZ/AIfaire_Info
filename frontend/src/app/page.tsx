@@ -126,7 +126,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Header */}
-      <header className="flex items-center gap-4 px-4 py-2 bg-white border-b border-gray-200 shadow-sm z-10 flex-shrink-0">
+      <header className="flex flex-wrap items-center gap-2 px-3 py-2 bg-white border-b border-gray-200 shadow-sm z-10 flex-shrink-0">
         <div className="flex items-center gap-2 mr-4">
           <span className="text-blue-700 font-black text-xl tracking-tight">FAIRE</span>
           <span className="text-gray-500 text-sm font-medium hidden sm:inline">Info</span>
@@ -175,14 +175,14 @@ export default function HomePage() {
       </header>
 
       {/* Main content */}
-      <main className="flex flex-1 overflow-hidden">
-        {/* Map — 70% */}
-        <div className="flex-1 min-w-0 relative">
+      <main className="flex flex-col md:flex-row flex-1 overflow-hidden">
+        {/* Map — full width on mobile, 70% on desktop */}
+        <div className="h-[40vh] md:h-auto md:flex-1 min-w-0 relative flex-shrink-0">
           <MapWrapper events={localEvents} selectedEvent={selectedEvent} onSelectEvent={setSelectedEvent} />
         </div>
 
-        {/* Sidebar — 30% */}
-        <aside className="w-[30%] min-w-[260px] max-w-sm border-l border-gray-200 bg-white flex flex-col overflow-hidden">
+        {/* Sidebar — full width on mobile, 30% on desktop */}
+        <aside className="flex-1 md:flex-none md:w-[30%] md:min-w-[260px] md:max-w-sm border-t md:border-t-0 md:border-l border-gray-200 bg-white flex flex-col overflow-hidden">
           <StatsBar
             localCount={localEvents.length}
             nationalCount={nationalEvents.length}
