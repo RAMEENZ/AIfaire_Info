@@ -100,6 +100,7 @@ export default function HomePage() {
   });
 
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [mobileView, setMobileView] = useState<"map" | "feed">("map");
 
   const allEvents: Event[] = eventsData?.events ?? [];
 
@@ -174,15 +175,41 @@ export default function HomePage() {
         </div>
       </header>
 
+      {/* Mobile toggle bar */}
+      <div className="flex md:hidden border-b border-gray-200 bg-white flex-shrink-0">
+        <button
+          onClick={() => setMobileView("map")}
+          className={`flex-1 py-1.5 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
+            mobileView === "map" ? "text-blue-700 border-b-2 border-blue-700 bg-blue-50" : "text-gray-500"
+          }`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+          </svg>
+          Carte ({localEvents.length})
+        </button>
+        <button
+          onClick={() => setMobileView("feed")}
+          className={`flex-1 py-1.5 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
+            mobileView === "feed" ? "text-blue-700 border-b-2 border-blue-700 bg-blue-50" : "text-gray-500"
+          }`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+          </svg>
+          Actualités ({allEvents.length})
+        </button>
+      </div>
+
       {/* Main content */}
       <main className="flex flex-col md:flex-row flex-1 overflow-hidden">
-        {/* Map — full width on mobile, 70% on desktop */}
-        <div className="h-[40vh] md:h-auto md:flex-1 min-w-0 relative flex-shrink-0">
-          <MapWrapper events={localEvents} selectedEvent={selectedEvent} onSelectEvent={setSelectedEvent} />
+        {/* Map — full width on mobile (toggleable), 70% on desktop */}
+        <div className={`${mobileView === "map" ? "flex" : "hidden"} md:flex flex-1 min-w-0 relative`}>
+          <MapWrapper events={localEvents} selectedEvent={selectedEvent} onSelectEvent={(e) => { setSelectedEvent(e); setMobileView("feed"); }} />
         </div>
 
-        {/* Sidebar — full width on mobile, 30% on desktop */}
-        <aside className="flex-1 md:flex-none md:w-[30%] md:min-w-[260px] md:max-w-sm border-t md:border-t-0 md:border-l border-gray-200 bg-white flex flex-col overflow-hidden">
+        {/* Sidebar — full width on mobile (toggleable), 30% on desktop */}
+        <aside className={`${mobileView === "feed" ? "flex" : "hidden"} md:flex flex-col flex-1 md:flex-none md:w-[30%] md:min-w-[260px] md:max-w-sm border-t md:border-t-0 md:border-l border-gray-200 bg-white overflow-hidden`}>
           <StatsBar
             localCount={localEvents.length}
             nationalCount={nationalEvents.length}
