@@ -46,6 +46,9 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Gouvernement.fr",       "url": "https://www.gouvernement.fr/rss",                     "region": None},
     {"name": "Service-Public.fr",     "url": "https://www.service-public.fr/rss/actualites.rss",    "region": None},
     {"name": "Santé Publique France", "url": "https://www.santepubliquefrance.fr/rss.xml",           "region": None},
+    {"name": "Ministère Intérieur",   "url": "https://www.interieur.gouv.fr/rss.xml",               "region": None},
+    {"name": "Sénat",                 "url": "https://www.senat.fr/rss/depots-projets-lois.rss",    "region": None},
+    {"name": "ANSM",                  "url": "https://ansm.sante.fr/rss/actualites.xml",             "region": None},
 
     # ── ACTUALITÉS RÉGIONALES — RÉSEAU ACTU.FR ──────────────────────────────
     {"name": "Actu Bretagne",                "url": "https://actu.fr/bretagne/rss.xml",                      "region": "Bretagne"},
