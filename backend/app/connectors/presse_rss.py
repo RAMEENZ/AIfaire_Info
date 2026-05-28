@@ -106,6 +106,11 @@ def _strip_html(text: str) -> str:
     return ' '.join(text.split())
 
 
+def _title_key(title: str) -> str:
+    """Clé de normalisation pour déduplication par titre."""
+    return _re.sub(r'[^\w]', '', title.lower())[:100]
+
+
 def _parse_rss_date(entry: Any) -> datetime:
     for attr in ("published_parsed", "updated_parsed"):
         t = getattr(entry, attr, None)
@@ -195,11 +200,24 @@ class PresseRSSConnector(BaseConnector):
             tasks = [_fetch_feed(client, cfg) for cfg in RSS_FEEDS]
             feed_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        results: list[dict[str, Any]] = []
+        raw: list[dict[str, Any]] = []
         for i, res in enumerate(feed_results):
             if isinstance(res, Exception):
                 self._logger.warning("Feed %s failed: %s", RSS_FEEDS[i]["name"], res)
             else:
-                results.extend(res)
+                raw.extend(res)
 
-        return results
+        # Déduplication par titre normalisé : préférer les articles avec une région
+        seen: dict[str, dict[str, Any]] = {}
+        for item in raw:
+            key = _title_key(item.get("titre", ""))
+            if not key:
+                continue
+            if key not in seen:
+                seen[key] = item
+            elif item.get("lieu_nom") and not seen[key].get("lieu_nom"):
+                # Remplace la version nationale par la version régionale
+                seen[key] = item
+
+        self._logger.info("presse_rss: %d raw → %d after title dedup", len(raw), len(seen))
+        return list(seen.values())
