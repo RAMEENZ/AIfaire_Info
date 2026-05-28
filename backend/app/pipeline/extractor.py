@@ -1,3 +1,4 @@
+import hashlib
 import html as _html
 import json
 import logging
@@ -10,6 +11,19 @@ from app.config import settings
 from app.pipeline.geocoder import geocode
 
 logger = logging.getLogger(__name__)
+
+_extract_cache: dict[str, dict[str, Any]] = {}
+_MAX_EXTRACT_CACHE = 2048
+
+
+def _cache_key(titre: str, description: str) -> str:
+    return hashlib.sha256((titre + (description or "")[:200]).encode()).hexdigest()
+
+
+def _cache_put(key: str, value: dict[str, Any]) -> None:
+    if len(_extract_cache) >= _MAX_EXTRACT_CACHE:
+        _extract_cache.clear()
+    _extract_cache[key] = value
 
 SYSTEM_PROMPT = """\
 Tu es un assistant d'extraction d'information pour un agrégateur d'actualités françaises géolocalisé.
@@ -133,9 +147,15 @@ async def _rule_based_extract(titre: str, description: str | None) -> dict[str, 
 
 
 async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
+    key = _cache_key(titre, description)
+    if key in _extract_cache:
+        return _extract_cache[key]
+
     if not settings.ANTHROPIC_API_KEY:
         logger.info("ANTHROPIC_API_KEY not set, using rule-based extraction")
-        return await _rule_based_extract(titre, description)
+        result = await _rule_based_extract(titre, description)
+        _cache_put(key, result)
+        return result
 
     client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
@@ -179,21 +199,24 @@ async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
         except (TypeError, ValueError):
             gravite = 0
 
-        return {
+        extracted: dict[str, Any] = {
             "lieu_nom": lieu_nom,
             "categorie": categorie,
             "resume_ia": resume_ia,
             "gravite": gravite,
         }
+        _cache_put(key, extracted)
+        return extracted
 
     except Exception as exc:
         logger.error("Claude extraction failed for '%s': %s", titre[:80], exc)
-        return {
+        fallback: dict[str, Any] = {
             "lieu_nom": "national",
             "categorie": "actualite",
             "resume_ia": titre[:200],
             "gravite": 0,
         }
+        return fallback
 
 
 # Sources autoritatives → catégorie forcée (indépendamment de l'extraction NLP)
