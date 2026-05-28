@@ -26,26 +26,40 @@ Format exact :
 """
 
 CATEGORY_KEYWORDS: dict[str, list[str]] = {
-    "crue":         ["crue", "inondation", "débordement", "vigicrues", "montée des eaux"],
+    "crue":         ["crue", "inondation", "débordement", "vigicrues", "montée des eaux",
+                     "submersion", "zone inondable", "plan de prévention inondation"],
     "meteo":        ["météo", "météorologique", "tempête", "orage", "canicule", "verglas",
-                     "neige", "vigilance météo", "vague de chaleur", "gel", "grêle"],
-    "seisme":       ["séisme", "tremblement de terre", "magnitude", "secousse sismique", "sismique"],
+                     "neige", "vigilance météo", "vague de chaleur", "gel", "grêle",
+                     "vent violent", "pluie intense", "forte chaleur", "brouillard",
+                     "épisode méditerranéen", "vigilance jaune", "vigilance orange", "vigilance rouge"],
+    "seisme":       ["séisme", "tremblement de terre", "magnitude", "secousse sismique", "sismique",
+                     "secousse tellurique", "activité volcanique"],
     "energie":      ["coupure électricité", "réseau électrique", "enedis", "délestage",
-                     "blackout", "panne de courant"],
+                     "blackout", "panne de courant", "panne d'électricité", "panne edf",
+                     "rupture d'approvisionnement", "réseau enedis", "tension sur le réseau"],
     "transport":    ["sncf", "grève des transports", "perturbation trafic", "retard train",
-                     "ratp", "autoroute", "accident de la route", "bouchon"],
+                     "ratp", "autoroute", "accident de la route", "bouchon",
+                     "circulation perturbée", "axe coupé", "route barrée", "fermeture autoroute",
+                     "grève sncf", "trafic ferroviaire", "train supprimé", "rer", "transilien"],
     "ordre_public": ["manifestation", "émeute", "violence urbaine", "attentat", "terrorisme",
-                     "incendie criminel", "fusillades", "agression"],
+                     "incendie criminel", "fusillade", "agression", "cambriolage", "braquage",
+                     "prise d'otage", "mort suspecte", "homicide", "tir"],
     "sante":        ["épidémie", "pandémie", "virus", "contamination", "hôpital débordé",
-                     "urgences saturées", "santé publique", "santépublique", "spf", "alerte sanitaire"],
+                     "urgences saturées", "santé publique", "santépublique", "spf", "alerte sanitaire",
+                     "intoxication", "rappel de lot", "listeria", "salmonelle", "grippe",
+                     "gastro-entérite", "dépistage", "vaccination", "variole du singe"],
 }
 
 GRAVITY_KEYWORDS: dict[int, list[str]] = {
     3: ["catastrophe", "alerte rouge", "mort", "tués", "victimes", "bilan humain",
-        "urgence absolue", "décès", "en danger", "situation dramatique"],
-    2: ["alerte orange", "important", "danger", "risque élevé", "blessés graves",
-        "situation critique", "état d'urgence"],
-    1: ["vigilance", "attention", "prudence", "perturbation", "risque"],
+        "urgence absolue", "décès", "en danger", "situation dramatique",
+        "blessés graves", "état d'urgence", "évacuation", "disparu", "noyé",
+        "enseveli", "immeuble effondré", "explosion", "incendie mortel"],
+    2: ["alerte orange", "important", "danger", "risque élevé",
+        "situation critique", "blessés", "perturbation majeure",
+        "fermeture", "barrage", "confinement", "déviation obligatoire"],
+    1: ["vigilance", "attention", "prudence", "perturbation", "risque",
+        "ralentissement", "avis de", "préconisation"],
 }
 
 TOPONYM_PATTERNS: list[str] = [

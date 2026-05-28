@@ -26,6 +26,7 @@ async def list_events(
     gravite_min: Optional[int] = Query(None, ge=0, le=3),
     niveau: Optional[str] = Query(None),
     depuis: Optional[datetime] = Query(None),
+    q: Optional[str] = Query(None, description="Recherche textuelle (titre, résumé, lieu)"),
     limit: int = Query(default=500, ge=1, le=1000),
     national_only: bool = Query(False),
     db: AsyncSession = Depends(get_db),
@@ -56,6 +57,14 @@ async def list_events(
     if national_only:
         stmt = stmt.where(Event.geom.is_(None))
 
+    if q:
+        pattern = f"%{q.strip()}%"
+        stmt = stmt.where(
+            Event.titre.ilike(pattern)
+            | Event.resume_ia.ilike(pattern)
+            | Event.lieu_nom.ilike(pattern)
+        )
+
     if bbox:
         if not BBOX_RE.match(bbox):
             raise HTTPException(status_code=422, detail="bbox must be 'lat_min,lon_min,lat_max,lon_max'")
@@ -75,7 +84,7 @@ async def list_events(
     total_result = await db.execute(count_stmt)
     total = total_result.scalar_one()
 
-    stmt = stmt.order_by(Event.date_publication.desc()).limit(limit)
+    stmt = stmt.order_by(Event.gravite.desc(), Event.date_publication.desc()).limit(limit)
     result = await db.execute(stmt)
     events = result.scalars().all()
 

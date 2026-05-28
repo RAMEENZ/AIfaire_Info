@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import String, Integer, Float, DateTime, Text, Index
@@ -41,12 +41,13 @@ class Event(Base):
     score_confiance: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
 
     __table_args__ = (
         Index("ix_events_date_publication", "date_publication"),
         Index("ix_events_source_gravite", "source", "gravite"),
+        Index("ix_events_gravite_date", "gravite", "date_publication"),
         Index("ix_events_geom", "geom", postgresql_using="gist"),
     )
 
@@ -62,5 +63,5 @@ class ConnectorStatus(Base):
     last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     last_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, default=datetime.utcnow
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
