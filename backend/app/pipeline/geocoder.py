@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import Any
 
@@ -8,8 +9,10 @@ from app.geo_data import DEPT_CODE_TO_NAME
 logger = logging.getLogger(__name__)
 
 # In-process cache: maps lieu_nom → GeoResult
-# 512 entries covers repeated city names across a full ingestion run
 _geo_cache: dict[str, "GeoResult"] = {}
+
+# Limit concurrent geocoding API calls (BAN + geo.api.gouv.fr rate-limit at ~10 rps)
+_GEO_SEMAPHORE = asyncio.Semaphore(8)
 
 BAN_URL = "https://api-adresse.data.gouv.fr/search/"
 GEO_DEPT_URL = "https://geo.api.gouv.fr/departements"
@@ -120,13 +123,15 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
 
     # Département par code exact
     if lieu_clean in DEPT_CODE_TO_NAME:
-        result = await _geocode_departement_by_code(lieu_clean)
+        async with _GEO_SEMAPHORE:
+            result = await _geocode_departement_by_code(lieu_clean)
         _geo_cache[cache_key] = result
         return result
 
     # Département par nom exact (ex: "Paris", "Gironde")
     if lieu_lower in DEPT_NAME_TO_CODE:
-        result = await _geocode_departement_by_code(DEPT_NAME_TO_CODE[lieu_lower])
+        async with _GEO_SEMAPHORE:
+            result = await _geocode_departement_by_code(DEPT_NAME_TO_CODE[lieu_lower])
         _geo_cache[cache_key] = result
         return result
 
@@ -148,21 +153,19 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
         _geo_cache[cache_key] = result
         return result
 
-    # Cascade normale : commune → département → région → commune (seuil bas)
-    result = await _geocode_commune(lieu_clean)
+    # Cascade : commune → département → commune (seuil bas)
+    # Note: _geocode_region removed from cascade — geo.api.gouv.fr/regions has no "centre" field
+    async with _GEO_SEMAPHORE:
+        result = await _geocode_commune(lieu_clean)
     if result["confiance_geo"] >= 0.6:
         _geo_cache[cache_key] = result
         return result
 
-    result_dept = await _geocode_departement(lieu_clean)
+    async with _GEO_SEMAPHORE:
+        result_dept = await _geocode_departement(lieu_clean)
     if result_dept["confiance_geo"] >= 0.5:
         _geo_cache[cache_key] = result_dept
         return result_dept
-
-    result_region = await _geocode_region(lieu_clean)
-    if result_region["confiance_geo"] >= 0.5:
-        _geo_cache[cache_key] = result_region
-        return result_region
 
     if result["confiance_geo"] >= 0.3:
         _geo_cache[cache_key] = result
