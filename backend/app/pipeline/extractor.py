@@ -33,13 +33,12 @@ SYSTEM_PROMPT = """\
 Tu es un assistant d'extraction d'information pour un agrégateur d'actualités françaises géolocalisé.
 
 Pour chaque article, extrais :
-1. **lieu_nom** : le nom du lieu principal mentionné (ville, département, région, ou "national" si non localisable en France)
-2. **categorie** : une des valeurs exactes suivantes : "meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite"
-3. **resume_ia** : un teaser de 1-2 phrases maximum résumant l'essentiel
-4. **gravite** : entier 0-3 (0=info, 1=mineur, 2=modéré, 3=grave/urgent)
+1. **lieu_nom** : nom d'une commune, département ou région française (ex: "Lyon", "Gironde", "Bretagne"). Si l'événement est national ou non localisable en France, retourne "national". Ne retourne jamais de pays étrangers ni de zones géographiques non françaises.
+2. **categorie** : une des valeurs exactes : "meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite"
+3. **resume_ia** : teaser factuel de 1-2 phrases maximum
+4. **gravite** : 0=info, 1=vigilance/mineur, 2=alerte/modéré, 3=urgence/grave
 
 Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après.
-Format exact :
 {"lieu_nom": "...", "categorie": "...", "resume_ia": "...", "gravite": 0}
 """
 
