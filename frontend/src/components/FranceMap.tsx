@@ -158,16 +158,27 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
         <div className="bg-white/90 backdrop-blur-sm border border-gray-200 rounded-lg shadow-md px-2 py-1.5">
           <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">DOM-TOM</p>
           <div className="flex flex-wrap gap-1 max-w-[200px]">
-            {DOM_TOM.map((t) => (
-              <button
-                key={t.code}
-                onClick={() => flyTo(t.center, t.zoom)}
-                className="px-1.5 py-0.5 text-[10px] font-medium bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded text-gray-600 hover:text-blue-700 transition-colors"
-                title={`Aller sur ${t.name}`}
-              >
-                {t.name}
-              </button>
-            ))}
+            {DOM_TOM.map((t) => {
+              const territoryEvents = events.filter((e) => e.lieu_code_insee === t.code);
+              const maxG = territoryEvents.reduce((m, e) => Math.max(m, e.gravite), 0);
+              const alertColor = maxG >= 3 ? "#EF4444" : maxG >= 2 ? "#F97316" : maxG >= 1 ? "#F59E0B" : null;
+              return (
+                <button
+                  key={t.code}
+                  onClick={() => flyTo(t.center, t.zoom)}
+                  className="relative px-1.5 py-0.5 text-[10px] font-medium bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded text-gray-600 hover:text-blue-700 transition-colors"
+                  title={alertColor ? `${t.name} — ${territoryEvents.length} alerte(s)` : `Aller sur ${t.name}`}
+                >
+                  {t.name}
+                  {alertColor && (
+                    <span
+                      className="absolute -top-1 -right-1 w-2 h-2 rounded-full border border-white"
+                      style={{ backgroundColor: alertColor }}
+                    />
+                  )}
+                </button>
+              );
+            })}
             <button
               onClick={() => flyTo(FRANCE_CENTER, FRANCE_DEFAULT_ZOOM)}
               className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"

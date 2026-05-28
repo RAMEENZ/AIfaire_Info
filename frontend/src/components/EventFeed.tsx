@@ -215,7 +215,8 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
     return (
       e.titre.toLowerCase().includes(searchLower) ||
       (e.lieu_nom?.toLowerCase().includes(searchLower) ?? false) ||
-      (e.resume_ia?.toLowerCase().includes(searchLower) ?? false)
+      (e.resume_ia?.toLowerCase().includes(searchLower) ?? false) ||
+      (e.auteur?.toLowerCase().includes(searchLower) ?? false)
     );
   };
 
