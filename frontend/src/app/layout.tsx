@@ -6,7 +6,9 @@ export const metadata: Metadata = {
   description:
     "Visualisez en temps réel les événements météo, crues, séismes, transports et actualités en France.",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
   },
   manifest: "/manifest.json",
   openGraph: {
