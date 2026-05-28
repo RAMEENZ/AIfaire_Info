@@ -105,6 +105,12 @@ DOM_TOM_COORDS: dict[str, dict[str, Any]] = {
 
 GeoResult = dict[str, Any]
 
+_NATIONAL_TERMS: frozenset[str] = frozenset({
+    "national", "france", "france métropolitaine", "france metropolitaine",
+    "hexagone", "l'hexagone", "territoire national", "métropole", "metropole",
+    "france entière", "france entiere", "tout le pays",
+})
+
 
 async def geocode(lieu_nom: str | None) -> GeoResult:
     empty: GeoResult = {
@@ -115,7 +121,7 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
         "confiance_geo": 0.0,
     }
 
-    if not lieu_nom or lieu_nom.lower() in ("national", "france", ""):
+    if not lieu_nom or lieu_nom.lower() in _NATIONAL_TERMS:
         return empty
 
     lieu_clean = lieu_nom.strip()
