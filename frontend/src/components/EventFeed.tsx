@@ -174,20 +174,24 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
     el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [selectedEventId]);
 
-  const localCount = events.filter((e) => e.lieu_lat !== null && e.lieu_lon !== null).length;
-  const nationalCount = events.length - localCount;
-
   const searchLower = search.trim().toLowerCase();
-  const filtered = events.filter((e) => {
-    if (tab === "local" && (e.lieu_lat === null || e.lieu_lon === null)) return false;
-    if (tab === "national" && e.lieu_lat !== null && e.lieu_lon !== null) return false;
-    if (searchLower) {
-      return (
-        e.titre.toLowerCase().includes(searchLower) ||
-        (e.lieu_nom?.toLowerCase().includes(searchLower) ?? false) ||
-        (e.resume_ia?.toLowerCase().includes(searchLower) ?? false)
-      );
-    }
+
+  const matchesSearch = (e: Event) => {
+    if (!searchLower) return true;
+    return (
+      e.titre.toLowerCase().includes(searchLower) ||
+      (e.lieu_nom?.toLowerCase().includes(searchLower) ?? false) ||
+      (e.resume_ia?.toLowerCase().includes(searchLower) ?? false)
+    );
+  };
+
+  const searchFiltered = events.filter(matchesSearch);
+  const localCount = searchFiltered.filter((e) => e.lieu_lat !== null && e.lieu_lon !== null).length;
+  const nationalCount = searchFiltered.length - localCount;
+
+  const filtered = searchFiltered.filter((e) => {
+    if (tab === "local") return e.lieu_lat !== null && e.lieu_lon !== null;
+    if (tab === "national") return e.lieu_lat === null || e.lieu_lon === null;
     return true;
   });
 
@@ -231,7 +235,7 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
         </div>
         <div className="flex gap-1">
           <button className={tabClass("all")} onClick={() => setTab("all")}>
-            Tous ({events.length})
+            Tous ({searchFiltered.length})
           </button>
           <button className={tabClass("local")} onClick={() => setTab("local")}>
             <span className="inline-flex items-center gap-0.5">
@@ -270,9 +274,18 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
           </div>
         )}
 
-        {!isLoading && sorted.length === 0 && (
-          <div className="flex items-center justify-center h-32 text-sm text-gray-400">
-            Aucun événement
+        {!isLoading && !error && sorted.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-32 text-sm text-gray-400 gap-1">
+            {searchLower ? (
+              <>
+                <span>Aucun résultat pour « {search} »</span>
+                <button onClick={() => setSearch("")} className="text-xs text-blue-500 hover:underline">
+                  Effacer la recherche
+                </button>
+              </>
+            ) : (
+              <span>Aucun événement</span>
+            )}
           </div>
         )}
 
