@@ -109,7 +109,12 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
 
   useEffect(() => {
     if (selectedEvent?.lieu_lat != null && selectedEvent?.lieu_lon != null) {
-      mapRef.current?.flyTo([selectedEvent.lieu_lat, selectedEvent.lieu_lon], 12, { duration: 1.0 });
+      const zoom =
+        selectedEvent.lieu_niveau === "commune" ? 13
+        : selectedEvent.lieu_niveau === "departement" ? 10
+        : selectedEvent.lieu_niveau === "region" ? 8
+        : 7;
+      mapRef.current?.flyTo([selectedEvent.lieu_lat, selectedEvent.lieu_lon], zoom, { duration: 1.0 });
     }
   }, [selectedEvent]);
 

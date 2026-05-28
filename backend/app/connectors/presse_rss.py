@@ -118,6 +118,9 @@ RSS_FEEDS: list[dict[str, Any]] = [
 
 UA = "Mozilla/5.0 (compatible; FaireInfo/1.0; aggregator)"
 
+# Limit simultaneous HTTP requests to avoid overwhelming news sites or the local connection pool
+_FETCH_SEMAPHORE = asyncio.Semaphore(20)
+
 
 def _strip_html(text: str) -> str:
     """Supprime les balises HTML et décode les entités d'une chaîne RSS."""
@@ -157,12 +160,13 @@ async def _fetch_feed(client: httpx.AsyncClient, feed_cfg: dict[str, Any]) -> li
     feed_url: str = feed_cfg["url"]
     region: str | None = feed_cfg.get("region")
 
-    try:
-        resp = await client.get(feed_url, timeout=15.0)
-        resp.raise_for_status()
-        content = resp.content
-    except Exception as exc:
-        raise RuntimeError(f"{feed_name}: fetch failed: {exc}") from exc
+    async with _FETCH_SEMAPHORE:
+        try:
+            resp = await client.get(feed_url, timeout=15.0)
+            resp.raise_for_status()
+            content = resp.content
+        except Exception as exc:
+            raise RuntimeError(f"{feed_name}: fetch failed: {exc}") from exc
 
     loop = asyncio.get_event_loop()
     parsed = await loop.run_in_executor(None, feedparser.parse, content)

@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import html as _html
 import json
@@ -14,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 _extract_cache: dict[str, dict[str, Any]] = {}
 _MAX_EXTRACT_CACHE = 2048
+
+# Limit concurrent Anthropic API calls to avoid hitting rate limits during large ingestion runs
+_CLAUDE_SEMAPHORE = asyncio.Semaphore(4)
 
 
 def _cache_key(titre: str, description: str) -> str:
@@ -152,7 +156,6 @@ async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
         return _extract_cache[key]
 
     if not settings.ANTHROPIC_API_KEY:
-        logger.info("ANTHROPIC_API_KEY not set, using rule-based extraction")
         result = await _rule_based_extract(titre, description)
         _cache_put(key, result)
         return result
@@ -160,63 +163,66 @@ async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
     client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
     clean_description = _strip_html(description) if description else ""
-
     user_content = f"Titre: {titre}"
     if clean_description:
         user_content += f"\n\nDescription: {clean_description[:1000]}"
 
-    try:
-        message = await client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=256,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_content}],
-        )
-
-        raw_text = message.content[0].text.strip()
+    async with _CLAUDE_SEMAPHORE:
+        # Re-check cache under semaphore: another task may have populated it while we waited
+        if key in _extract_cache:
+            return _extract_cache[key]
 
         try:
-            result = json.loads(raw_text)
-        except json.JSONDecodeError:
-            start = raw_text.find("{")
-            end = raw_text.rfind("}") + 1
-            if start >= 0 and end > start:
-                result = json.loads(raw_text[start:end])
-            else:
-                raise ValueError(f"No JSON found in response: {raw_text[:200]}")
+            message = await client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=256,
+                system=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_content}],
+            )
 
-        lieu_nom = str(result.get("lieu_nom", "national")).strip() or "national"
-        categorie = str(result.get("categorie", "actualite")).strip()
-        valid_categories = {"meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite"}
-        if categorie not in valid_categories:
-            categorie = "actualite"
+            raw_text = message.content[0].text.strip()
 
-        resume_ia = str(result.get("resume_ia", "")).strip()[:500]
+            try:
+                result = json.loads(raw_text)
+            except json.JSONDecodeError:
+                start = raw_text.find("{")
+                end = raw_text.rfind("}") + 1
+                if start >= 0 and end > start:
+                    result = json.loads(raw_text[start:end])
+                else:
+                    raise ValueError(f"No JSON found in response: {raw_text[:200]}")
 
-        try:
-            gravite = int(result.get("gravite", 0))
-            gravite = max(0, min(3, gravite))
-        except (TypeError, ValueError):
-            gravite = 0
+            lieu_nom = str(result.get("lieu_nom", "national")).strip() or "national"
+            categorie = str(result.get("categorie", "actualite")).strip()
+            valid_categories = {"meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite"}
+            if categorie not in valid_categories:
+                categorie = "actualite"
 
-        extracted: dict[str, Any] = {
-            "lieu_nom": lieu_nom,
-            "categorie": categorie,
-            "resume_ia": resume_ia,
-            "gravite": gravite,
-        }
-        _cache_put(key, extracted)
-        return extracted
+            resume_ia = str(result.get("resume_ia", "")).strip()[:500]
 
-    except Exception as exc:
-        logger.error("Claude extraction failed for '%s': %s", titre[:80], exc)
-        fallback: dict[str, Any] = {
-            "lieu_nom": "national",
-            "categorie": "actualite",
-            "resume_ia": titre[:200],
-            "gravite": 0,
-        }
-        return fallback
+            try:
+                gravite = int(result.get("gravite", 0))
+                gravite = max(0, min(3, gravite))
+            except (TypeError, ValueError):
+                gravite = 0
+
+            extracted: dict[str, Any] = {
+                "lieu_nom": lieu_nom,
+                "categorie": categorie,
+                "resume_ia": resume_ia,
+                "gravite": gravite,
+            }
+            _cache_put(key, extracted)
+            return extracted
+
+        except Exception as exc:
+            logger.error("Claude extraction failed for '%s': %s", titre[:80], exc)
+            return {
+                "lieu_nom": "national",
+                "categorie": "actualite",
+                "resume_ia": titre[:200],
+                "gravite": 0,
+            }
 
 
 # Sources autoritatives → catégorie forcée (indépendamment de l'extraction NLP)
