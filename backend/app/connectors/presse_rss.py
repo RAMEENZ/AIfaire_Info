@@ -114,6 +114,24 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "France Bleu Besançon",          "url": "https://www.francebleu.fr/besancon/rss",              "region": "Bourgogne-Franche-Comté"},
     {"name": "France Bleu Poitou",            "url": "https://www.francebleu.fr/poitou/rss",                "region": "Nouvelle-Aquitaine"},
     {"name": "France Bleu Maine",             "url": "https://www.francebleu.fr/maine/rss",                 "region": "Pays de la Loire"},
+
+    # ── FRANCE BLEU — STATIONS RÉGIONALES (suite) ────────────────────────────
+    {"name": "France Bleu Lorraine Nord",     "url": "https://www.francebleu.fr/lorraine-nord/rss",         "region": "Grand Est"},
+    {"name": "France Bleu Champagne",         "url": "https://www.francebleu.fr/champagne/rss",             "region": "Grand Est"},
+    {"name": "France Bleu Normandie Rouen",   "url": "https://www.francebleu.fr/normandie-rouen/rss",       "region": "Normandie"},
+    {"name": "France Bleu Cotentin",          "url": "https://www.francebleu.fr/cotentin/rss",              "region": "Normandie"},
+    {"name": "France Bleu Berry",             "url": "https://www.francebleu.fr/berry/rss",                 "region": "Centre-Val de Loire"},
+    {"name": "France Bleu Orléans",           "url": "https://www.francebleu.fr/orleans/rss",               "region": "Centre-Val de Loire"},
+    {"name": "France Bleu Hérault",           "url": "https://www.francebleu.fr/herault/rss",               "region": "Occitanie"},
+    {"name": "France Bleu Occitanie",         "url": "https://www.francebleu.fr/occitanie/rss",             "region": "Occitanie"},
+    {"name": "France Bleu Périgord",          "url": "https://www.francebleu.fr/perigord/rss",              "region": "Nouvelle-Aquitaine"},
+    {"name": "France Bleu Limousin",          "url": "https://www.francebleu.fr/limousin/rss",              "region": "Nouvelle-Aquitaine"},
+    {"name": "France Bleu Pays Basque",       "url": "https://www.francebleu.fr/pays-basque/rss",           "region": "Nouvelle-Aquitaine"},
+    {"name": "France Bleu Gascogne",          "url": "https://www.francebleu.fr/gascogne/rss",              "region": "Nouvelle-Aquitaine"},
+    {"name": "France Bleu Provence",          "url": "https://www.francebleu.fr/provence/rss",              "region": "Provence-Alpes-Côte d'Azur"},
+    {"name": "France Bleu Vaucluse",          "url": "https://www.francebleu.fr/vaucluse/rss",              "region": "Provence-Alpes-Côte d'Azur"},
+    {"name": "France Bleu Picardie",          "url": "https://www.francebleu.fr/picardie/rss",              "region": "Hauts-de-France"},
+    {"name": "France Bleu Breizh Izel",       "url": "https://www.francebleu.fr/breizh-izel/rss",           "region": "Bretagne"},
 ]
 
 UA = "Mozilla/5.0 (compatible; FaireInfo/1.0; aggregator)"
