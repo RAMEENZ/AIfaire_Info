@@ -41,6 +41,7 @@ class ConnectorStatusSchema(BaseModel):
     name: str
     last_run: Optional[datetime] = None
     last_error: Optional[str] = None
+    last_count: Optional[int] = None
     status: str
 
     model_config = {"from_attributes": True}

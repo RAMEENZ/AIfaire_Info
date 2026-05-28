@@ -53,6 +53,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> HealthResponse:
                     name=name,
                     last_run=row.last_run,
                     last_error=row.last_error,
+                    last_count=row.last_count,
                     status=status,
                 )
             )
@@ -62,6 +63,7 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> HealthResponse:
                     name=name,
                     last_run=None,
                     last_error=None,
+                    last_count=None,
                     status="warning",
                 )
             )

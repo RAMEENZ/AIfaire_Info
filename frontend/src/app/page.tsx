@@ -106,7 +106,7 @@ export default function HomePage() {
             nationalCount={nationalEvents.length}
             generatedAt={eventsData?.generated_at ?? null}
           />
-          <EventFeed events={nationalEvents} isLoading={eventsLoading} />
+          <EventFeed events={allEvents} isLoading={eventsLoading} />
         </aside>
       </main>
 
