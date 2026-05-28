@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.database import AsyncSessionLocal
@@ -183,8 +183,24 @@ async def _process_item_limited(item: dict[str, Any]) -> dict[str, Any] | None:
         return await _process_item(item)
 
 
+async def _delete_source_events(source: str) -> int:
+    async with AsyncSessionLocal() as session:
+        try:
+            result = await session.execute(delete(Event).where(Event.source == source))
+            await session.commit()
+            return result.rowcount
+        except Exception as exc:
+            await session.rollback()
+            logger.error("Failed to delete events for source %s: %s", source, exc)
+            return 0
+
+
 async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
     raw_items = await connector.run()
+
+    if connector.replace_on_ingest and raw_items:
+        deleted = await _delete_source_events(connector.name)
+        logger.info("replace_on_ingest: deleted %d old %s events", deleted, connector.name)
 
     process_tasks = [_process_item_limited(item) for item in raw_items]
     processed = await asyncio.gather(*process_tasks, return_exceptions=True)

@@ -52,6 +52,10 @@ class MeteoFranceConnector(BaseConnector):
     def name(self) -> str:
         return "meteo_france"
 
+    @property
+    def replace_on_ingest(self) -> bool:
+        return True
+
     async def fetch(self) -> list[dict[str, Any]]:
         all_records: list[dict] = []
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -97,10 +101,11 @@ class MeteoFranceConnector(BaseConnector):
             titre = f"Vigilance {color} – {phenomenon.capitalize()} – {dept_name}"
             date_pub = self._parse_iso(record.get("begin_time") or record.get("product_datetime"))
 
+            pheno_slug = phenomenon.lower().replace(" / ", "-").replace(" ", "-")
             results.append(
                 {
                     "source": self.name,
-                    "source_url": f"https://vigilance.meteofrance.fr/#{dept_code}",
+                    "source_url": f"https://vigilance.meteofrance.fr/#{dept_code}-{pheno_slug}",
                     "titre": titre,
                     "auteur": "Météo-France",
                     "date_publication": (date_pub or datetime.now(timezone.utc)).isoformat(),

@@ -29,6 +29,10 @@ class VigicruesConnector(BaseConnector):
     def name(self) -> str:
         return "vigicrues"
 
+    @property
+    def replace_on_ingest(self) -> bool:
+        return True
+
     async def fetch(self) -> list[dict[str, Any]]:
         async with httpx.AsyncClient(
             timeout=30.0, headers={"User-Agent": "faire-info/1.0"}
