@@ -17,7 +17,9 @@ class Settings(BaseSettings):
 
     SCHEDULER_TIMEZONE: str = "Europe/Paris"
     SCHEDULER_HOUR_MORNING: int = 9
+    SCHEDULER_HOUR_MIDDAY: int = 13
     SCHEDULER_HOUR_EVENING: int = 19
+    SCHEDULER_HOUR_NIGHT: int = 23
 
     MAX_EVENTS_LIMIT: int = 500
     DEFAULT_EVENTS_LIMIT: int = 200

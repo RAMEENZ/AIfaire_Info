@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -15,7 +15,7 @@ _scheduler: AsyncIOScheduler | None = None
 
 
 async def _run_ingestion_job() -> None:
-    logger.info("Scheduled ingestion triggered at %s", datetime.utcnow().isoformat())
+    logger.info("Scheduled ingestion triggered at %s", datetime.now(timezone.utc).isoformat())
     try:
         summary = await ingest_all()
         logger.info("Scheduled ingestion done: %s", summary)
@@ -24,7 +24,7 @@ async def _run_ingestion_job() -> None:
 
 
 async def _run_purge_job() -> None:
-    logger.info("Scheduled purge triggered at %s", datetime.utcnow().isoformat())
+    logger.info("Scheduled purge triggered at %s", datetime.now(timezone.utc).isoformat())
     try:
         deleted = await purge_old_events()
         logger.info("Scheduled purge done: %d events deleted", deleted)
@@ -54,12 +54,12 @@ def get_scheduler() -> AsyncIOScheduler:
         _scheduler.add_job(
             _run_ingestion_job,
             trigger=CronTrigger(
-                hour=13,
+                hour=settings.SCHEDULER_HOUR_MIDDAY,
                 minute=0,
                 timezone=settings.SCHEDULER_TIMEZONE,
             ),
             id="ingest_midday",
-            name="Midday ingestion (13h00)",
+            name=f"Midday ingestion ({settings.SCHEDULER_HOUR_MIDDAY}h00)",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
@@ -82,12 +82,12 @@ def get_scheduler() -> AsyncIOScheduler:
         _scheduler.add_job(
             _run_ingestion_job,
             trigger=CronTrigger(
-                hour=23,
+                hour=settings.SCHEDULER_HOUR_NIGHT,
                 minute=0,
                 timezone=settings.SCHEDULER_TIMEZONE,
             ),
             id="ingest_night",
-            name="Night ingestion (23h00)",
+            name=f"Night ingestion ({settings.SCHEDULER_HOUR_NIGHT}h00)",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
