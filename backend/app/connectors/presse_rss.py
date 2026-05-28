@@ -94,6 +94,26 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "La Nouvelle République",        "url": "https://www.lanouvellerepublique.fr/rss",             "region": "Centre-Val de Loire"},
     {"name": "Paris Normandie",               "url": "https://www.paris-normandie.fr/rss",                 "region": "Normandie"},
     {"name": "Presse Océan",                  "url": "https://www.presseocean.fr/rss",                     "region": "Pays de la Loire"},
+
+    # ── FRANCE BLEU — STATIONS RÉGIONALES ────────────────────────────────────
+    {"name": "France Bleu Alsace",            "url": "https://www.francebleu.fr/alsace/rss",                "region": "Grand Est"},
+    {"name": "France Bleu Armorique",         "url": "https://www.francebleu.fr/armorique/rss",             "region": "Bretagne"},
+    {"name": "France Bleu Azur",              "url": "https://www.francebleu.fr/azur/rss",                  "region": "Provence-Alpes-Côte d'Azur"},
+    {"name": "France Bleu Gard Lozère",       "url": "https://www.francebleu.fr/gard-lozere/rss",           "region": "Occitanie"},
+    {"name": "France Bleu Gironde",           "url": "https://www.francebleu.fr/gironde/rss",               "region": "Nouvelle-Aquitaine"},
+    {"name": "France Bleu Isère",             "url": "https://www.francebleu.fr/isere/rss",                 "region": "Auvergne-Rhône-Alpes"},
+    {"name": "France Bleu Nord",              "url": "https://www.francebleu.fr/nord/rss",                  "region": "Hauts-de-France"},
+    {"name": "France Bleu Normandie Caen",    "url": "https://www.francebleu.fr/normandie-caen/rss",        "region": "Normandie"},
+    {"name": "France Bleu Paris",             "url": "https://www.francebleu.fr/paris/rss",                 "region": "Île-de-France"},
+    {"name": "France Bleu Pays d'Auvergne",   "url": "https://www.francebleu.fr/pays-d-auvergne/rss",      "region": "Auvergne-Rhône-Alpes"},
+    {"name": "France Bleu Pays de Savoie",    "url": "https://www.francebleu.fr/pays-de-savoie/rss",       "region": "Auvergne-Rhône-Alpes"},
+    {"name": "France Bleu RCFM",              "url": "https://www.francebleu.fr/rcfm/rss",                  "region": "Corse"},
+    {"name": "France Bleu Roussillon",        "url": "https://www.francebleu.fr/roussillon/rss",            "region": "Occitanie"},
+    {"name": "France Bleu Touraine",          "url": "https://www.francebleu.fr/touraine/rss",              "region": "Centre-Val de Loire"},
+    {"name": "France Bleu Bourgogne",         "url": "https://www.francebleu.fr/bourgogne/rss",             "region": "Bourgogne-Franche-Comté"},
+    {"name": "France Bleu Besançon",          "url": "https://www.francebleu.fr/besancon/rss",              "region": "Bourgogne-Franche-Comté"},
+    {"name": "France Bleu Poitou",            "url": "https://www.francebleu.fr/poitou/rss",                "region": "Nouvelle-Aquitaine"},
+    {"name": "France Bleu Maine",             "url": "https://www.francebleu.fr/maine/rss",                 "region": "Pays de la Loire"},
 ]
 
 UA = "Mozilla/5.0 (compatible; FaireInfo/1.0; aggregator)"
