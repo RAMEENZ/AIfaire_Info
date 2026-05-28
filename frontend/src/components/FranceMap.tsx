@@ -138,7 +138,12 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
           maxClusterRadius={50}
         >
           {events.map((event) => (
-            <EventMarker key={event.id} event={event} onSelect={onSelectEvent} />
+            <EventMarker
+              key={event.id}
+              event={event}
+              isSelected={selectedEvent?.id === event.id}
+              onSelect={onSelectEvent}
+            />
           ))}
         </MarkerClusterGroup>
       </MapContainer>

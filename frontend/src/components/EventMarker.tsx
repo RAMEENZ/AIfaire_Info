@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useMemo } from "react";
 import { Marker, Popup } from "react-leaflet";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -20,7 +20,7 @@ function graviteColor(gravite: number): string {
   return GRAVITE_COLORS[gravite] ?? "#6B7280";
 }
 
-function createMarkerIcon(event: Event): DivIcon | null {
+function createMarkerIcon(event: Event, isSelected?: boolean): DivIcon | null {
   if (typeof window === "undefined") return null;
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const L = require("leaflet") as typeof import("leaflet");
@@ -28,10 +28,11 @@ function createMarkerIcon(event: Event): DivIcon | null {
   const color = graviteColor(event.gravite);
   const letter = CATEGORY_CONFIG[event.categorie]?.letter ?? event.categorie[0].toUpperCase();
   const size = event.gravite >= 2 ? 28 : 22;
+  const extraClass = isSelected ? " faire-marker--selected" : "";
 
   return L.divIcon({
     className: "",
-    html: `<div class="faire-marker" style="width:${size}px;height:${size}px;background:${color};font-size:${size <= 22 ? 9 : 11}px;">${letter}</div>`,
+    html: `<div class="faire-marker${extraClass}" style="width:${size}px;height:${size}px;background:${color};font-size:${size <= 22 ? 9 : 11}px;color:${color};">${letter}</div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -(size / 2 + 4)],
@@ -48,22 +49,19 @@ function formatDate(iso: string): string {
 
 interface EventMarkerProps {
   event: Event;
+  isSelected?: boolean;
   onSelect?: (event: Event) => void;
 }
 
-export default function EventMarker({ event, onSelect }: EventMarkerProps) {
-  const iconRef = useRef<DivIcon | null>(null);
-
-  if (!iconRef.current) {
-    iconRef.current = createMarkerIcon(event);
-  }
-
-  useEffect(() => {
-    iconRef.current = createMarkerIcon(event);
-  }, [event.gravite, event.categorie]);
+export default function EventMarker({ event, isSelected, onSelect }: EventMarkerProps) {
+  const icon = useMemo(
+    () => createMarkerIcon(event, isSelected),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [event.gravite, event.categorie, isSelected]
+  );
 
   if (event.lieu_lat === null || event.lieu_lon === null) return null;
-  if (!iconRef.current) return null;
+  if (!icon) return null;
 
   const catConfig = CATEGORY_CONFIG[event.categorie];
   const graviteConfig = GRAVITE_CONFIG[event.gravite] ?? GRAVITE_CONFIG[0];
@@ -75,7 +73,7 @@ export default function EventMarker({ event, onSelect }: EventMarkerProps) {
   return (
     <Marker
       position={[event.lieu_lat, event.lieu_lon]}
-      icon={iconRef.current}
+      icon={icon}
       eventHandlers={{ click: () => onSelect?.(event) }}
     >
       <Popup minWidth={280} maxWidth={300}>
