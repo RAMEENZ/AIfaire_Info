@@ -217,12 +217,14 @@ async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
 
         except Exception as exc:
             logger.error("Claude extraction failed for '%s': %s", titre[:80], exc)
-            return {
+            fallback = {
                 "lieu_nom": "national",
                 "categorie": "actualite",
                 "resume_ia": titre[:200],
                 "gravite": 0,
             }
+            _cache_put(key, fallback)
+            return fallback
 
 
 # Sources autoritatives → catégorie forcée (indépendamment de l'extraction NLP)

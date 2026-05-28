@@ -10,6 +10,14 @@ logger = logging.getLogger(__name__)
 
 # In-process cache: maps lieu_nom → GeoResult
 _geo_cache: dict[str, "GeoResult"] = {}
+_MAX_GEO_CACHE = 1024  # evict all when full; most lieu_nom values repeat across articles
+
+
+def _geo_cache_put(key: str, value: "GeoResult") -> None:
+    if len(_geo_cache) >= _MAX_GEO_CACHE:
+        _geo_cache.clear()
+    _geo_cache[key] = value
+
 
 # Limit concurrent geocoding API calls (BAN + geo.api.gouv.fr rate-limit at ~10 rps)
 _GEO_SEMAPHORE = asyncio.Semaphore(8)
@@ -125,14 +133,14 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
     if lieu_clean in DEPT_CODE_TO_NAME:
         async with _GEO_SEMAPHORE:
             result = await _geocode_departement_by_code(lieu_clean)
-        _geo_cache[cache_key] = result
+        _geo_cache_put(cache_key, result)
         return result
 
     # Département par nom exact (ex: "Paris", "Gironde")
     if lieu_lower in DEPT_NAME_TO_CODE:
         async with _GEO_SEMAPHORE:
             result = await _geocode_departement_by_code(DEPT_NAME_TO_CODE[lieu_lower])
-        _geo_cache[cache_key] = result
+        _geo_cache_put(cache_key, result)
         return result
 
     # DOM-TOM par nom normalisé (hardcoded — no API call needed)
@@ -144,13 +152,13 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
     if alias_target is not None:
         alias_result = await geocode(alias_target)
         if alias_result["confiance_geo"] >= 0.5:
-            _geo_cache[cache_key] = alias_result
+            _geo_cache_put(cache_key, alias_result)
             return alias_result
 
     # Région métropolitaine connue → coordonnées hardcodées (geo.api.gouv.fr/regions n'a pas de "centre")
     if lieu_lower in REGION_COORDS:
         result = REGION_COORDS[lieu_lower]
-        _geo_cache[cache_key] = result
+        _geo_cache_put(cache_key, result)
         return result
 
     # Cascade : commune → département → commune (seuil bas)
@@ -158,21 +166,21 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
     async with _GEO_SEMAPHORE:
         result = await _geocode_commune(lieu_clean)
     if result["confiance_geo"] >= 0.6:
-        _geo_cache[cache_key] = result
+        _geo_cache_put(cache_key, result)
         return result
 
     async with _GEO_SEMAPHORE:
         result_dept = await _geocode_departement(lieu_clean)
     if result_dept["confiance_geo"] >= 0.5:
-        _geo_cache[cache_key] = result_dept
+        _geo_cache_put(cache_key, result_dept)
         return result_dept
 
     if result["confiance_geo"] >= 0.3:
-        _geo_cache[cache_key] = result
+        _geo_cache_put(cache_key, result)
         return result
 
     # Cache negative results too to avoid repeated failed API calls
-    _geo_cache[cache_key] = empty
+    _geo_cache_put(cache_key, empty)
     return empty
 
 
