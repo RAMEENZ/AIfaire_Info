@@ -21,19 +21,22 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql+asyncpg://faire_info:password@db:5432/faire_info
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       APP_ENV: production
+      LOG_LEVEL: INFO
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        # NEXT_PUBLIC_ vars are embedded at build time — set the host/IP here
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api}
     ports:
       - "3000:3000"
-    environment:
-      NEXT_PUBLIC_API_URL: http://backend:8000
     depends_on:
       - backend
     restart: unless-stopped

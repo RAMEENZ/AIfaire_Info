@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MapContainer, TileLayer } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import type { Map as LeafletMap } from "leaflet";
 
 import EventMarker from "./EventMarker";
-import { FRANCE_CENTER, FRANCE_DEFAULT_ZOOM } from "@/lib/constants";
+import { CATEGORY_CONFIG, GRAVITE_CONFIG, FRANCE_CENTER, FRANCE_DEFAULT_ZOOM } from "@/lib/constants";
 import { Event } from "@/lib/types";
 
 interface FranceMapProps {
@@ -40,6 +40,54 @@ function createClusterCustomIcon(cluster: any) {
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
+}
+
+function MapLegend() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="absolute bottom-7 right-2 z-[1000]">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-7 h-7 rounded-full bg-white border border-gray-200 shadow-md text-gray-600 hover:text-blue-700 text-xs font-bold flex items-center justify-center"
+        title="Légende"
+      >
+        ?
+      </button>
+      {open && (
+        <div className="absolute bottom-9 right-0 bg-white/95 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg p-3 w-52 text-xs">
+          <p className="font-semibold text-gray-600 mb-2 uppercase tracking-wide text-[10px]">Catégories</p>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 mb-3">
+            {(Object.entries(CATEGORY_CONFIG) as [string, typeof CATEGORY_CONFIG[keyof typeof CATEGORY_CONFIG]][]).map(([key, cfg]) => (
+              <div key={key} className="flex items-center gap-1.5">
+                <span
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
+                  style={{ backgroundColor: cfg.color, fontSize: 8 }}
+                >
+                  {cfg.letter}
+                </span>
+                <span className="text-gray-600 truncate">{cfg.label}</span>
+              </div>
+            ))}
+          </div>
+          <p className="font-semibold text-gray-600 mb-2 uppercase tracking-wide text-[10px]">Gravité</p>
+          <div className="space-y-1">
+            {([0, 1, 2, 3] as const).map((g) => (
+              <div key={g} className="flex items-center gap-1.5">
+                <span
+                  className="w-3 h-3 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: GRAVITE_CONFIG[g].color }}
+                />
+                <span className="text-gray-600">{GRAVITE_CONFIG[g].label}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-gray-400 text-[10px]">
+            Cercle bleu = cluster (cliquez pour dézoomer)
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function FranceMap({ events }: FranceMapProps) {
@@ -112,6 +160,8 @@ export default function FranceMap({ events }: FranceMapProps) {
           </div>
         </div>
       </div>
+
+      <MapLegend />
 
       {events.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
