@@ -10,6 +10,7 @@ import { ConnectorStatus } from "@/lib/types";
 interface StatusBarProps {
   connectors: ConnectorStatus[];
   nextIngestAt?: string | null;
+  onTriggerIngest?: () => Promise<void>;
 }
 
 const STATUS_COLOR: Record<ConnectorStatus["status"], string> = {
@@ -95,12 +96,26 @@ function formatNextIngest(iso: string | null | undefined): string {
   }
 }
 
-export default function StatusBar({ connectors, nextIngestAt }: StatusBarProps) {
+export default function StatusBar({ connectors, nextIngestAt, onTriggerIngest }: StatusBarProps) {
+  const [ingestState, setIngestState] = useState<"idle" | "running" | "done">("idle");
+
   const hasError = connectors.some((c) => c.status === "error");
   const hasWarning = connectors.some((c) => c.status === "warning");
 
   const globalStatus = hasError ? "error" : hasWarning ? "warning" : "ok";
   const globalColor = STATUS_COLOR[globalStatus];
+
+  async function handleTriggerIngest() {
+    if (!onTriggerIngest || ingestState === "running") return;
+    setIngestState("running");
+    try {
+      await onTriggerIngest();
+      setIngestState("done");
+      setTimeout(() => setIngestState("idle"), 3000);
+    } catch {
+      setIngestState("idle");
+    }
+  }
 
   return (
     <footer className="flex items-center gap-4 px-4 py-1.5 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex-shrink-0 z-10">
@@ -117,10 +132,26 @@ export default function StatusBar({ connectors, nextIngestAt }: StatusBarProps) 
       )}
 
       <div className="ml-auto flex items-center gap-3">
-        {nextIngestAt && (
+        {nextIngestAt && ingestState === "idle" && (
           <span className="hidden md:inline text-gray-400">
             Prochaine MàJ {formatNextIngest(nextIngestAt)}
           </span>
+        )}
+        {onTriggerIngest && (
+          <button
+            onClick={handleTriggerIngest}
+            disabled={ingestState === "running"}
+            className="hidden md:flex items-center gap-1 text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-50 transition-colors"
+            title="Déclencher une ingestion manuelle"
+          >
+            <svg
+              className={`w-3 h-3 ${ingestState === "running" ? "animate-spin" : ""}`}
+              fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {ingestState === "done" ? "Lancée ✓" : ingestState === "running" ? "En cours…" : "Ingérer"}
+          </button>
         )}
         <div className="flex items-center gap-1.5">
           <span

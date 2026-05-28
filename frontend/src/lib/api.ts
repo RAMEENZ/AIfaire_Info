@@ -61,6 +61,14 @@ export async function fetchHealth(): Promise<HealthResponse> {
   return response.json() as Promise<HealthResponse>;
 }
 
+export async function triggerIngest(): Promise<{ status: string; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/ingest/run`, { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`Erreur ingestion : ${response.status}`);
+  }
+  return response.json();
+}
+
 export const eventsKey = (params: FetchEventsParams) =>
   ["events", params] as const;
 

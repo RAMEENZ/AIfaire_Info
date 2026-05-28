@@ -8,7 +8,7 @@ import EventFeed from "@/components/EventFeed";
 import FilterBar from "@/components/FilterBar";
 import StatusBar from "@/components/StatusBar";
 import StatsBar from "@/components/StatsBar";
-import { fetchEvents, fetchHealth } from "@/lib/api";
+import { fetchEvents, fetchHealth, triggerIngest } from "@/lib/api";
 import { ALL_CATEGORIES, GRAVITE_CONFIG, REFRESH_INTERVAL } from "@/lib/constants";
 import { Categorie, Event, EventFilters } from "@/lib/types";
 
@@ -260,7 +260,11 @@ export default function HomePage() {
       </main>
 
       {/* Status bar */}
-      <StatusBar connectors={healthData?.connectors ?? []} nextIngestAt={healthData?.next_ingest_at ?? null} />
+      <StatusBar
+        connectors={healthData?.connectors ?? []}
+        nextIngestAt={healthData?.next_ingest_at ?? null}
+        onTriggerIngest={async () => { await triggerIngest(); setTimeout(() => refreshEvents(), 2000); }}
+      />
     </div>
   );
 }

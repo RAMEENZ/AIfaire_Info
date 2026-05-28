@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.ico",
   },
+  manifest: "/manifest.json",
   openGraph: {
     title: "FAIRE Info",
     description: "Actualités et alertes géolocalisées en France en temps réel",
