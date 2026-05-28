@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import ConnectorStatus
+from app.pipeline.scheduler import get_next_ingest_time
 from app.schemas import HealthResponse, ConnectorStatusSchema
 
 router = APIRouter()
@@ -68,7 +69,11 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> HealthResponse:
                 )
             )
 
+    next_ingest_raw = get_next_ingest_time()
+    next_ingest_at = datetime.fromisoformat(next_ingest_raw) if next_ingest_raw else None
+
     return HealthResponse(
         connectors=connectors,
         checked_at=datetime.now(timezone.utc),
+        next_ingest_at=next_ingest_at,
     )

@@ -50,6 +50,7 @@ export interface EventsResponse {
 
 export interface HealthResponse {
   connectors: ConnectorStatus[];
+  next_ingest_at: string | null;
 }
 
 export interface EventFilters {
