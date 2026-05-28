@@ -48,9 +48,10 @@ function formatDate(iso: string): string {
 
 interface EventMarkerProps {
   event: Event;
+  onSelect?: (event: Event) => void;
 }
 
-export default function EventMarker({ event }: EventMarkerProps) {
+export default function EventMarker({ event, onSelect }: EventMarkerProps) {
   const iconRef = useRef<DivIcon | null>(null);
 
   if (!iconRef.current) {
@@ -75,6 +76,7 @@ export default function EventMarker({ event }: EventMarkerProps) {
     <Marker
       position={[event.lieu_lat, event.lieu_lon]}
       icon={iconRef.current}
+      eventHandlers={{ click: () => onSelect?.(event) }}
     >
       <Popup minWidth={280} maxWidth={300}>
         <div className="text-sm font-sans">

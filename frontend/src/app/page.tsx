@@ -99,6 +99,8 @@ export default function HomePage() {
     revalidateOnFocus: false,
   });
 
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+
   const allEvents: Event[] = eventsData?.events ?? [];
 
   const localEvents = allEvents.filter(
@@ -164,7 +166,7 @@ export default function HomePage() {
       <main className="flex flex-1 overflow-hidden">
         {/* Map — 70% */}
         <div className="flex-1 min-w-0 relative">
-          <MapWrapper events={localEvents} />
+          <MapWrapper events={localEvents} selectedEvent={selectedEvent} onSelectEvent={setSelectedEvent} />
         </div>
 
         {/* Sidebar — 30% */}
@@ -174,7 +176,13 @@ export default function HomePage() {
             nationalCount={nationalEvents.length}
             generatedAt={eventsData?.generated_at ?? null}
           />
-          <EventFeed events={allEvents} isLoading={eventsLoading} error={eventsError} />
+          <EventFeed
+            events={allEvents}
+            isLoading={eventsLoading}
+            error={eventsError}
+            selectedEventId={selectedEvent?.id ?? null}
+            onSelectEvent={setSelectedEvent}
+          />
         </aside>
       </main>
 
