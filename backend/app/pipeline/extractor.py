@@ -192,13 +192,15 @@ async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
                 else:
                     raise ValueError(f"No JSON found in response: {raw_text[:200]}")
 
-            lieu_nom = str(result.get("lieu_nom", "national")).strip() or "national"
+            _raw_lieu = result.get("lieu_nom")
+            lieu_nom = (str(_raw_lieu).strip() if _raw_lieu and _raw_lieu != "null" else "") or "national"
             categorie = str(result.get("categorie", "actualite")).strip()
             valid_categories = {"meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite"}
             if categorie not in valid_categories:
                 categorie = "actualite"
 
-            resume_ia = str(result.get("resume_ia", "")).strip()[:500]
+            _raw_resume = result.get("resume_ia")
+            resume_ia = (str(_raw_resume).strip() if _raw_resume and _raw_resume != "null" else "")[:500]
 
             try:
                 gravite = int(result.get("gravite", 0))
