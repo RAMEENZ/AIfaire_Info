@@ -19,6 +19,7 @@ const GRAVITE_BORDER: Record<number, string> = {
 interface EventFeedProps {
   events: Event[];
   isLoading: boolean;
+  error?: Error | null;
 }
 
 function formatRelative(iso: string): string {
@@ -152,7 +153,7 @@ function AlertBanner({ events }: { events: Event[] }) {
   );
 }
 
-export default function EventFeed({ events, isLoading }: EventFeedProps) {
+export default function EventFeed({ events, isLoading, error }: EventFeedProps) {
   const [tab, setTab] = useState<Tab>("all");
 
   const localCount = events.filter((e) => e.lieu_lat !== null && e.lieu_lon !== null).length;
@@ -166,8 +167,8 @@ export default function EventFeed({ events, isLoading }: EventFeedProps) {
 
   const sorted = [...filtered].sort(
     (a, b) =>
-      new Date(b.date_publication).getTime() -
-      new Date(a.date_publication).getTime()
+      b.gravite - a.gravite ||
+      new Date(b.date_publication).getTime() - new Date(a.date_publication).getTime()
   );
 
   const tabClass = (t: Tab) =>
@@ -210,6 +211,15 @@ export default function EventFeed({ events, isLoading }: EventFeedProps) {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
+        {error && !isLoading && sorted.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-32 gap-2 text-sm text-red-500 px-4">
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <span className="text-center text-xs">Impossible de joindre le serveur</span>
+          </div>
+        )}
+
         {isLoading && sorted.length === 0 && (
           <div className="flex flex-col gap-3 p-4">
             {[...Array(5)].map((_, i) => (
