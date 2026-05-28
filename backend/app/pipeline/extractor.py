@@ -175,6 +175,16 @@ async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
         }
 
 
+# Sources autoritatives → catégorie forcée (indépendamment de l'extraction NLP)
+SOURCE_CAT_OVERRIDES: dict[str, str] = {
+    "santé publique france": "sante",
+    "spf": "sante",
+    "vigicrues": "crue",
+    "météo-france": "meteo",
+    "meteo-france": "meteo",
+}
+
+
 async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
     if item.get("skip_extraction"):
         return item
@@ -208,5 +218,12 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
         updated["categorie"] = extraction["categorie"]
     if updated.get("gravite", 0) == 0 and extraction["gravite"] > 0:
         updated["gravite"] = extraction["gravite"]
+
+    # Override catégorie pour les sources autoritatives connues
+    auteur_lower = (updated.get("auteur") or "").lower()
+    for keyword, forced_cat in SOURCE_CAT_OVERRIDES.items():
+        if keyword in auteur_lower:
+            updated["categorie"] = forced_cat
+            break
 
     return updated
