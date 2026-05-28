@@ -131,6 +131,17 @@ export default function HomePage() {
     setFilters((prev) => ({ ...prev, depuis_heures }));
   };
 
+  const activeCategoryFilter: Categorie | null =
+    filters.categories.length === 1 ? filters.categories[0] : null;
+
+  const handleStatsBarCategorySelect = (cat: Categorie) => {
+    if (activeCategoryFilter === cat) {
+      handleCategoriesChange(ALL_CATEGORIES);
+    } else {
+      handleCategoriesChange([cat]);
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Header */}
@@ -235,6 +246,8 @@ export default function HomePage() {
             nationalCount={nationalEvents.length}
             generatedAt={eventsData?.generated_at ?? null}
             events={allEvents}
+            activeCategoryFilter={activeCategoryFilter}
+            onCategorySelect={handleStatsBarCategorySelect}
           />
           <EventFeed
             events={allEvents}
