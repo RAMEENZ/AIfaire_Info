@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models import Event
 from app.schemas import EventDetail, EventList
@@ -25,7 +26,7 @@ async def list_events(
     gravite_min: Optional[int] = Query(None, ge=0, le=3),
     niveau: Optional[str] = Query(None),
     depuis: Optional[datetime] = Query(None),
-    limit: int = Query(200, ge=1, le=500),
+    limit: int = Query(default=500, ge=1, le=1000),
     national_only: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ) -> EventList:
