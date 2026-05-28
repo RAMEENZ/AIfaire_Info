@@ -44,7 +44,8 @@ def _normalise_dept(domain_id: str) -> str:
     # Préfixe à 4 chiffres type '0610' → '06'
     if len(d) == 4 and d.isdigit():
         return d[:2]
-    return d.lstrip("0") or "0"
+    stripped = d.lstrip("0") or "0"
+    return stripped.zfill(2) if stripped.isdigit() else stripped
 
 
 class MeteoFranceConnector(BaseConnector):
