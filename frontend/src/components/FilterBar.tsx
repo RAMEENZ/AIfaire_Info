@@ -3,12 +3,19 @@
 import { ALL_CATEGORIES, CATEGORY_CONFIG } from "@/lib/constants";
 import { Categorie, EventFilters } from "@/lib/types";
 
+const DEFAULT_FILTERS: EventFilters = {
+  categories: ALL_CATEGORIES,
+  gravite_min: 0,
+  depuis_heures: 48,
+};
+
 interface FilterBarProps {
   filters: EventFilters;
   onCategoriesChange: (categories: Categorie[]) => void;
   onGraviteChange: (gravite_min: number) => void;
   onDepuisHeuresChange: (heures: number) => void;
   onRefresh: () => void;
+  onResetFilters?: () => void;
   isLoading: boolean;
   eventCounts?: Partial<Record<Categorie, number>>;
 }
@@ -33,6 +40,7 @@ export default function FilterBar({
   onGraviteChange,
   onDepuisHeuresChange,
   onRefresh,
+  onResetFilters,
   isLoading,
   eventCounts,
 }: FilterBarProps) {
@@ -50,6 +58,10 @@ export default function FilterBar({
   }
 
   const allSelected = filters.categories.length === ALL_CATEGORIES.length;
+  const isDefault =
+    allSelected &&
+    filters.gravite_min === DEFAULT_FILTERS.gravite_min &&
+    filters.depuis_heures === DEFAULT_FILTERS.depuis_heures;
 
   return (
     <div className="flex items-center gap-3 flex-wrap flex-1 min-w-0">
@@ -133,6 +145,20 @@ export default function FilterBar({
           </button>
         ))}
       </div>
+
+      {/* Reset filters */}
+      {!isDefault && onResetFilters && (
+        <button
+          onClick={onResetFilters}
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-100 transition-colors"
+          title="Réinitialiser tous les filtres"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          <span className="hidden sm:inline">Réinit.</span>
+        </button>
+      )}
 
       {/* Refresh */}
       <button

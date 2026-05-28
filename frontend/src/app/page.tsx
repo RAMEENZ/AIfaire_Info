@@ -166,6 +166,7 @@ export default function HomePage() {
           onGraviteChange={handleGraviteChange}
           onDepuisHeuresChange={handleDepuisHeuresChange}
           onRefresh={() => refreshEvents()}
+          onResetFilters={() => setFilters({ categories: ALL_CATEGORIES, gravite_min: 0, depuis_heures: 48 })}
           isLoading={eventsLoading}
           eventCounts={eventCounts}
         />
