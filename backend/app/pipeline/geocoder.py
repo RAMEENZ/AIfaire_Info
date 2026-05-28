@@ -125,11 +125,19 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
         "confiance_geo": 0.0,
     }
 
-    if not lieu_nom or lieu_nom.lower() in _NATIONAL_TERMS:
+    if not lieu_nom:
         return empty
 
     lieu_clean = lieu_nom.strip()
     cache_key = lieu_clean.lower()
+
+    if cache_key in _NATIONAL_TERMS:
+        return empty
+
+    # Strip leading French articles early so "la France" → "france" hits national check
+    _m_early = _LEADING_ARTICLE_RE.match(cache_key)
+    if _m_early and _m_early.group(1).strip() in _NATIONAL_TERMS:
+        return empty
 
     if cache_key in _geo_cache:
         return _geo_cache[cache_key]
