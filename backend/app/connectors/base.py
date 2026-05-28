@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -17,6 +17,11 @@ class BaseConnector(ABC):
     def name(self) -> str:
         pass
 
+    @property
+    def replace_on_ingest(self) -> bool:
+        """If True, old events from this source are deleted before inserting new ones."""
+        return False
+
     @abstractmethod
     async def fetch(self) -> list[dict[str, Any]]:
         pass
@@ -25,12 +30,12 @@ class BaseConnector(ABC):
         try:
             self._logger.info("Starting fetch")
             results = await self.fetch()
-            self.last_run = datetime.utcnow()
+            self.last_run = datetime.now(timezone.utc)
             self.last_error = None
             self._logger.info("Fetched %d items", len(results))
             return results
         except Exception as exc:
-            self.last_run = datetime.utcnow()
+            self.last_run = datetime.now(timezone.utc)
             self.last_error = str(exc)
             self._logger.error("Fetch failed: %s", exc, exc_info=True)
             return []
