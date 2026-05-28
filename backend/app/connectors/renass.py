@@ -1,6 +1,6 @@
 import asyncio
 import httpx
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.connectors.base import BaseConnector
@@ -35,16 +35,17 @@ class RenassConnector(BaseConnector):
     def name(self) -> str:
         return "renass"
 
-    async def _fetch_zone(self, client: httpx.AsyncClient, zone: dict) -> list[dict]:
-        url = f"{USGS_BASE}&{zone['params']}"
+    async def _fetch_zone(self, client: httpx.AsyncClient, zone: dict, starttime: str) -> list[dict]:
+        url = f"{USGS_BASE}&starttime={starttime}&{zone['params']}"
         response = await client.get(url)
         response.raise_for_status()
         return response.json().get("features", [])
 
     async def fetch(self) -> list[dict[str, Any]]:
+        starttime = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S")
         async with httpx.AsyncClient(timeout=30.0) as client:
             zone_results = await asyncio.gather(
-                *[self._fetch_zone(client, z) for z in SEISMIC_ZONES],
+                *[self._fetch_zone(client, z, starttime) for z in SEISMIC_ZONES],
                 return_exceptions=True,
             )
 

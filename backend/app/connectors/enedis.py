@@ -90,7 +90,7 @@ class EnedisConnector(BaseConnector):
                     titre += f" ({nb_clients:,} clients)"
 
                 record_id = record.get("recordid") or record.get("id") or hash(str(record))
-                source_url = f"https://data.enedis.fr/explore/dataset/coupures-delectricite/record/{record_id}"
+                source_url = f"https://opendata.enedis.fr/explore/dataset/coupures-delectricite/record/{record_id}"
 
                 results.append(
                     {
