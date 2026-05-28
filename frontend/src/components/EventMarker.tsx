@@ -32,7 +32,7 @@ function createMarkerIcon(event: Event, isSelected?: boolean): DivIcon | null {
 
   return L.divIcon({
     className: "",
-    html: `<div class="faire-marker${extraClass}" style="width:${size}px;height:${size}px;background:${color};font-size:${size <= 22 ? 9 : 11}px;color:${color};">${letter}</div>`,
+    html: `<div class="faire-marker${extraClass}" style="width:${size}px;height:${size}px;background:${color};font-size:${size <= 22 ? 9 : 11}px;--m:${color};">${letter}</div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -(size / 2 + 4)],
