@@ -144,6 +144,8 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "France Bleu Auxerre",          "url": "https://www.francebleu.fr/auxerre/rss",               "region": "Bourgogne-Franche-Comté"},
     {"name": "France Bleu Belfort-Montbél.", "url": "https://www.francebleu.fr/belfort-montbeliard/rss",   "region": "Bourgogne-Franche-Comté"},
     {"name": "France Bleu Creuse",           "url": "https://www.francebleu.fr/creuse/rss",                "region": "Nouvelle-Aquitaine"},
+    {"name": "France Bleu La Rochelle",      "url": "https://www.francebleu.fr/la-rochelle/rss",           "region": "Nouvelle-Aquitaine"},
+    {"name": "France Bleu Saint-Étienne",    "url": "https://www.francebleu.fr/saint-etienne-loire/rss",   "region": "Auvergne-Rhône-Alpes"},
 ]
 
 UA = "Mozilla/5.0 (compatible; FaireInfo/1.0; aggregator)"
