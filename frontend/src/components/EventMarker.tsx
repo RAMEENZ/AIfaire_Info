@@ -66,7 +66,10 @@ export default function EventMarker({ event }: EventMarkerProps) {
 
   const catConfig = CATEGORY_CONFIG[event.categorie];
   const graviteConfig = GRAVITE_CONFIG[event.gravite] ?? GRAVITE_CONFIG[0];
-  const sourceLabel = SOURCE_LABELS[event.source] ?? event.source;
+  const sourceLabel =
+    event.source === "presse_rss" && event.auteur
+      ? event.auteur
+      : SOURCE_LABELS[event.source] ?? event.source;
 
   return (
     <Marker

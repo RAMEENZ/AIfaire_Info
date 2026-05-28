@@ -25,21 +25,29 @@ export default function HomePage() {
   const [filters, setFilters] = useState<EventFilters>({
     categories: ALL_CATEGORIES,
     gravite_min: 0,
+    depuis_heures: 48,
   });
 
-  const eventsParams = {
-    categories: filters.categories,
-    gravite_min: filters.gravite_min > 0 ? filters.gravite_min : undefined,
-  };
+  // SWR key uses stable primitive values (no datetime string that changes every render)
+  const swrKey = ["events", filters.categories, filters.gravite_min, filters.depuis_heures];
 
   const {
     data: eventsData,
     isLoading: eventsLoading,
     mutate: refreshEvents,
-  } = useSWR(["events", eventsParams], () => fetchEvents(eventsParams), {
-    refreshInterval: REFRESH_INTERVAL,
-    revalidateOnFocus: false,
-  });
+  } = useSWR(
+    swrKey,
+    () =>
+      fetchEvents({
+        categories: filters.categories,
+        gravite_min: filters.gravite_min > 0 ? filters.gravite_min : undefined,
+        depuis: new Date(Date.now() - filters.depuis_heures * 3600 * 1000).toISOString(),
+      }),
+    {
+      refreshInterval: REFRESH_INTERVAL,
+      revalidateOnFocus: false,
+    }
+  );
 
   const { data: healthData } = useSWR("health", fetchHealth, {
     refreshInterval: REFRESH_INTERVAL,
@@ -64,6 +72,10 @@ export default function HomePage() {
     setFilters((prev) => ({ ...prev, gravite_min }));
   };
 
+  const handleDepuisHeuresChange = (depuis_heures: number) => {
+    setFilters((prev) => ({ ...prev, depuis_heures }));
+  };
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Header */}
@@ -76,6 +88,7 @@ export default function HomePage() {
           filters={filters}
           onCategoriesChange={handleCategoriesChange}
           onGraviteChange={handleGraviteChange}
+          onDepuisHeuresChange={handleDepuisHeuresChange}
           onRefresh={() => refreshEvents()}
           isLoading={eventsLoading}
         />
@@ -94,9 +107,7 @@ export default function HomePage() {
       <main className="flex flex-1 overflow-hidden">
         {/* Map — 70% */}
         <div className="flex-1 min-w-0 relative">
-          <MapWrapper
-            events={localEvents}
-          />
+          <MapWrapper events={localEvents} />
         </div>
 
         {/* Sidebar — 30% */}

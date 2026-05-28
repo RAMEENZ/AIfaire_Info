@@ -31,7 +31,10 @@ function formatRelative(iso: string): string {
 
 function EventCard({ event }: { event: Event }) {
   const catConfig = CATEGORY_CONFIG[event.categorie];
-  const sourceLabel = SOURCE_LABELS[event.source] ?? event.source;
+  const sourceLabel =
+    event.source === "presse_rss" && event.auteur
+      ? event.auteur
+      : SOURCE_LABELS[event.source] ?? event.source;
   const isLocalized = event.lieu_lat !== null && event.lieu_lon !== null;
   const borderColor = GRAVITE_BORDER[event.gravite] ?? "transparent";
 
