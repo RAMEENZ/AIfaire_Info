@@ -55,4 +55,5 @@ export interface HealthResponse {
 export interface EventFilters {
   categories: Categorie[];
   gravite_min: number;
+  depuis_heures: number;
 }

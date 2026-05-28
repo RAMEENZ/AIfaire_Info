@@ -7,6 +7,7 @@ interface FilterBarProps {
   filters: EventFilters;
   onCategoriesChange: (categories: Categorie[]) => void;
   onGraviteChange: (gravite_min: number) => void;
+  onDepuisHeuresChange: (heures: number) => void;
   onRefresh: () => void;
   isLoading: boolean;
 }
@@ -18,10 +19,18 @@ const GRAVITE_OPTIONS: { value: number; label: string }[] = [
   { value: 3, label: "Urgence" },
 ];
 
+const DEPUIS_OPTIONS: { value: number; label: string }[] = [
+  { value: 24, label: "24h" },
+  { value: 48, label: "48h" },
+  { value: 168, label: "7j" },
+  { value: 720, label: "30j" },
+];
+
 export default function FilterBar({
   filters,
   onCategoriesChange,
   onGraviteChange,
+  onDepuisHeuresChange,
   onRefresh,
   isLoading,
 }: FilterBarProps) {
@@ -91,6 +100,24 @@ export default function FilterBar({
             onClick={() => onGraviteChange(opt.value)}
             className={`text-xs px-2 py-1 rounded border transition-colors ${
               filters.gravite_min === opt.value
+                ? "bg-gray-700 text-white border-gray-700"
+                : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Période */}
+      <div className="flex items-center gap-1">
+        <span className="text-xs text-gray-500 hidden md:inline">Période :</span>
+        {DEPUIS_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => onDepuisHeuresChange(opt.value)}
+            className={`text-xs px-2 py-1 rounded border transition-colors ${
+              filters.depuis_heures === opt.value
                 ? "bg-gray-700 text-white border-gray-700"
                 : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
             }`}
