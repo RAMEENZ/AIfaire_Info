@@ -22,6 +22,7 @@ interface EventFeedProps {
   error?: Error | null;
   selectedEventId?: string | null;
   onSelectEvent?: (event: Event) => void;
+  onRetry?: () => void;
 }
 
 function formatRelative(iso: string): string {
@@ -181,7 +182,7 @@ function AlertBanner({ events, onSelect }: { events: Event[]; onSelect?: (e: Eve
   );
 }
 
-export default function EventFeed({ events, isLoading, error, selectedEventId, onSelectEvent }: EventFeedProps) {
+export default function EventFeed({ events, isLoading, error, selectedEventId, onSelectEvent, onRetry }: EventFeedProps) {
   const [tab, setTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -288,11 +289,25 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
       {/* List */}
       <div ref={listRef} className="flex-1 overflow-y-auto relative">
         {error && !isLoading && sorted.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-32 gap-2 text-sm text-red-500 px-4">
-            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <div className="flex flex-col items-center justify-center h-40 gap-3 px-4">
+            <svg className="w-8 h-8 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
             </svg>
-            <span className="text-center text-xs">Impossible de joindre le serveur</span>
+            <div className="text-center">
+              <p className="text-sm font-medium text-red-600 mb-1">Serveur inaccessible</p>
+              <p className="text-xs text-gray-400">Vérifiez que le backend est en ligne</p>
+            </div>
+            {onRetry && (
+              <button
+                onClick={onRetry}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Réessayer
+              </button>
+            )}
           </div>
         )}
 
