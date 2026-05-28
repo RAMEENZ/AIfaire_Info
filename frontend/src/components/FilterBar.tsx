@@ -10,6 +10,7 @@ interface FilterBarProps {
   onDepuisHeuresChange: (heures: number) => void;
   onRefresh: () => void;
   isLoading: boolean;
+  eventCounts?: Partial<Record<Categorie, number>>;
 }
 
 const GRAVITE_OPTIONS: { value: number; label: string }[] = [
@@ -33,6 +34,7 @@ export default function FilterBar({
   onDepuisHeuresChange,
   onRefresh,
   isLoading,
+  eventCounts,
 }: FilterBarProps) {
   function toggleCategory(cat: Categorie) {
     if (filters.categories.includes(cat)) {
@@ -86,6 +88,11 @@ export default function FilterBar({
             >
               <span>{config.icon}</span>
               <span className="hidden lg:inline">{config.label}</span>
+              {eventCounts?.[cat] !== undefined && eventCounts[cat]! > 0 && (
+                <span className={`text-[10px] font-semibold ${active ? "opacity-80" : "text-gray-500"}`}>
+                  {eventCounts[cat]}
+                </span>
+              )}
             </button>
           );
         })}

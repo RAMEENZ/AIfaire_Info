@@ -9,7 +9,7 @@ import FilterBar from "@/components/FilterBar";
 import StatusBar from "@/components/StatusBar";
 import StatsBar from "@/components/StatsBar";
 import { fetchEvents, fetchHealth } from "@/lib/api";
-import { ALL_CATEGORIES, REFRESH_INTERVAL } from "@/lib/constants";
+import { ALL_CATEGORIES, GRAVITE_CONFIG, REFRESH_INTERVAL } from "@/lib/constants";
 import { Categorie, Event, EventFilters } from "@/lib/types";
 
 function exportToCSV(events: Event[]) {
@@ -112,6 +112,13 @@ export default function HomePage() {
     (e) => e.lieu_niveau === "national" || (e.lieu_lat === null && e.lieu_lon === null)
   );
 
+  const eventCounts: Partial<Record<Categorie, number>> = {};
+  for (const e of allEvents) {
+    eventCounts[e.categorie] = (eventCounts[e.categorie] ?? 0) + 1;
+  }
+
+  const maxGravite = allEvents.reduce((max, e) => Math.max(max, e.gravite), -1);
+
   const handleCategoriesChange = (categories: Categorie[]) => {
     setFilters((prev) => ({ ...prev, categories }));
   };
@@ -139,7 +146,20 @@ export default function HomePage() {
           onDepuisHeuresChange={handleDepuisHeuresChange}
           onRefresh={() => refreshEvents()}
           isLoading={eventsLoading}
+          eventCounts={eventCounts}
         />
+        {maxGravite >= 2 && (
+          <span
+            className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-full text-white text-xs font-semibold animate-pulse"
+            style={{ backgroundColor: GRAVITE_CONFIG[maxGravite]?.color }}
+            title={GRAVITE_CONFIG[maxGravite]?.label}
+          >
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            {GRAVITE_CONFIG[maxGravite]?.label}
+          </span>
+        )}
         <button
           onClick={() => {
             navigator.clipboard.writeText(window.location.href).catch(() => {});
@@ -214,6 +234,7 @@ export default function HomePage() {
             localCount={localEvents.length}
             nationalCount={nationalEvents.length}
             generatedAt={eventsData?.generated_at ?? null}
+            events={allEvents}
           />
           <EventFeed
             events={allEvents}

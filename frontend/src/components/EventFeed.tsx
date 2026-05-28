@@ -121,7 +121,7 @@ function EventCard({
   );
 }
 
-function AlertBanner({ events }: { events: Event[] }) {
+function AlertBanner({ events, onSelect }: { events: Event[]; onSelect?: (e: Event) => void }) {
   const urgent = events
     .filter((e) => e.gravite >= 2)
     .sort((a, b) => b.gravite - a.gravite || new Date(b.date_publication).getTime() - new Date(a.date_publication).getTime())
@@ -132,7 +132,7 @@ function AlertBanner({ events }: { events: Event[] }) {
   const hasCritical = urgent.some((e) => e.gravite >= 3);
   const bg = hasCritical ? "bg-red-50 border-red-200" : "bg-orange-50 border-orange-200";
   const titleColor = hasCritical ? "text-red-700" : "text-orange-700";
-  const linkColor = hasCritical ? "text-red-800 hover:text-red-600" : "text-orange-800 hover:text-orange-600";
+  const textColor = hasCritical ? "text-red-800 hover:text-red-600" : "text-orange-800 hover:text-orange-600";
 
   return (
     <div className={`px-3 py-2 border-b ${bg}`}>
@@ -144,18 +144,28 @@ function AlertBanner({ events }: { events: Event[] }) {
       </p>
       <ul className="space-y-1">
         {urgent.map((e) => (
-          <li key={e.id} className="flex items-start gap-1.5">
+          <li key={e.id} className="flex items-center gap-1.5">
             <span
-              className="mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0"
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
               style={{ backgroundColor: GRAVITE_CONFIG[e.gravite]?.color }}
             />
+            <button
+              className={`text-xs line-clamp-1 text-left flex-1 min-w-0 ${textColor} hover:underline`}
+              onClick={() => onSelect?.(e)}
+            >
+              {e.titre}
+            </button>
             <a
               href={e.source_url}
               target="_blank"
               rel="noopener noreferrer"
-              className={`text-xs line-clamp-1 ${linkColor}`}
+              className="flex-shrink-0 text-gray-400 hover:text-gray-600"
+              title="Ouvrir l'article"
+              onClick={(ev) => ev.stopPropagation()}
             >
-              {e.titre}
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
             </a>
           </li>
         ))}
@@ -227,7 +237,7 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Alert banner */}
-      <AlertBanner events={events} />
+      <AlertBanner events={events} onSelect={onSelectEvent} />
 
       {/* Header + tabs */}
       <div className="px-4 pt-2.5 pb-2 border-b border-gray-200 flex-shrink-0">
