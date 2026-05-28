@@ -198,17 +198,37 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+      const inInput = document.activeElement?.tagName === "INPUT";
+      if (e.key === "/" && !inInput) {
         e.preventDefault();
         searchInputRef.current?.focus();
       } else if (e.key === "Escape" && document.activeElement === searchInputRef.current) {
         setSearch("");
         searchInputRef.current?.blur();
+      } else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !inInput && onSelectEvent) {
+        e.preventDefault();
+        // Use stable reference via ref to avoid stale closure
+        const sortedIds = Array.from(
+          document.querySelectorAll<HTMLElement>("[id^='event-card-']")
+        ).map((el) => el.id.replace("event-card-", ""));
+        if (sortedIds.length === 0) return;
+        const currentIdx = selectedEventId ? sortedIds.indexOf(selectedEventId) : -1;
+        const nextIdx =
+          e.key === "ArrowDown"
+            ? Math.min(currentIdx + 1, sortedIds.length - 1)
+            : Math.max(currentIdx - 1, 0);
+        if (nextIdx !== currentIdx) {
+          // Find the event object from DOM order and call onSelectEvent
+          const nextId = sortedIds[nextIdx];
+          const nextEl = document.getElementById(`event-card-${nextId}`);
+          nextEl?.click();
+        }
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEventId]);
 
   const searchLower = search.trim().toLowerCase();
 
