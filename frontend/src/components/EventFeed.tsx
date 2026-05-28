@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -167,12 +167,28 @@ function AlertBanner({ events }: { events: Event[] }) {
 export default function EventFeed({ events, isLoading, error, selectedEventId, onSelectEvent }: EventFeedProps) {
   const [tab, setTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (selectedEventId == null) return;
     const el = document.getElementById(`event-card-${selectedEventId}`);
     el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [selectedEventId]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      } else if (e.key === "Escape" && document.activeElement === searchInputRef.current) {
+        setSearch("");
+        searchInputRef.current?.blur();
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
   const searchLower = search.trim().toLowerCase();
 
@@ -226,10 +242,11 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
+            ref={searchInputRef}
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher…"
+            placeholder="Rechercher… (/)"
             className="w-full pl-6 pr-3 py-1 text-xs rounded border border-gray-200 bg-gray-50 focus:outline-none focus:border-blue-400 focus:bg-white transition-colors"
           />
         </div>
@@ -252,7 +269,7 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={listRef} className="flex-1 overflow-y-auto relative">
         {error && !isLoading && sorted.length === 0 && (
           <div className="flex flex-col items-center justify-center h-32 gap-2 text-sm text-red-500 px-4">
             <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -297,6 +314,17 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
             onSelect={onSelectEvent}
           />
         ))}
+
+        {sorted.length > 8 && (
+          <div className="sticky bottom-2 flex justify-center pb-2 pointer-events-none">
+            <button
+              onClick={() => listRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+              className="pointer-events-auto bg-white border border-gray-200 shadow-sm rounded-full px-3 py-1 text-xs text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
+            >
+              ↑ Haut
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
