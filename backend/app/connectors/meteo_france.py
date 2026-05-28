@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.connectors.base import BaseConnector
+from app.geo_data import DEPT_CODE_TO_NAME
 
 VIGILANCE_BASE_URL = (
     "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets"
@@ -83,6 +84,7 @@ class MeteoFranceConnector(BaseConnector):
 
             domain_id = str(record.get("domain_id", ""))
             dept_code = _normalise_dept(domain_id)
+            dept_name = DEPT_CODE_TO_NAME.get(dept_code, dept_code)
             phenomenon = str(record.get("phenomenon", "vigilance météo")).strip()
             categorie = PHENOMENON_TO_CATEGORIE.get(phenomenon.lower(), "meteo")
 
@@ -92,7 +94,7 @@ class MeteoFranceConnector(BaseConnector):
                 continue
             seen_dept_phenomenon.add(key)
 
-            titre = f"Vigilance {color} – {phenomenon.capitalize()} – Dép. {dept_code}"
+            titre = f"Vigilance {color} – {phenomenon.capitalize()} – {dept_name}"
             date_pub = self._parse_iso(record.get("begin_time") or record.get("product_datetime"))
 
             results.append(
@@ -105,10 +107,10 @@ class MeteoFranceConnector(BaseConnector):
                     "date_evenement": self._parse_iso(record.get("end_time"), isoformat=True),
                     "categorie": categorie,
                     "gravite": gravite,
-                    "lieu_nom": dept_code,
+                    "lieu_nom": dept_name,
                     "lieu_code_insee": dept_code,
                     "lieu_niveau": "departement",
-                    "resume_ia": f"Vigilance météorologique {color} pour {phenomenon} dans le département {dept_code}.",
+                    "resume_ia": f"Vigilance météorologique {color} pour {phenomenon} dans le département {dept_name} ({dept_code}).",
                 }
             )
 

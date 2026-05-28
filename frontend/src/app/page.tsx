@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import dynamic from "next/dynamic";
 
@@ -42,12 +42,35 @@ const MapWrapper = dynamic(() => import("@/components/MapWrapper"), {
   ),
 });
 
+function readFiltersFromURL(): EventFilters {
+  if (typeof window === "undefined") {
+    return { categories: ALL_CATEGORIES, gravite_min: 0, depuis_heures: 48 };
+  }
+  const p = new URLSearchParams(window.location.search);
+  const cats = p.get("cats");
+  const categories: Categorie[] = cats
+    ? (cats.split(",").filter((c) => ALL_CATEGORIES.includes(c as Categorie)) as Categorie[])
+    : ALL_CATEGORIES;
+  const gravite_min = Math.max(0, Math.min(3, parseInt(p.get("g") ?? "0", 10) || 0));
+  const depuis_heures_raw = parseInt(p.get("h") ?? "48", 10);
+  const depuis_heures = [24, 48, 168, 720].includes(depuis_heures_raw) ? depuis_heures_raw : 48;
+  return { categories, gravite_min, depuis_heures };
+}
+
 export default function HomePage() {
-  const [filters, setFilters] = useState<EventFilters>({
-    categories: ALL_CATEGORIES,
-    gravite_min: 0,
-    depuis_heures: 48,
-  });
+  const [filters, setFilters] = useState<EventFilters>(readFiltersFromURL);
+
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (filters.categories.length !== ALL_CATEGORIES.length) {
+      p.set("cats", filters.categories.join(","));
+    }
+    if (filters.gravite_min > 0) p.set("g", String(filters.gravite_min));
+    if (filters.depuis_heures !== 48) p.set("h", String(filters.depuis_heures));
+    const qs = p.toString();
+    const newUrl = qs ? `?${qs}` : window.location.pathname;
+    window.history.replaceState(null, "", newUrl);
+  }, [filters]);
 
   // SWR key uses stable primitive values (no datetime string that changes every render)
   const swrKey = ["events", filters.categories, filters.gravite_min, filters.depuis_heures];
@@ -55,6 +78,7 @@ export default function HomePage() {
   const {
     data: eventsData,
     isLoading: eventsLoading,
+    error: eventsError,
     mutate: refreshEvents,
   } = useSWR(
     swrKey,
@@ -150,7 +174,7 @@ export default function HomePage() {
             nationalCount={nationalEvents.length}
             generatedAt={eventsData?.generated_at ?? null}
           />
-          <EventFeed events={allEvents} isLoading={eventsLoading} />
+          <EventFeed events={allEvents} isLoading={eventsLoading} error={eventsError} />
         </aside>
       </main>
 
