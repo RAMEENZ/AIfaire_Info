@@ -3,7 +3,7 @@ import html as _html
 import re as _re
 import feedparser
 import httpx
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
 
@@ -147,6 +147,8 @@ RSS_FEEDS: list[dict[str, Any]] = [
 ]
 
 UA = "Mozilla/5.0 (compatible; FaireInfo/1.0; aggregator)"
+# Articles older than this are skipped — matches presse_rss TTL in purge.py
+_MAX_ARTICLE_AGE = timedelta(hours=72)
 
 # Limit simultaneous HTTP requests to avoid overwhelming news sites or the local connection pool
 _FETCH_SEMAPHORE = asyncio.Semaphore(20)
@@ -201,6 +203,7 @@ async def _fetch_feed(client: httpx.AsyncClient, feed_cfg: dict[str, Any]) -> li
     loop = asyncio.get_event_loop()
     parsed = await loop.run_in_executor(None, feedparser.parse, content)
 
+    cutoff = datetime.now(timezone.utc) - _MAX_ARTICLE_AGE
     results: list[dict[str, Any]] = []
     for entry in parsed.entries:
         try:
@@ -226,6 +229,8 @@ async def _fetch_feed(client: httpx.AsyncClient, feed_cfg: dict[str, Any]) -> li
                         break
 
             date_pub = _parse_rss_date(entry)
+            if date_pub < cutoff:
+                continue
 
             results.append(
                 {

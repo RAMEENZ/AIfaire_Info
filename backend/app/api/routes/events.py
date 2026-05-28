@@ -2,7 +2,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,7 +27,7 @@ async def list_events(
     niveau: Optional[str] = Query(None),
     depuis: Optional[datetime] = Query(None),
     q: Optional[str] = Query(None, description="Recherche textuelle (titre, résumé, lieu)"),
-    limit: int = Query(default=500, ge=1, le=1000),
+    limit: int = Query(default=settings.DEFAULT_EVENTS_LIMIT, ge=1, le=settings.MAX_EVENTS_LIMIT),
     national_only: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ) -> EventList:
@@ -58,11 +58,13 @@ async def list_events(
         stmt = stmt.where(Event.geom.is_(None))
 
     if q:
-        pattern = f"%{q.strip()}%"
+        q_safe = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{q_safe}%"
         stmt = stmt.where(
-            Event.titre.ilike(pattern)
-            | Event.resume_ia.ilike(pattern)
-            | Event.lieu_nom.ilike(pattern)
+            Event.titre.ilike(pattern, escape="\\")
+            | Event.resume_ia.ilike(pattern, escape="\\")
+            | Event.lieu_nom.ilike(pattern, escape="\\")
+            | Event.auteur.ilike(pattern, escape="\\")
         )
 
     if bbox:
@@ -146,10 +148,9 @@ async def get_stats(db: AsyncSession = Depends(get_db)) -> dict:
 
 
 @router.post("/ingest/run")
-async def trigger_ingest() -> dict:
+async def trigger_ingest(background_tasks: BackgroundTasks) -> dict:
     """Déclenche manuellement l'ingestion de tous les connecteurs."""
-    import asyncio
-    asyncio.create_task(ingest_all())
+    background_tasks.add_task(ingest_all)
     return {"status": "started", "message": "Ingestion déclenchée en arrière-plan"}
 
 

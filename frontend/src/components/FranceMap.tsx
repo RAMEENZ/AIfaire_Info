@@ -159,7 +159,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
           <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">DOM-TOM</p>
           <div className="flex flex-wrap gap-1 max-w-[200px]">
             {DOM_TOM.map((t) => {
-              const territoryEvents = events.filter((e) => e.lieu_code_insee === t.code);
+              const territoryEvents = events.filter((e) => e.lieu_code_insee?.startsWith(t.code) ?? false);
               const maxG = territoryEvents.reduce((m, e) => Math.max(m, e.gravite), 0);
               const alertColor = maxG >= 3 ? "#EF4444" : maxG >= 2 ? "#F97316" : maxG >= 1 ? "#F59E0B" : null;
               return (

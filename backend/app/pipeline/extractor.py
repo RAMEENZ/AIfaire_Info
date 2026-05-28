@@ -4,6 +4,7 @@ import html as _html
 import json
 import logging
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 import anthropic
@@ -166,7 +167,8 @@ async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
     client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
     clean_description = _strip_html(description) if description else ""
-    user_content = f"Titre: {titre}"
+    today = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+    user_content = f"Date: {today}\nTitre: {titre}"
     if clean_description:
         user_content += f"\n\nDescription: {clean_description[:1000]}"
 
