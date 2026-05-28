@@ -135,6 +135,14 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "France Bleu Vaucluse",          "url": "https://www.francebleu.fr/vaucluse/rss",              "region": "Provence-Alpes-Côte d'Azur"},
     {"name": "France Bleu Picardie",          "url": "https://www.francebleu.fr/picardie/rss",              "region": "Hauts-de-France"},
     {"name": "France Bleu Breizh Izel",       "url": "https://www.francebleu.fr/breizh-izel/rss",           "region": "Bretagne"},
+
+    # ── FRANCE BLEU — STATIONS RÉGIONALES (fin) ──────────────────────────────
+    {"name": "France Bleu Drôme Ardèche",    "url": "https://www.francebleu.fr/drome-ardeche/rss",         "region": "Auvergne-Rhône-Alpes"},
+    {"name": "France Bleu Loire Océan",      "url": "https://www.francebleu.fr/loire-ocean/rss",           "region": "Pays de la Loire"},
+    {"name": "France Bleu Mayenne",          "url": "https://www.francebleu.fr/mayenne/rss",               "region": "Pays de la Loire"},
+    {"name": "France Bleu Auxerre",          "url": "https://www.francebleu.fr/auxerre/rss",               "region": "Bourgogne-Franche-Comté"},
+    {"name": "France Bleu Belfort-Montbél.", "url": "https://www.francebleu.fr/belfort-montbeliard/rss",   "region": "Bourgogne-Franche-Comté"},
+    {"name": "France Bleu Creuse",           "url": "https://www.francebleu.fr/creuse/rss",                "region": "Nouvelle-Aquitaine"},
 ]
 
 UA = "Mozilla/5.0 (compatible; FaireInfo/1.0; aggregator)"
