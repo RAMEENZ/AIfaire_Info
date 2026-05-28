@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { formatDistanceToNow, parseISO } from "date-fns";
+import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
 import { CATEGORY_CONFIG, GRAVITE_CONFIG, SOURCE_LABELS } from "@/lib/constants";
@@ -113,7 +113,14 @@ function EventCard({
         <span className="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-medium shrink-0 truncate max-w-[120px]">
           {sourceLabel}
         </span>
-        <time dateTime={event.date_publication} className="text-right shrink-0">
+        <time
+          dateTime={event.date_publication}
+          className="text-right shrink-0"
+          title={(() => {
+            try { return format(parseISO(event.date_publication), "d MMM yyyy HH:mm", { locale: fr }); }
+            catch { return event.date_publication; }
+          })()}
+        >
           {formatRelative(event.date_publication)}
         </time>
       </div>
