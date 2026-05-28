@@ -98,19 +98,26 @@ async def _rule_based_extract(titre: str, description: str | None) -> dict[str, 
             gravite = level
             break
 
-    # --- Lieu par regex sur le titre ---
+    # --- Lieu par regex : titre d'abord, puis description ---
     lieu_nom = "national"
-    full_titre = titre  # patterns operate on original case
-    for pattern in TOPONYM_PATTERNS:
-        for match in re.finditer(pattern, full_titre):
-            candidate = match.group(1).strip()
-            try:
-                geo = await geocode(candidate)
-                if geo.get("confiance_geo", 0.0) >= 0.5:
-                    lieu_nom = candidate
-                    break
-            except Exception as exc:
-                logger.debug("Geocoding candidate '%s' failed: %s", candidate, exc)
+    texts_to_search = [titre]
+    if clean_desc:
+        # Only first 300 chars of description for performance
+        texts_to_search.append(clean_desc[:300])
+
+    for search_text in texts_to_search:
+        for pattern in TOPONYM_PATTERNS:
+            for match in re.finditer(pattern, search_text):
+                candidate = match.group(1).strip()
+                try:
+                    geo = await geocode(candidate)
+                    if geo.get("confiance_geo", 0.0) >= 0.5:
+                        lieu_nom = candidate
+                        break
+                except Exception as exc:
+                    logger.debug("Geocoding candidate '%s' failed: %s", candidate, exc)
+            if lieu_nom != "national":
+                break
         if lieu_nom != "national":
             break
 
