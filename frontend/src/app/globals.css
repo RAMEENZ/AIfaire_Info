@@ -40,6 +40,12 @@ main {
   transform: scale(1.15);
 }
 
+.faire-marker--selected {
+  transform: scale(1.25);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.9), 0 0 0 5px currentColor, 0 3px 8px rgba(0,0,0,0.4);
+  z-index: 1000 !important;
+}
+
 .leaflet-popup-content-wrapper {
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
