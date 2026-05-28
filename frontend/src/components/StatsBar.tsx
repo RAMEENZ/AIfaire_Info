@@ -11,6 +11,8 @@ interface StatsBarProps {
   nationalCount: number;
   generatedAt: string | null;
   events: Event[];
+  activeCategoryFilter?: Categorie | null;
+  onCategorySelect?: (cat: Categorie) => void;
 }
 
 function formatGeneratedAt(iso: string | null): string {
@@ -27,7 +29,7 @@ function formatGeneratedAt(iso: string | null): string {
   }
 }
 
-export default function StatsBar({ localCount, nationalCount, generatedAt, events }: StatsBarProps) {
+export default function StatsBar({ localCount, nationalCount, generatedAt, events, activeCategoryFilter, onCategorySelect }: StatsBarProps) {
   const time = formatGeneratedAt(generatedAt);
   const total = localCount + nationalCount;
 
@@ -68,15 +70,19 @@ export default function StatsBar({ localCount, nationalCount, generatedAt, event
           {activeCats.map(([cat, count]) => {
             const cfg = CATEGORY_CONFIG[cat];
             if (!cfg) return null;
+            const isActive = activeCategoryFilter === cat;
             return (
-              <span
+              <button
                 key={cat}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-white text-[10px] font-medium"
+                onClick={() => onCategorySelect?.(cat)}
+                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-white text-[10px] font-medium transition-opacity ${
+                  onCategorySelect ? "cursor-pointer hover:opacity-80" : "cursor-default"
+                } ${isActive ? "ring-2 ring-white ring-offset-1" : ""}`}
                 style={{ backgroundColor: cfg.color }}
-                title={cfg.label}
+                title={isActive ? `Afficher toutes les catégories` : `Filtrer : ${cfg.label}`}
               >
                 {cfg.icon} {count}
-              </span>
+              </button>
             );
           })}
         </div>
