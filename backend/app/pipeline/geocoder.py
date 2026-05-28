@@ -51,16 +51,30 @@ LIEU_ALIASES: dict[str, str] = {
     "dom-tom":                None,
 }
 
-# Régions métropolitaines — bypass BAN, aller directement sur geo.api.gouv.fr/regions
-KNOWN_REGION_NAMES: frozenset[str] = frozenset({
-    "auvergne-rhône-alpes", "bourgogne-franche-comté", "bretagne",
-    "centre-val de loire", "corse", "grand est", "hauts-de-france",
-    "île-de-france", "normandie", "nouvelle-aquitaine", "occitanie",
-    "pays de la loire", "provence-alpes-côte d'azur",
-    # variantes sans accents
-    "auvergne-rhone-alpes", "bourgogne-franche-comte", "ile-de-france",
-    "provence-alpes-cote d'azur",
-})
+# Coordonnées hardcodées pour les régions métropolitaines
+# (geo.api.gouv.fr/regions n'expose pas le champ "centre")
+REGION_COORDS: dict[str, dict] = {
+    "auvergne-rhône-alpes":          {"lat": 45.50, "lon":  4.00, "code_insee": "84", "niveau": "region", "confiance_geo": 0.90},
+    "auvergne-rhone-alpes":          {"lat": 45.50, "lon":  4.00, "code_insee": "84", "niveau": "region", "confiance_geo": 0.90},
+    "bourgogne-franche-comté":       {"lat": 47.10, "lon":  5.20, "code_insee": "27", "niveau": "region", "confiance_geo": 0.90},
+    "bourgogne-franche-comte":       {"lat": 47.10, "lon":  5.20, "code_insee": "27", "niveau": "region", "confiance_geo": 0.90},
+    "bretagne":                      {"lat": 48.20, "lon": -2.90, "code_insee": "53", "niveau": "region", "confiance_geo": 0.90},
+    "centre-val de loire":           {"lat": 47.50, "lon":  1.70, "code_insee": "24", "niveau": "region", "confiance_geo": 0.90},
+    "corse":                         {"lat": 42.00, "lon":  9.00, "code_insee": "94", "niveau": "region", "confiance_geo": 0.90},
+    "grand est":                     {"lat": 48.70, "lon":  7.00, "code_insee": "44", "niveau": "region", "confiance_geo": 0.90},
+    "hauts-de-france":               {"lat": 50.50, "lon":  2.80, "code_insee": "32", "niveau": "region", "confiance_geo": 0.90},
+    "île-de-france":                 {"lat": 48.80, "lon":  2.40, "code_insee": "11", "niveau": "region", "confiance_geo": 0.90},
+    "ile-de-france":                 {"lat": 48.80, "lon":  2.40, "code_insee": "11", "niveau": "region", "confiance_geo": 0.90},
+    "normandie":                     {"lat": 49.20, "lon":  0.30, "code_insee": "28", "niveau": "region", "confiance_geo": 0.90},
+    "nouvelle-aquitaine":            {"lat": 44.50, "lon":  0.50, "code_insee": "75", "niveau": "region", "confiance_geo": 0.90},
+    "occitanie":                     {"lat": 43.80, "lon":  2.50, "code_insee": "76", "niveau": "region", "confiance_geo": 0.90},
+    "pays de la loire":              {"lat": 47.50, "lon": -1.00, "code_insee": "52", "niveau": "region", "confiance_geo": 0.90},
+    "provence-alpes-côte d'azur":   {"lat": 43.80, "lon":  5.80, "code_insee": "93", "niveau": "region", "confiance_geo": 0.90},
+    "provence-alpes-cote d'azur":   {"lat": 43.80, "lon":  5.80, "code_insee": "93", "niveau": "region", "confiance_geo": 0.90},
+}
+
+# Alias lookup set (for KNOWN_REGION_NAMES backward compatibility)
+KNOWN_REGION_NAMES: frozenset[str] = frozenset(REGION_COORDS.keys())
 
 # Coordonnées des DOM-TOM (hors API geo.gouv.fr)
 DOM_TOM_COORDS: dict[str, dict[str, Any]] = {
@@ -128,12 +142,11 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
             _geo_cache[cache_key] = alias_result
             return alias_result
 
-    # Région métropolitaine connue → skip BAN, aller direct geo.api.gouv.fr
-    if lieu_lower in KNOWN_REGION_NAMES:
-        result = await _geocode_region(lieu_clean)
-        if result["confiance_geo"] >= 0.5:
-            _geo_cache[cache_key] = result
-            return result
+    # Région métropolitaine connue → coordonnées hardcodées (geo.api.gouv.fr/regions n'a pas de "centre")
+    if lieu_lower in REGION_COORDS:
+        result = REGION_COORDS[lieu_lower]
+        _geo_cache[cache_key] = result
+        return result
 
     # Cascade normale : commune → département → région → commune (seuil bas)
     result = await _geocode_commune(lieu_clean)
