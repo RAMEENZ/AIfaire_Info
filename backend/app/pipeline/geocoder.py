@@ -7,6 +7,10 @@ from app.geo_data import DEPT_CODE_TO_NAME
 
 logger = logging.getLogger(__name__)
 
+# In-process cache: maps lieu_nom → GeoResult
+# 512 entries covers repeated city names across a full ingestion run
+_geo_cache: dict[str, "GeoResult"] = {}
+
 BAN_URL = "https://api-adresse.data.gouv.fr/search/"
 GEO_DEPT_URL = "https://geo.api.gouv.fr/departements"
 GEO_REGION_URL = "https://geo.api.gouv.fr/regions"
@@ -59,17 +63,26 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
         return empty
 
     lieu_clean = lieu_nom.strip()
-    lieu_lower = lieu_clean.lower()
+    cache_key = lieu_clean.lower()
+
+    if cache_key in _geo_cache:
+        return _geo_cache[cache_key]
+
+    lieu_lower = cache_key
 
     # Département par code exact
     if lieu_clean in DEPT_CODE_TO_NAME:
-        return await _geocode_departement_by_code(lieu_clean)
+        result = await _geocode_departement_by_code(lieu_clean)
+        _geo_cache[cache_key] = result
+        return result
 
     # Département par nom exact (ex: "Paris", "Gironde")
     if lieu_lower in DEPT_NAME_TO_CODE:
-        return await _geocode_departement_by_code(DEPT_NAME_TO_CODE[lieu_lower])
+        result = await _geocode_departement_by_code(DEPT_NAME_TO_CODE[lieu_lower])
+        _geo_cache[cache_key] = result
+        return result
 
-    # DOM-TOM par nom normalisé
+    # DOM-TOM par nom normalisé (hardcoded — no API call needed)
     if lieu_lower in DOM_TOM_COORDS:
         return DOM_TOM_COORDS[lieu_lower]
 
@@ -77,24 +90,31 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
     if lieu_lower in KNOWN_REGION_NAMES:
         result = await _geocode_region(lieu_clean)
         if result["confiance_geo"] >= 0.5:
+            _geo_cache[cache_key] = result
             return result
 
     # Cascade normale : commune → département → région → commune (seuil bas)
     result = await _geocode_commune(lieu_clean)
     if result["confiance_geo"] >= 0.6:
+        _geo_cache[cache_key] = result
         return result
 
     result_dept = await _geocode_departement(lieu_clean)
     if result_dept["confiance_geo"] >= 0.5:
+        _geo_cache[cache_key] = result_dept
         return result_dept
 
     result_region = await _geocode_region(lieu_clean)
     if result_region["confiance_geo"] >= 0.5:
+        _geo_cache[cache_key] = result_region
         return result_region
 
     if result["confiance_geo"] >= 0.3:
+        _geo_cache[cache_key] = result
         return result
 
+    # Cache negative results too to avoid repeated failed API calls
+    _geo_cache[cache_key] = empty
     return empty
 
 
