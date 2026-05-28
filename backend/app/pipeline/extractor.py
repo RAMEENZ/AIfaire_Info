@@ -53,7 +53,9 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
                      "secousse tellurique", "activité volcanique"],
     "energie":      ["coupure électricité", "réseau électrique", "enedis", "délestage",
                      "blackout", "panne de courant", "panne d'électricité", "panne edf",
-                     "rupture d'approvisionnement", "réseau enedis", "tension sur le réseau"],
+                     "rupture d'approvisionnement", "réseau enedis", "tension sur le réseau",
+                     "panne de gaz", "réseau gazier", "grdf", "gestionnaire réseau",
+                     "réseau de transport", "rte électricité"],
     "transport":    ["sncf", "grève des transports", "perturbation trafic", "retard train",
                      "ratp", "autoroute", "accident de la route", "bouchon",
                      "circulation perturbée", "axe coupé", "route barrée", "fermeture autoroute",
@@ -64,7 +66,9 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "sante":        ["épidémie", "pandémie", "virus", "contamination", "hôpital débordé",
                      "urgences saturées", "santé publique", "santépublique", "spf", "alerte sanitaire",
                      "intoxication", "rappel de lot", "listeria", "salmonelle", "grippe",
-                     "gastro-entérite", "dépistage", "vaccination", "variole du singe"],
+                     "gastro-entérite", "dépistage", "vaccination", "variole du singe",
+                     "ansm", "médicament", "dispositif médical", "alerte sanitaire",
+                     "crise sanitaire", "canicule sanitaire", "surveillance épidémique"],
 }
 
 GRAVITY_KEYWORDS: dict[int, list[str]] = {

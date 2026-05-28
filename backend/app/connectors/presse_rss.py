@@ -63,6 +63,7 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Actu Centre-Val de Loire",     "url": "https://actu.fr/centre-val-de-loire/rss.xml",           "region": "Centre-Val de Loire"},
     {"name": "Actu Bourgogne-Franche-Comté", "url": "https://actu.fr/bourgogne-franche-comte/rss.xml",       "region": "Bourgogne-Franche-Comté"},
     {"name": "Actu PACA",                    "url": "https://actu.fr/provence-alpes-cote-d-azur/rss.xml",    "region": "Provence-Alpes-Côte d'Azur"},
+    {"name": "Actu Corse",                   "url": "https://actu.fr/corse/rss.xml",                          "region": "Corse"},
 
     # ── DOM-TOM — LA 1ÈRE (France Télévisions) ───────────────────────────────
     {"name": "La 1ère Guadeloupe",        "url": "https://la1ere.francetvinfo.fr/guadeloupe/rss",               "region": "Guadeloupe"},
