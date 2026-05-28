@@ -285,7 +285,12 @@ export default function HomePage() {
       <StatusBar
         connectors={healthData?.connectors ?? []}
         nextIngestAt={healthData?.next_ingest_at ?? null}
-        onTriggerIngest={async () => { await triggerIngest(); setTimeout(() => refreshEvents(), 2000); }}
+        onTriggerIngest={async () => {
+          await triggerIngest();
+          // Refresh twice: quick pass after ~10s, then again at ~35s when all connectors finish
+          setTimeout(() => refreshEvents(), 10_000);
+          setTimeout(() => refreshEvents(), 35_000);
+        }}
       />
     </div>
   );
