@@ -130,14 +130,15 @@ function EventCard({
 }
 
 function AlertBanner({ events, onSelect }: { events: Event[]; onSelect?: (e: Event) => void }) {
-  const urgent = events
+  const allUrgent = events
     .filter((e) => e.gravite >= 2)
-    .sort((a, b) => b.gravite - a.gravite || new Date(b.date_publication).getTime() - new Date(a.date_publication).getTime())
-    .slice(0, 4);
+    .sort((a, b) => b.gravite - a.gravite || new Date(b.date_publication).getTime() - new Date(a.date_publication).getTime());
+  const urgent = allUrgent.slice(0, 4);
+  const totalUrgent = allUrgent.length;
 
-  if (urgent.length === 0) return null;
+  if (totalUrgent === 0) return null;
 
-  const hasCritical = urgent.some((e) => e.gravite >= 3);
+  const hasCritical = allUrgent.some((e) => e.gravite >= 3);
   const bg = hasCritical ? "bg-red-50 border-red-200" : "bg-orange-50 border-orange-200";
   const titleColor = hasCritical ? "text-red-700" : "text-orange-700";
   const textColor = hasCritical ? "text-red-800 hover:text-red-600" : "text-orange-800 hover:text-orange-600";
@@ -148,7 +149,8 @@ function AlertBanner({ events, onSelect }: { events: Event[]; onSelect?: (e: Eve
         <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
-        {urgent.length} alerte{urgent.length > 1 ? "s" : ""} importante{urgent.length > 1 ? "s" : ""}
+        {totalUrgent} alerte{totalUrgent > 1 ? "s" : ""} importante{totalUrgent > 1 ? "s" : ""}
+        {totalUrgent > 4 && <span className="font-normal opacity-70"> (top 4)</span>}
       </p>
       <ul className="space-y-1">
         {urgent.map((e) => (

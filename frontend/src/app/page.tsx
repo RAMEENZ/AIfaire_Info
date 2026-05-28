@@ -206,14 +206,24 @@ export default function HomePage() {
             CSV
           </button>
         )}
-        <div className="ml-auto text-xs text-gray-400 hidden md:block whitespace-nowrap">
-          {eventsData
-            ? localEvents.length > 0
-              ? `${eventsData.total} événement${eventsData.total > 1 ? "s" : ""} (${localEvents.length} localisé${localEvents.length > 1 ? "s" : ""} · ${nationalEvents.length} national${nationalEvents.length > 1 ? "aux" : ""})`
-              : `${eventsData.total} événement${eventsData.total > 1 ? "s" : ""} · tout national`
-            : eventsLoading
-            ? "Chargement…"
-            : ""}
+        <div className="ml-auto flex items-center gap-2 hidden md:flex">
+          {eventsError && allEvents.length > 0 && (
+            <span className="text-xs text-amber-600 flex items-center gap-1" title="Données potentiellement périmées — la dernière mise à jour a échoué">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              Données possiblement périmées
+            </span>
+          )}
+          <span className="text-xs text-gray-400 whitespace-nowrap">
+            {eventsData
+              ? localEvents.length > 0
+                ? `${eventsData.total} événement${eventsData.total > 1 ? "s" : ""} (${localEvents.length} localisé${localEvents.length > 1 ? "s" : ""} · ${nationalEvents.length} national${nationalEvents.length > 1 ? "aux" : ""})`
+                : `${eventsData.total} événement${eventsData.total > 1 ? "s" : ""} · tout national`
+              : eventsLoading
+              ? "Chargement…"
+              : ""}
+          </span>
         </div>
       </header>
 
