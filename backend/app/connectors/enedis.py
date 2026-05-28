@@ -5,12 +5,12 @@ from typing import Any
 from app.connectors.base import BaseConnector
 
 COUPURES_URL = (
-    "https://data.enedis.fr/api/explore/v2.1/catalog/datasets"
+    "https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets"
     "/coupures-delectricite/records?limit=100&order_by=date_debut_perturbation%20desc"
 )
 
 FALLBACK_URL = (
-    "https://data.enedis.fr/api/explore/v2.1/catalog/datasets"
+    "https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets"
     "/bilan-electrique-demi-heure/records?limit=1"
 )
 
