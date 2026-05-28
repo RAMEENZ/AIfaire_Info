@@ -11,6 +11,8 @@ import { Event } from "@/lib/types";
 
 interface FranceMapProps {
   events: Event[];
+  selectedEvent?: Event | null;
+  onSelectEvent?: (event: Event) => void;
 }
 
 const DOM_TOM = [
@@ -90,7 +92,7 @@ function MapLegend() {
   );
 }
 
-export default function FranceMap({ events }: FranceMapProps) {
+export default function FranceMap({ events, selectedEvent, onSelectEvent }: FranceMapProps) {
   const mapRef = useRef<LeafletMap | null>(null);
 
   useEffect(() => {
@@ -104,6 +106,12 @@ export default function FranceMap({ events }: FranceMapProps) {
       });
     });
   }, []);
+
+  useEffect(() => {
+    if (selectedEvent?.lieu_lat != null && selectedEvent?.lieu_lon != null) {
+      mapRef.current?.flyTo([selectedEvent.lieu_lat, selectedEvent.lieu_lon], 12, { duration: 1.0 });
+    }
+  }, [selectedEvent]);
 
   const flyTo = (center: [number, number], zoom: number) => {
     mapRef.current?.flyTo(center, zoom, { duration: 1.2 });
@@ -130,7 +138,7 @@ export default function FranceMap({ events }: FranceMapProps) {
           maxClusterRadius={50}
         >
           {events.map((event) => (
-            <EventMarker key={event.id} event={event} />
+            <EventMarker key={event.id} event={event} onSelect={onSelectEvent} />
           ))}
         </MarkerClusterGroup>
       </MapContainer>
