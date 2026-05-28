@@ -231,9 +231,12 @@ async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
 SOURCE_CAT_OVERRIDES: dict[str, str] = {
     "santé publique france": "sante",
     "spf": "sante",
+    "ansm": "sante",
     "vigicrues": "crue",
     "météo-france": "meteo",
     "meteo-france": "meteo",
+    "ministère intérieur": "ordre_public",
+    "ministere interieur": "ordre_public",
 }
 
 
