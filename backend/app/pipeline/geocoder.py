@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -105,6 +106,9 @@ DOM_TOM_COORDS: dict[str, dict[str, Any]] = {
 
 GeoResult = dict[str, Any]
 
+# Strip leading French definite articles ("le Var" → "var", "l'Hérault" → "hérault")
+_LEADING_ARTICLE_RE = re.compile(r"^(?:le |la |les |l'|l')(.+)$", re.IGNORECASE)
+
 _NATIONAL_TERMS: frozenset[str] = frozenset({
     "national", "france", "france métropolitaine", "france metropolitaine",
     "hexagone", "l'hexagone", "territoire national", "métropole", "metropole",
@@ -132,6 +136,10 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
 
     lieu_lower = cache_key
 
+    # Strip leading French articles for dept/region lookups (e.g. "le Var" → "var")
+    _m = _LEADING_ARTICLE_RE.match(lieu_lower)
+    _stripped_lower = _m.group(1).strip() if _m else lieu_lower
+
     # Département par code exact
     if lieu_clean in DEPT_CODE_TO_NAME:
         async with _GEO_SEMAPHORE:
@@ -139,30 +147,33 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
         _geo_cache_put(cache_key, result)
         return result
 
-    # Département par nom exact (ex: "Paris", "Gironde")
-    if lieu_lower in DEPT_NAME_TO_CODE:
-        async with _GEO_SEMAPHORE:
-            result = await _geocode_departement_by_code(DEPT_NAME_TO_CODE[lieu_lower])
-        _geo_cache_put(cache_key, result)
-        return result
+    # Département par nom exact — try with and without leading article
+    for _lookup_key in {lieu_lower, _stripped_lower}:
+        if _lookup_key in DEPT_NAME_TO_CODE:
+            async with _GEO_SEMAPHORE:
+                result = await _geocode_departement_by_code(DEPT_NAME_TO_CODE[_lookup_key])
+            _geo_cache_put(cache_key, result)
+            return result
 
-    # DOM-TOM par nom normalisé (hardcoded — no API call needed)
-    if lieu_lower in DOM_TOM_COORDS:
-        return DOM_TOM_COORDS[lieu_lower]
+    # DOM-TOM par nom normalisé — try with and without leading article
+    for _lookup_key in (lieu_lower, _stripped_lower):
+        if _lookup_key in DOM_TOM_COORDS:
+            return DOM_TOM_COORDS[_lookup_key]
 
-    # Alias (PACA, IDF, anciens noms de régions, abréviations courantes)
-    alias_target = LIEU_ALIASES.get(lieu_lower)
+    # Alias — try with and without leading article
+    alias_target = LIEU_ALIASES.get(lieu_lower) or LIEU_ALIASES.get(_stripped_lower)
     if alias_target is not None:
         alias_result = await geocode(alias_target)
         if alias_result["confiance_geo"] >= 0.5:
             _geo_cache_put(cache_key, alias_result)
             return alias_result
 
-    # Région métropolitaine connue → coordonnées hardcodées (geo.api.gouv.fr/regions n'a pas de "centre")
-    if lieu_lower in REGION_COORDS:
-        result = REGION_COORDS[lieu_lower]
-        _geo_cache_put(cache_key, result)
-        return result
+    # Région métropolitaine connue — try with and without leading article
+    for _lookup_key in (lieu_lower, _stripped_lower):
+        if _lookup_key in REGION_COORDS:
+            result = REGION_COORDS[_lookup_key]
+            _geo_cache_put(cache_key, result)
+            return result
 
     # Cascade : commune → département → commune (seuil bas)
     # Note: _geocode_region removed from cascade — geo.api.gouv.fr/regions has no "centre" field
