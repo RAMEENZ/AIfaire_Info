@@ -17,6 +17,40 @@ GEO_REGION_URL = "https://geo.api.gouv.fr/regions"
 
 DEPT_NAME_TO_CODE: dict[str, str] = {v.lower(): k for k, v in DEPT_CODE_TO_NAME.items()}
 
+# Common abbreviations and alternate spellings that map to geocodable names
+LIEU_ALIASES: dict[str, str] = {
+    "paca":                   "Provence-Alpes-Côte d'Azur",
+    "idf":                    "Île-de-France",
+    "idF":                    "Île-de-France",
+    "ile-de-france":          "Île-de-France",
+    "aura":                   "Auvergne-Rhône-Alpes",
+    "ara":                    "Auvergne-Rhône-Alpes",
+    "bfc":                    "Bourgogne-Franche-Comté",
+    "cvdl":                   "Centre-Val de Loire",
+    "hra":                    "Hauts-de-France",
+    "hdf":                    "Hauts-de-France",
+    "na":                     "Nouvelle-Aquitaine",
+    "paca":                   "Provence-Alpes-Côte d'Azur",
+    "nord-pas-de-calais":     "Hauts-de-France",
+    "picardie":               "Hauts-de-France",
+    "champagne-ardenne":      "Grand Est",
+    "lorraine":               "Grand Est",
+    "alsace":                 "Grand Est",
+    "haute-normandie":        "Normandie",
+    "basse-normandie":        "Normandie",
+    "poitou-charentes":       "Nouvelle-Aquitaine",
+    "limousin":               "Nouvelle-Aquitaine",
+    "aquitaine":              "Nouvelle-Aquitaine",
+    "midi-pyrénées":          "Occitanie",
+    "languedoc-roussillon":   "Occitanie",
+    "rhône-alpes":            "Auvergne-Rhône-Alpes",
+    "auvergne":               "Auvergne-Rhône-Alpes",
+    "haute-normandie":        "Normandie",
+    "pays de loire":          "Pays de la Loire",
+    "pays-de-la-loire":       "Pays de la Loire",
+    "dom-tom":                None,
+}
+
 # Régions métropolitaines — bypass BAN, aller directement sur geo.api.gouv.fr/regions
 KNOWN_REGION_NAMES: frozenset[str] = frozenset({
     "auvergne-rhône-alpes", "bourgogne-franche-comté", "bretagne",
@@ -85,6 +119,14 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
     # DOM-TOM par nom normalisé (hardcoded — no API call needed)
     if lieu_lower in DOM_TOM_COORDS:
         return DOM_TOM_COORDS[lieu_lower]
+
+    # Alias (PACA, IDF, anciens noms de régions, abréviations courantes)
+    alias_target = LIEU_ALIASES.get(lieu_lower)
+    if alias_target is not None:
+        alias_result = await geocode(alias_target)
+        if alias_result["confiance_geo"] >= 0.5:
+            _geo_cache[cache_key] = alias_result
+            return alias_result
 
     # Région métropolitaine connue → skip BAN, aller direct geo.api.gouv.fr
     if lieu_lower in KNOWN_REGION_NAMES:

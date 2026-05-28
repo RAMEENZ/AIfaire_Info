@@ -265,6 +265,7 @@ export default function HomePage() {
             error={eventsError}
             selectedEventId={selectedEvent?.id ?? null}
             onSelectEvent={setSelectedEvent}
+            onRetry={() => refreshEvents()}
           />
         </aside>
       </main>
