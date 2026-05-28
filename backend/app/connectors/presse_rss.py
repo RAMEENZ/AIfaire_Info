@@ -199,14 +199,19 @@ async def _fetch_feed(client: httpx.AsyncClient, feed_cfg: dict[str, Any]) -> li
             if not link:
                 continue
 
+            # Try full content first (richer), fall back to summary/description
             summary = ""
-            for attr in ("summary", "description"):
-                val = getattr(entry, attr, None)
-                if isinstance(val, list) and val:
-                    val = val[0].get("value", "")
-                if val and isinstance(val, str):
-                    summary = _strip_html(val)[:500]
-                    break
+            content_list = getattr(entry, "content", None)
+            if isinstance(content_list, list) and content_list:
+                summary = _strip_html(content_list[0].get("value", ""))[:800]
+            if not summary:
+                for attr in ("summary", "description"):
+                    val = getattr(entry, attr, None)
+                    if isinstance(val, list) and val:
+                        val = val[0].get("value", "")
+                    if val and isinstance(val, str):
+                        summary = _strip_html(val)[:500]
+                        break
 
             date_pub = _parse_rss_date(entry)
 
