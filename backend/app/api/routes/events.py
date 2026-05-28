@@ -39,7 +39,7 @@ async def list_events(
     if niveau and niveau not in VALID_NIVEAUX:
         raise HTTPException(status_code=422, detail=f"Invalid niveau: {niveau}. Must be one of {VALID_NIVEAUX}")
 
-    since_dt = depuis or (datetime.now(timezone.utc) - timedelta(hours=48))
+    since_dt = depuis or (datetime.now(timezone.utc) - timedelta(hours=settings.DEFAULT_SINCE_HOURS))
     if since_dt.tzinfo is None:
         since_dt = since_dt.replace(tzinfo=timezone.utc)
 

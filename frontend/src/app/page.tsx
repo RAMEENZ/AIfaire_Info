@@ -119,6 +119,16 @@ export default function HomePage() {
 
   const maxGravite = allEvents.reduce((max, e) => Math.max(max, e.gravite), -1);
 
+  const urgentCount = allEvents.filter((e) => e.gravite >= 3).length;
+  useEffect(() => {
+    const base = "FAIRE Info";
+    if (urgentCount > 0) {
+      document.title = `🔴 ${urgentCount} urgence${urgentCount > 1 ? "s" : ""} — ${base}`;
+    } else {
+      document.title = base;
+    }
+  }, [urgentCount]);
+
   const handleCategoriesChange = (categories: Categorie[]) => {
     setFilters((prev) => ({ ...prev, categories }));
   };
