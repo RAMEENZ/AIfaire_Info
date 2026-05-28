@@ -12,6 +12,27 @@ import { fetchEvents, fetchHealth } from "@/lib/api";
 import { ALL_CATEGORIES, REFRESH_INTERVAL } from "@/lib/constants";
 import { Categorie, Event, EventFilters } from "@/lib/types";
 
+function exportToCSV(events: Event[]) {
+  const headers = ["id", "titre", "source", "auteur", "categorie", "gravite", "lieu_nom", "lieu_niveau", "lieu_lat", "lieu_lon", "date_publication", "source_url", "resume_ia"];
+  const esc = (v: string | null | undefined) => `"${(v ?? "").replace(/"/g, '""')}"`;
+  const rows = events.map((e) => [
+    e.id, esc(e.titre), e.source, esc(e.auteur), e.categorie,
+    e.gravite, esc(e.lieu_nom), e.lieu_niveau,
+    e.lieu_lat ?? "", e.lieu_lon ?? "",
+    e.date_publication, esc(e.source_url), esc(e.resume_ia),
+  ]);
+  const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `faire-info-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 const MapWrapper = dynamic(() => import("@/components/MapWrapper"), {
   ssr: false,
   loading: () => (
@@ -92,6 +113,18 @@ export default function HomePage() {
           onRefresh={() => refreshEvents()}
           isLoading={eventsLoading}
         />
+        {allEvents.length > 0 && (
+          <button
+            onClick={() => exportToCSV(allEvents)}
+            className="hidden lg:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+            title={`Télécharger ${allEvents.length} événements en CSV`}
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            CSV
+          </button>
+        )}
         <div className="ml-auto text-xs text-gray-400 hidden md:block whitespace-nowrap">
           {eventsData
             ? localEvents.length > 0
