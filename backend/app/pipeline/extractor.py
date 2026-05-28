@@ -1,3 +1,4 @@
+import html as _html
 import json
 import logging
 import re
@@ -36,7 +37,7 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "ordre_public": ["manifestation", "émeute", "violence urbaine", "attentat", "terrorisme",
                      "incendie criminel", "fusillades", "agression"],
     "sante":        ["épidémie", "pandémie", "virus", "contamination", "hôpital débordé",
-                     "urgences saturées", "santé publique"],
+                     "urgences saturées", "santé publique", "santépublique", "spf", "alerte sanitaire"],
 }
 
 GRAVITY_KEYWORDS: dict[int, list[str]] = {
@@ -57,9 +58,17 @@ TOPONYM_PATTERNS: list[str] = [
 ]
 
 
+def _strip_html(text: str) -> str:
+    """Supprime les balises HTML et décode les entités."""
+    text = re.sub(r'<[^>]+>', ' ', text)
+    text = _html.unescape(text)
+    return ' '.join(text.split())
+
+
 async def _rule_based_extract(titre: str, description: str | None) -> dict[str, Any]:
     """Extraction par règles (sans IA) : catégorie, gravité et lieu par regex + géocodage."""
-    text = (titre + " " + (description or "")).lower()
+    clean_desc = _strip_html(description) if description else None
+    text = (titre + " " + (clean_desc or "")).lower()
 
     # --- Catégorie ---
     categorie = "actualite"
@@ -92,7 +101,7 @@ async def _rule_based_extract(titre: str, description: str | None) -> dict[str, 
             break
 
     # --- Résumé ---
-    resume_ia = (description[:280] if description else None) or titre[:200]
+    resume_ia = (clean_desc[:280] if clean_desc else None) or titre[:200]
 
     return {
         "lieu_nom": lieu_nom,
@@ -109,9 +118,11 @@ async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
 
     client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
 
+    clean_description = _strip_html(description) if description else ""
+
     user_content = f"Titre: {titre}"
-    if description:
-        user_content += f"\n\nDescription: {description[:1000]}"
+    if clean_description:
+        user_content += f"\n\nDescription: {clean_description[:1000]}"
 
     try:
         message = await client.messages.create(
@@ -183,8 +194,14 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
     extraction = await extract_with_claude(titre, description)
 
     updated = dict(item)
+
     if not updated.get("lieu_nom") or updated.get("source") == "presse_rss":
-        updated["lieu_nom"] = extraction["lieu_nom"]
+        extracted_lieu = extraction["lieu_nom"]
+        current_lieu = updated.get("lieu_nom")
+        # Preserve a regional lieu_nom provided by the feed when extraction only returns "national"
+        if extracted_lieu != "national" or not current_lieu:
+            updated["lieu_nom"] = extracted_lieu
+
     if not updated.get("resume_ia"):
         updated["resume_ia"] = extraction["resume_ia"]
     if not updated.get("categorie") or updated.get("source") == "presse_rss":

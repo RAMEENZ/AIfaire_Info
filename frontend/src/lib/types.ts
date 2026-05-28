@@ -38,6 +38,7 @@ export interface ConnectorStatus {
   name: string;
   last_run: string | null;
   last_error: string | null;
+  last_count: number | null;
   status: ConnectorStatusValue;
 }
 
