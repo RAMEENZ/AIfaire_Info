@@ -32,7 +32,6 @@ DEPT_NAME_TO_CODE: dict[str, str] = {v.lower(): k for k, v in DEPT_CODE_TO_NAME.
 LIEU_ALIASES: dict[str, str] = {
     "paca":                   "Provence-Alpes-Côte d'Azur",
     "idf":                    "Île-de-France",
-    "idF":                    "Île-de-France",
     "ile-de-france":          "Île-de-France",
     "aura":                   "Auvergne-Rhône-Alpes",
     "ara":                    "Auvergne-Rhône-Alpes",
@@ -41,7 +40,6 @@ LIEU_ALIASES: dict[str, str] = {
     "hra":                    "Hauts-de-France",
     "hdf":                    "Hauts-de-France",
     "na":                     "Nouvelle-Aquitaine",
-    "paca":                   "Provence-Alpes-Côte d'Azur",
     "nord-pas-de-calais":     "Hauts-de-France",
     "picardie":               "Hauts-de-France",
     "champagne-ardenne":      "Grand Est",
@@ -56,7 +54,6 @@ LIEU_ALIASES: dict[str, str] = {
     "languedoc-roussillon":   "Occitanie",
     "rhône-alpes":            "Auvergne-Rhône-Alpes",
     "auvergne":               "Auvergne-Rhône-Alpes",
-    "haute-normandie":        "Normandie",
     "pays de loire":          "Pays de la Loire",
     "pays-de-la-loire":       "Pays de la Loire",
     "dom-tom":                None,
