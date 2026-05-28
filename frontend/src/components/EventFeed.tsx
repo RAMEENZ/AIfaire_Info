@@ -106,6 +106,49 @@ function EventCard({ event }: { event: Event }) {
   );
 }
 
+function AlertBanner({ events }: { events: Event[] }) {
+  const urgent = events
+    .filter((e) => e.gravite >= 2)
+    .sort((a, b) => b.gravite - a.gravite || new Date(b.date_publication).getTime() - new Date(a.date_publication).getTime())
+    .slice(0, 4);
+
+  if (urgent.length === 0) return null;
+
+  const hasCritical = urgent.some((e) => e.gravite >= 3);
+  const bg = hasCritical ? "bg-red-50 border-red-200" : "bg-orange-50 border-orange-200";
+  const titleColor = hasCritical ? "text-red-700" : "text-orange-700";
+  const linkColor = hasCritical ? "text-red-800 hover:text-red-600" : "text-orange-800 hover:text-orange-600";
+
+  return (
+    <div className={`px-3 py-2 border-b ${bg}`}>
+      <p className={`text-xs font-semibold mb-1.5 flex items-center gap-1 ${titleColor}`}>
+        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>
+        {urgent.length} alerte{urgent.length > 1 ? "s" : ""} importante{urgent.length > 1 ? "s" : ""}
+      </p>
+      <ul className="space-y-1">
+        {urgent.map((e) => (
+          <li key={e.id} className="flex items-start gap-1.5">
+            <span
+              className="mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0"
+              style={{ backgroundColor: GRAVITE_CONFIG[e.gravite]?.color }}
+            />
+            <a
+              href={e.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`text-xs line-clamp-1 ${linkColor}`}
+            >
+              {e.titre}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function EventFeed({ events, isLoading }: EventFeedProps) {
   const [tab, setTab] = useState<Tab>("all");
 
@@ -133,6 +176,9 @@ export default function EventFeed({ events, isLoading }: EventFeedProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
+      {/* Alert banner */}
+      <AlertBanner events={events} />
+
       {/* Header + tabs */}
       <div className="px-4 pt-2.5 pb-2 border-b border-gray-200 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">

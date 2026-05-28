@@ -54,12 +54,40 @@ def get_scheduler() -> AsyncIOScheduler:
         _scheduler.add_job(
             _run_ingestion_job,
             trigger=CronTrigger(
+                hour=13,
+                minute=0,
+                timezone=settings.SCHEDULER_TIMEZONE,
+            ),
+            id="ingest_midday",
+            name="Midday ingestion (13h00)",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
+        _scheduler.add_job(
+            _run_ingestion_job,
+            trigger=CronTrigger(
                 hour=settings.SCHEDULER_HOUR_EVENING,
                 minute=0,
                 timezone=settings.SCHEDULER_TIMEZONE,
             ),
             id="ingest_evening",
             name="Evening ingestion (19h00)",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
+        _scheduler.add_job(
+            _run_ingestion_job,
+            trigger=CronTrigger(
+                hour=23,
+                minute=0,
+                timezone=settings.SCHEDULER_TIMEZONE,
+            ),
+            id="ingest_night",
+            name="Night ingestion (23h00)",
             replace_existing=True,
             max_instances=1,
             coalesce=True,

@@ -38,6 +38,35 @@ DEPT_CODE_TO_NAME: dict[str, str] = {
     "972": "Martinique", "973": "Guyane", "974": "La Réunion", "976": "Mayotte",
 }
 
+# Régions métropolitaines — bypass BAN, aller directement sur geo.api.gouv.fr/regions
+KNOWN_REGION_NAMES: frozenset[str] = frozenset({
+    "auvergne-rhône-alpes", "bourgogne-franche-comté", "bretagne",
+    "centre-val de loire", "corse", "grand est", "hauts-de-france",
+    "île-de-france", "normandie", "nouvelle-aquitaine", "occitanie",
+    "pays de la loire", "provence-alpes-côte d'azur",
+    # variantes sans accents
+    "auvergne-rhone-alpes", "bourgogne-franche-comte", "ile-de-france",
+    "provence-alpes-cote d'azur",
+})
+
+# Coordonnées des DOM-TOM (hors API geo.gouv.fr)
+DOM_TOM_COORDS: dict[str, dict[str, Any]] = {
+    "guadeloupe":             {"lat": 16.25,  "lon": -61.55, "code_insee": "971", "niveau": "region", "confiance_geo": 0.95},
+    "martinique":             {"lat": 14.65,  "lon": -61.00, "code_insee": "972", "niveau": "region", "confiance_geo": 0.95},
+    "guyane":                 {"lat": 3.93,   "lon": -53.13, "code_insee": "973", "niveau": "region", "confiance_geo": 0.95},
+    "la réunion":             {"lat": -21.11, "lon":  55.54, "code_insee": "974", "niveau": "region", "confiance_geo": 0.95},
+    "réunion":                {"lat": -21.11, "lon":  55.54, "code_insee": "974", "niveau": "region", "confiance_geo": 0.95},
+    "mayotte":                {"lat": -12.83, "lon":  45.16, "code_insee": "976", "niveau": "region", "confiance_geo": 0.95},
+    "nouvelle-calédonie":     {"lat": -20.90, "lon": 165.60, "code_insee": "988", "niveau": "region", "confiance_geo": 0.95},
+    "nouvelle-caledonie":     {"lat": -20.90, "lon": 165.60, "code_insee": "988", "niveau": "region", "confiance_geo": 0.95},
+    "polynésie française":    {"lat": -17.60, "lon":-149.40, "code_insee": "987", "niveau": "region", "confiance_geo": 0.95},
+    "polynésie":              {"lat": -17.60, "lon":-149.40, "code_insee": "987", "niveau": "region", "confiance_geo": 0.95},
+    "saint-pierre-et-miquelon": {"lat": 46.88,"lon": -56.32, "code_insee": "975", "niveau": "region", "confiance_geo": 0.95},
+    "wallis-et-futuna":       {"lat": -13.29, "lon":-176.15, "code_insee": "986", "niveau": "region", "confiance_geo": 0.95},
+    "saint-martin":           {"lat": 18.07,  "lon": -63.08, "code_insee": "978", "niveau": "region", "confiance_geo": 0.95},
+    "saint-barthélemy":       {"lat": 17.90,  "lon": -62.83, "code_insee": "977", "niveau": "region", "confiance_geo": 0.95},
+}
+
 
 GeoResult = dict[str, Any]
 
@@ -55,10 +84,23 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
         return empty
 
     lieu_clean = lieu_nom.strip()
+    lieu_lower = lieu_clean.lower()
 
+    # Département par code exact
     if lieu_clean in DEPT_CODE_TO_NAME:
         return await _geocode_departement_by_code(lieu_clean)
 
+    # DOM-TOM par nom normalisé
+    if lieu_lower in DOM_TOM_COORDS:
+        return DOM_TOM_COORDS[lieu_lower]
+
+    # Région métropolitaine connue → skip BAN, aller direct geo.api.gouv.fr
+    if lieu_lower in KNOWN_REGION_NAMES:
+        result = await _geocode_region(lieu_clean)
+        if result["confiance_geo"] >= 0.5:
+            return result
+
+    # Cascade normale : commune → département → région → commune (seuil bas)
     result = await _geocode_commune(lieu_clean)
     if result["confiance_geo"] >= 0.6:
         return result

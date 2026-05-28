@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { MapContainer, TileLayer } from "react-leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
 import type { Map as LeafletMap } from "leaflet";
 
 import EventMarker from "./EventMarker";
@@ -25,6 +26,21 @@ const DOM_TOM = [
   { code: "987", name: "Polynésie",    center: [-17.60,-149.40] as [number, number], zoom:  8 },
   { code: "988", name: "N-Calédonie",  center: [-20.90, 165.60] as [number, number], zoom:  8 },
 ];
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function createClusterCustomIcon(cluster: any) {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const L = require("leaflet") as typeof import("leaflet");
+  const count: number = cluster.getChildCount();
+  const size = count >= 50 ? 42 : count >= 20 ? 36 : count >= 10 ? 30 : 24;
+  const fontSize = size <= 24 ? 10 : size <= 30 ? 11 : 13;
+  return L.divIcon({
+    className: "",
+    html: `<div style="width:${size}px;height:${size}px;background:#1d4ed8;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;font-weight:700;border:2px solid white;box-shadow:0 1px 5px rgba(0,0,0,0.35)">${count}</div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
 
 export default function FranceMap({ events }: FranceMapProps) {
   const mapRef = useRef<LeafletMap | null>(null);
@@ -59,9 +75,16 @@ export default function FranceMap({ events }: FranceMapProps) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {events.map((event) => (
-          <EventMarker key={event.id} event={event} />
-        ))}
+        <MarkerClusterGroup
+          chunkedLoading
+          showCoverageOnHover={false}
+          iconCreateFunction={createClusterCustomIcon}
+          maxClusterRadius={50}
+        >
+          {events.map((event) => (
+            <EventMarker key={event.id} event={event} />
+          ))}
+        </MarkerClusterGroup>
       </MapContainer>
 
       {/* Panneau de navigation DOM-TOM */}
