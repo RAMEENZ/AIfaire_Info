@@ -124,6 +124,23 @@ def start_scheduler() -> AsyncIOScheduler:
     return scheduler
 
 
+def get_next_ingest_time() -> str | None:
+    if _scheduler is None or not _scheduler.running:
+        return None
+    job = _scheduler.get_job("ingest_morning") or _scheduler.get_job("ingest_midday") or \
+          _scheduler.get_job("ingest_evening") or _scheduler.get_job("ingest_night")
+    if job is None:
+        return None
+    # Find the soonest next run across all ingest jobs
+    earliest = None
+    for jid in ("ingest_morning", "ingest_midday", "ingest_evening", "ingest_night"):
+        j = _scheduler.get_job(jid)
+        if j and j.next_run_time:
+            if earliest is None or j.next_run_time < earliest:
+                earliest = j.next_run_time
+    return earliest.isoformat() if earliest else None
+
+
 def stop_scheduler() -> None:
     global _scheduler
     if _scheduler is not None and _scheduler.running:

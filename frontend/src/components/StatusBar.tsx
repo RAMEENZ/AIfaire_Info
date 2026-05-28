@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { format, parseISO } from "date-fns";
+import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
 import { SOURCE_LABELS } from "@/lib/constants";
@@ -9,6 +9,7 @@ import { ConnectorStatus } from "@/lib/types";
 
 interface StatusBarProps {
   connectors: ConnectorStatus[];
+  nextIngestAt?: string | null;
 }
 
 const STATUS_COLOR: Record<ConnectorStatus["status"], string> = {
@@ -85,7 +86,16 @@ function ConnectorDot({ connector }: { connector: ConnectorStatus }) {
   );
 }
 
-export default function StatusBar({ connectors }: StatusBarProps) {
+function formatNextIngest(iso: string | null | undefined): string {
+  if (!iso) return "";
+  try {
+    return formatDistanceToNow(parseISO(iso), { locale: fr, addSuffix: true });
+  } catch {
+    return "";
+  }
+}
+
+export default function StatusBar({ connectors, nextIngestAt }: StatusBarProps) {
   const hasError = connectors.some((c) => c.status === "error");
   const hasWarning = connectors.some((c) => c.status === "warning");
 
@@ -106,12 +116,19 @@ export default function StatusBar({ connectors }: StatusBarProps) {
         </div>
       )}
 
-      <div className="ml-auto flex items-center gap-1.5">
-        <span
-          className="block w-2 h-2 rounded-full"
-          style={{ backgroundColor: globalColor }}
-        />
-        <span className="hidden sm:inline">{STATUS_LABEL[globalStatus]}</span>
+      <div className="ml-auto flex items-center gap-3">
+        {nextIngestAt && (
+          <span className="hidden md:inline text-gray-400">
+            Prochaine MàJ {formatNextIngest(nextIngestAt)}
+          </span>
+        )}
+        <div className="flex items-center gap-1.5">
+          <span
+            className="block w-2 h-2 rounded-full"
+            style={{ backgroundColor: globalColor }}
+          />
+          <span className="hidden sm:inline">{STATUS_LABEL[globalStatus]}</span>
+        </div>
       </div>
     </footer>
   );

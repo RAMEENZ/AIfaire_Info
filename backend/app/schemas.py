@@ -50,3 +50,4 @@ class ConnectorStatusSchema(BaseModel):
 class HealthResponse(BaseModel):
     connectors: List[ConnectorStatusSchema]
     checked_at: datetime
+    next_ingest_at: Optional[datetime] = None
