@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import dynamic from "next/dynamic";
 
@@ -102,24 +102,44 @@ export default function HomePage() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [mobileView, setMobileView] = useState<"map" | "feed">("map");
 
-  const allEvents: Event[] = eventsData?.events ?? [];
+  const handleResetFilters = useCallback(() => {
+    setFilters({ categories: ALL_CATEGORIES, gravite_min: 0, depuis_heures: 48 });
+  }, []);
 
-  const localEvents = allEvents.filter(
-    (e) => e.lieu_lat !== null && e.lieu_lon !== null
+  const handleSelectEvent = useCallback((e: Event) => {
+    setSelectedEvent(e);
+    setMobileView("feed");
+  }, []);
+
+  const handleTriggerIngest = useCallback(async () => {
+    await triggerIngest();
+    setTimeout(refreshEvents, 10_000);
+    setTimeout(refreshEvents, 35_000);
+  }, [refreshEvents]);
+
+  const allEvents: Event[] = useMemo(() => eventsData?.events ?? [], [eventsData]);
+
+  const localEvents = useMemo(
+    () => allEvents.filter((e) => e.lieu_lat !== null && e.lieu_lon !== null),
+    [allEvents]
   );
 
-  const nationalEvents = allEvents.filter(
-    (e) => e.lieu_niveau === "national" || (e.lieu_lat === null && e.lieu_lon === null)
+  const nationalEvents = useMemo(
+    () => allEvents.filter((e) => e.lieu_niveau === "national" || (e.lieu_lat === null && e.lieu_lon === null)),
+    [allEvents]
   );
 
-  const eventCounts: Partial<Record<Categorie, number>> = {};
-  for (const e of allEvents) {
-    eventCounts[e.categorie] = (eventCounts[e.categorie] ?? 0) + 1;
-  }
+  const eventCounts: Partial<Record<Categorie, number>> = useMemo(() => {
+    const counts: Partial<Record<Categorie, number>> = {};
+    for (const e of allEvents) {
+      counts[e.categorie] = (counts[e.categorie] ?? 0) + 1;
+    }
+    return counts;
+  }, [allEvents]);
 
-  const maxGravite = allEvents.reduce((max, e) => Math.max(max, e.gravite), -1);
+  const maxGravite = useMemo(() => allEvents.reduce((max, e) => Math.max(max, e.gravite), -1), [allEvents]);
 
-  const urgentCount = allEvents.filter((e) => e.gravite >= 3).length;
+  const urgentCount = useMemo(() => allEvents.filter((e) => e.gravite >= 3).length, [allEvents]);
   useEffect(() => {
     const base = "FAIRE Info";
     if (urgentCount > 0) {
@@ -129,28 +149,27 @@ export default function HomePage() {
     }
   }, [urgentCount]);
 
-  const handleCategoriesChange = (categories: Categorie[]) => {
+  const handleCategoriesChange = useCallback((categories: Categorie[]) => {
     setFilters((prev) => ({ ...prev, categories }));
-  };
+  }, []);
 
-  const handleGraviteChange = (gravite_min: number) => {
+  const handleGraviteChange = useCallback((gravite_min: number) => {
     setFilters((prev) => ({ ...prev, gravite_min }));
-  };
+  }, []);
 
-  const handleDepuisHeuresChange = (depuis_heures: number) => {
+  const handleDepuisHeuresChange = useCallback((depuis_heures: number) => {
     setFilters((prev) => ({ ...prev, depuis_heures }));
-  };
+  }, []);
 
   const activeCategoryFilter: Categorie | null =
     filters.categories.length === 1 ? filters.categories[0] : null;
 
-  const handleStatsBarCategorySelect = (cat: Categorie) => {
-    if (activeCategoryFilter === cat) {
-      handleCategoriesChange(ALL_CATEGORIES);
-    } else {
-      handleCategoriesChange([cat]);
-    }
-  };
+  const handleStatsBarCategorySelect = useCallback((cat: Categorie) => {
+    setFilters((prev) => {
+      const active = prev.categories.length === 1 ? prev.categories[0] : null;
+      return { ...prev, categories: active === cat ? ALL_CATEGORIES : [cat] };
+    });
+  }, []);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
@@ -165,8 +184,8 @@ export default function HomePage() {
           onCategoriesChange={handleCategoriesChange}
           onGraviteChange={handleGraviteChange}
           onDepuisHeuresChange={handleDepuisHeuresChange}
-          onRefresh={() => refreshEvents()}
-          onResetFilters={() => setFilters({ categories: ALL_CATEGORIES, gravite_min: 0, depuis_heures: 48 })}
+          onRefresh={refreshEvents}
+          onResetFilters={handleResetFilters}
           isLoading={eventsLoading}
           eventCounts={eventCounts}
         />
@@ -257,7 +276,7 @@ export default function HomePage() {
       <main className="flex flex-col md:flex-row flex-1 overflow-hidden">
         {/* Map — full width on mobile (toggleable), 70% on desktop */}
         <div className={`${mobileView === "map" ? "flex" : "hidden"} md:flex flex-1 min-w-0 relative`}>
-          <MapWrapper events={localEvents} selectedEvent={selectedEvent} onSelectEvent={(e) => { setSelectedEvent(e); setMobileView("feed"); }} />
+          <MapWrapper events={localEvents} selectedEvent={selectedEvent} onSelectEvent={handleSelectEvent} />
         </div>
 
         {/* Sidebar — full width on mobile (toggleable), 30% on desktop */}
@@ -276,7 +295,7 @@ export default function HomePage() {
             error={eventsError}
             selectedEventId={selectedEvent?.id ?? null}
             onSelectEvent={setSelectedEvent}
-            onRetry={() => refreshEvents()}
+            onRetry={refreshEvents}
           />
         </aside>
       </main>
@@ -285,12 +304,7 @@ export default function HomePage() {
       <StatusBar
         connectors={healthData?.connectors ?? []}
         nextIngestAt={healthData?.next_ingest_at ?? null}
-        onTriggerIngest={async () => {
-          await triggerIngest();
-          // Refresh twice: quick pass after ~10s, then again at ~35s when all connectors finish
-          setTimeout(() => refreshEvents(), 10_000);
-          setTimeout(() => refreshEvents(), 35_000);
-        }}
+        onTriggerIngest={handleTriggerIngest}
       />
     </div>
   );
