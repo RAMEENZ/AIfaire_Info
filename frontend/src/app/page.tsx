@@ -140,6 +140,15 @@ export default function HomePage() {
   const maxGravite = useMemo(() => allEvents.reduce((max, e) => Math.max(max, e.gravite), -1), [allEvents]);
 
   const urgentCount = useMemo(() => allEvents.filter((e) => e.gravite >= 3).length, [allEvents]);
+
+  // Most recent event publication time — used as freshness indicator in StatsBar
+  const newestEventDate = useMemo(() => {
+    if (allEvents.length === 0) return null;
+    return allEvents.reduce(
+      (latest, e) => (e.date_publication > latest ? e.date_publication : latest),
+      allEvents[0].date_publication
+    );
+  }, [allEvents]);
   useEffect(() => {
     const base = "FAIRE Info";
     if (urgentCount > 0) {
@@ -284,7 +293,7 @@ export default function HomePage() {
           <StatsBar
             localCount={localEvents.length}
             nationalCount={nationalEvents.length}
-            generatedAt={eventsData?.generated_at ?? null}
+            newestEventDate={newestEventDate}
             events={allEvents}
             activeCategoryFilter={activeCategoryFilter}
             onCategorySelect={handleStatsBarCategorySelect}

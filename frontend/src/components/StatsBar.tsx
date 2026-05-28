@@ -9,28 +9,27 @@ import { Categorie, Event } from "@/lib/types";
 interface StatsBarProps {
   localCount: number;
   nationalCount: number;
-  generatedAt: string | null;
+  newestEventDate: string | null;
   events: Event[];
   activeCategoryFilter?: Categorie | null;
   onCategorySelect?: (cat: Categorie) => void;
 }
 
-function formatGeneratedAt(iso: string | null): string {
+function formatNewestDate(iso: string | null): string {
   if (!iso) return "";
   try {
     const d = parseISO(iso);
-    const now = Date.now();
-    const diffMs = now - d.getTime();
+    const diffMs = Date.now() - d.getTime();
     if (diffMs < 60_000) return "à l'instant";
-    if (diffMs < 3600_000) return formatDistanceToNow(d, { locale: fr, addSuffix: true });
-    return format(d, "HH:mm", { locale: fr });
+    if (diffMs < 86_400_000) return formatDistanceToNow(d, { locale: fr, addSuffix: true });
+    return format(d, "d MMM", { locale: fr });
   } catch {
     return "";
   }
 }
 
-export default function StatsBar({ localCount, nationalCount, generatedAt, events, activeCategoryFilter, onCategorySelect }: StatsBarProps) {
-  const time = formatGeneratedAt(generatedAt);
+export default function StatsBar({ localCount, nationalCount, newestEventDate, events, activeCategoryFilter, onCategorySelect }: StatsBarProps) {
+  const time = formatNewestDate(newestEventDate);
   const total = localCount + nationalCount;
 
   const catCounts: Partial<Record<Categorie, number>> = {};
@@ -59,8 +58,8 @@ export default function StatsBar({ localCount, nationalCount, generatedAt, event
         </span>
 
         {time && (
-          <span className="ml-auto text-gray-400">
-            Màj {time}
+          <span className="ml-auto text-gray-400" title="Date du dernier article reçu">
+            Dernier article {time}
           </span>
         )}
       </div>
