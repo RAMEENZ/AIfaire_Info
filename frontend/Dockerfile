@@ -19,12 +19,16 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=3000
+# Le serveur standalone doit écouter sur toutes les interfaces pour être
+# joignable depuis l'extérieur du conteneur (pas seulement localhost).
+ENV HOSTNAME=0.0.0.0
 
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
+# Sortie "standalone" : on ne copie que le strict nécessaire (server.js + deps
+# tracées), pas tout node_modules. Image bien plus légère et reproductible.
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 
 EXPOSE 3000
 
-CMD ["node_modules/.bin/next", "start", "-p", "3000"]
+CMD ["node", "server.js"]
