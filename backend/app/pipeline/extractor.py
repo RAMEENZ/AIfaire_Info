@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import anthropic
+import httpx
 
 from app.config import settings
 from app.pipeline.geocoder import geocode
@@ -17,8 +18,10 @@ logger = logging.getLogger(__name__)
 _extract_cache: dict[str, dict[str, Any]] = {}
 _MAX_EXTRACT_CACHE = 2048
 
-# Limit concurrent Anthropic API calls to avoid hitting rate limits during large ingestion runs
+# Anthropic: 4 parallel calls (API rate-limit friendly)
 _CLAUDE_SEMAPHORE = asyncio.Semaphore(4)
+# Ollama (local CPU): one inference at a time to avoid OOM
+_OLLAMA_SEMAPHORE = asyncio.Semaphore(1)
 
 
 def _cache_key(titre: str, description: str) -> str:
@@ -106,6 +109,73 @@ GRAVITY_KEYWORDS: dict[int, list[str]] = {
     ],
 }
 
+def _validate_extraction(raw: dict) -> dict[str, Any]:
+    """Normalize and validate a raw extraction dict from any AI backend."""
+    _raw_lieu = raw.get("lieu_nom")
+    lieu_nom = (str(_raw_lieu).strip() if _raw_lieu and _raw_lieu != "null" else "") or "national"
+
+    categorie = str(raw.get("categorie", "actualite")).strip()
+    if categorie not in {"meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite"}:
+        categorie = "actualite"
+
+    _raw_resume = raw.get("resume_ia")
+    resume_ia = (str(_raw_resume).strip() if _raw_resume and _raw_resume != "null" else "")[:500]
+
+    try:
+        gravite = max(0, min(3, int(raw.get("gravite", 0))))
+    except (TypeError, ValueError):
+        gravite = 0
+
+    return {"lieu_nom": lieu_nom, "categorie": categorie, "resume_ia": resume_ia, "gravite": gravite}
+
+
+async def _extract_with_ollama(titre: str, description: str) -> dict[str, Any] | None:
+    """Call the local Ollama model. Returns None on any error (caller falls back)."""
+    clean_description = _strip_html(description) if description else ""
+    today = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+    user_content = f"Date: {today}\nTitre: {titre}"
+    if clean_description:
+        user_content += f"\n\nDescription: {clean_description[:1000]}"
+
+    async with _OLLAMA_SEMAPHORE:
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(
+                    f"{settings.OLLAMA_BASE_URL}/api/chat",
+                    json={
+                        "model": settings.OLLAMA_MODEL,
+                        "messages": [
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user", "content": user_content},
+                        ],
+                        "stream": False,
+                        "format": "json",
+                        "options": {"temperature": 0.1, "num_predict": 300},
+                    },
+                )
+                resp.raise_for_status()
+                raw_text = resp.json()["message"]["content"].strip()
+        except Exception as exc:
+            logger.warning("Ollama extraction failed for '%s': %s", titre[:60], exc)
+            return None
+
+    try:
+        result = json.loads(raw_text)
+    except json.JSONDecodeError:
+        start, end = raw_text.find("{"), raw_text.rfind("}") + 1
+        if start >= 0 and end > start:
+            try:
+                result = json.loads(raw_text[start:end])
+            except json.JSONDecodeError:
+                logger.warning("Ollama: unparseable JSON for '%s'", titre[:60])
+                return None
+        else:
+            logger.warning("Ollama: no JSON in response for '%s'", titre[:60])
+            return None
+
+    return _validate_extraction(result)
+
+
 TOPONYM_PATTERNS: list[str] = [
     r'\bà\s+([A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+(?:[- ][A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+){0,3})',
     r'\ben\s+([A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+(?:[- ][A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+){0,2})',
@@ -176,18 +246,9 @@ async def _rule_based_extract(titre: str, description: str | None) -> dict[str, 
     }
 
 
-async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
-    key = _cache_key(titre, description)
-    if key in _extract_cache:
-        return _extract_cache[key]
-
-    if not settings.ANTHROPIC_API_KEY:
-        result = await _rule_based_extract(titre, description)
-        _cache_put(key, result)
-        return result
-
+async def _extract_with_anthropic(titre: str, description: str, cache_key: str) -> dict[str, Any]:
+    """Call Anthropic Claude Haiku. Falls back to rule-based on error."""
     client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-
     clean_description = _strip_html(description) if description else ""
     today = datetime.now(timezone.utc).strftime("%d/%m/%Y")
     user_content = f"Date: {today}\nTitre: {titre}"
@@ -195,10 +256,8 @@ async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
         user_content += f"\n\nDescription: {clean_description[:1000]}"
 
     async with _CLAUDE_SEMAPHORE:
-        # Re-check cache under semaphore: another task may have populated it while we waited
-        if key in _extract_cache:
-            return _extract_cache[key]
-
+        if cache_key in _extract_cache:
+            return _extract_cache[cache_key]
         try:
             message = await client.messages.create(
                 model="claude-haiku-4-5-20251001",
@@ -206,54 +265,44 @@ async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_content}],
             )
-
             raw_text = message.content[0].text.strip()
-
             try:
                 result = json.loads(raw_text)
             except json.JSONDecodeError:
-                start = raw_text.find("{")
-                end = raw_text.rfind("}") + 1
+                start, end = raw_text.find("{"), raw_text.rfind("}") + 1
                 if start >= 0 and end > start:
                     result = json.loads(raw_text[start:end])
                 else:
-                    raise ValueError(f"No JSON found in response: {raw_text[:200]}")
-
-            _raw_lieu = result.get("lieu_nom")
-            lieu_nom = (str(_raw_lieu).strip() if _raw_lieu and _raw_lieu != "null" else "") or "national"
-            categorie = str(result.get("categorie", "actualite")).strip()
-            valid_categories = {"meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite"}
-            if categorie not in valid_categories:
-                categorie = "actualite"
-
-            _raw_resume = result.get("resume_ia")
-            resume_ia = (str(_raw_resume).strip() if _raw_resume and _raw_resume != "null" else "")[:500]
-
-            try:
-                gravite = int(result.get("gravite", 0))
-                gravite = max(0, min(3, gravite))
-            except (TypeError, ValueError):
-                gravite = 0
-
-            extracted: dict[str, Any] = {
-                "lieu_nom": lieu_nom,
-                "categorie": categorie,
-                "resume_ia": resume_ia,
-                "gravite": gravite,
-            }
-            _cache_put(key, extracted)
+                    raise ValueError(f"No JSON in response: {raw_text[:200]}")
+            extracted = _validate_extraction(result)
+            _cache_put(cache_key, extracted)
             return extracted
-
         except Exception as exc:
-            logger.error("Claude extraction failed for '%s': %s", titre[:80], exc)
-            fallback = {
-                "lieu_nom": "national",
-                "categorie": "actualite",
-                "resume_ia": titre[:200],
-                "gravite": 0,
-            }
-            _cache_put(key, fallback)
+            logger.error("Anthropic extraction failed for '%s': %s", titre[:80], exc)
+            fallback = {"lieu_nom": "national", "categorie": "actualite",
+                        "resume_ia": titre[:200], "gravite": 0}
+            _cache_put(cache_key, fallback)
             return fallback
+
+
+async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
+    """Route extraction: Ollama (local) → Anthropic → rule-based fallback."""
+    key = _cache_key(titre, description)
+    if key in _extract_cache:
+        return _extract_cache[key]
+
+    if settings.OLLAMA_BASE_URL:
+        result = await _extract_with_ollama(titre, description)
+        if result is None:
+            logger.info("Ollama unavailable — falling back to rule-based extraction")
+            result = await _rule_based_extract(titre, description)
+    elif settings.ANTHROPIC_API_KEY:
+        return await _extract_with_anthropic(titre, description, key)
+    else:
+        result = await _rule_based_extract(titre, description)
+
+    _cache_put(key, result)
+    return result
 
 
 # Sources autoritatives → catégorie forcée (indépendamment de l'extraction NLP)

@@ -13,6 +13,37 @@ services:
       timeout: 5s
       retries: 5
 
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      # Healthy only once mistral is fully downloaded and listed
+      test: ["CMD-SHELL", "ollama list 2>/dev/null | grep -q mistral"]
+      interval: 30s
+      timeout: 10s
+      retries: 40          # 40 × 30s = 20 min max pour le téléchargement
+      start_period: 30s
+
+  ollama-init:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: >
+      sh -c "
+        echo '[ollama-init] Attente du serveur Ollama...'
+        until curl -sf http://ollama:11434/api/tags > /dev/null 2>&1; do sleep 3; done
+        echo '[ollama-init] Téléchargement de mistral:7b-instruct (~4.1 Go)...'
+        ollama pull mistral:7b-instruct
+        echo '[ollama-init] Modèle prêt.'
+      "
+    depends_on:
+      - ollama
+    restart: "no"
+
   backend:
     build: ./backend
     ports:
@@ -21,13 +52,16 @@ services:
       DATABASE_URL: postgresql+asyncpg://faire_info:${POSTGRES_PASSWORD:-password}@db:5432/faire_info
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b-instruct}
       APP_ENV: production
       LOG_LEVEL: INFO
     depends_on:
       db:
         condition: service_healthy
+      ollama:
+        condition: service_healthy
     healthcheck:
-      # endpoint racine "/" — ne dépend pas de la base de données
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/').status==200 else 1)"]
       interval: 15s
       timeout: 5s
@@ -39,7 +73,6 @@ services:
     build:
       context: ./frontend
       args:
-        # NEXT_PUBLIC_ vars are embedded at build time — set the host/IP here
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api}
     ports:
       - "3000:3000"
@@ -50,3 +83,4 @@ services:
 
 volumes:
   pgdata:
+  ollama_data:
