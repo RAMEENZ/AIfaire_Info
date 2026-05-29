@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # "*" autorise toutes les origines (API publique en lecture seule, sans cookies).
     CORS_ORIGINS: str = "*"
 
+    # Ollama : laissé vide → fallback Anthropic ou règles
+    OLLAMA_BASE_URL: str = ""
+    OLLAMA_MODEL: str = "mistral:7b-instruct"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
