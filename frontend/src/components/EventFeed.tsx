@@ -37,10 +37,14 @@ function EventCard({
   event,
   selected,
   onSelect,
+  activeTag,
+  onTagClick,
 }: {
   event: Event;
   selected?: boolean;
   onSelect?: (event: Event) => void;
+  activeTag?: string | null;
+  onTagClick?: (tag: string) => void;
 }) {
   const catConfig = CATEGORY_CONFIG[event.categorie];
   const sourceLabel =
@@ -112,12 +116,17 @@ function EventCard({
         {event.tags && event.tags.length > 0 && (
           <div className="w-full flex flex-wrap gap-1 mt-1">
             {event.tags.slice(0, 4).map((tag) => (
-              <span
+              <button
                 key={tag}
-                className="px-1 py-0.5 rounded bg-gray-100 text-gray-500 text-xs leading-none"
+                onClick={(ev) => { ev.stopPropagation(); onTagClick?.(tag); }}
+                className={`px-1 py-0.5 rounded text-xs leading-none transition-colors ${
+                  activeTag === tag
+                    ? "bg-blue-100 text-blue-700 font-medium"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                }`}
               >
                 #{tag}
-              </span>
+              </button>
             ))}
           </div>
         )}
@@ -200,6 +209,7 @@ function AlertBanner({ events, onSelect }: { events: Event[]; onSelect?: (e: Eve
 export default function EventFeed({ events, isLoading, error, selectedEventId, onSelectEvent, onRetry }: EventFeedProps) {
   const [tab, setTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -256,7 +266,9 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
     );
   };
 
-  const searchFiltered = events.filter(matchesSearch);
+  const searchFiltered = events.filter(matchesSearch).filter(
+    (e) => !activeTag || (e.tags?.includes(activeTag) ?? false)
+  );
   const localCount = searchFiltered.filter((e) => e.lieu_lat !== null && e.lieu_lon !== null).length;
   const nationalCount = searchFiltered.length - localCount;
 
@@ -288,9 +300,22 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
       <div className="px-4 pt-2.5 pb-2 border-b border-gray-200 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-sm font-semibold text-gray-700">Actualités</h2>
-          {sorted.length > 0 && (
-            <span className="text-xs text-gray-400">{sorted.length}</span>
-          )}
+          <div className="flex items-center gap-1.5">
+            {activeTag && (
+              <button
+                onClick={() => setActiveTag(null)}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-xs font-medium hover:bg-blue-200 transition-colors"
+              >
+                #{activeTag}
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+            {sorted.length > 0 && (
+              <span className="text-xs text-gray-400">{sorted.length}</span>
+            )}
+          </div>
         </div>
         <div className="relative mb-2">
           <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -381,6 +406,8 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
             event={event}
             selected={event.id === selectedEventId}
             onSelect={onSelectEvent}
+            activeTag={activeTag}
+            onTagClick={(tag) => setActiveTag(activeTag === tag ? null : tag)}
           />
         ))}
 
