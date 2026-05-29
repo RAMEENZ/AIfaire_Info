@@ -1,4 +1,4 @@
-# Faire.info — Agrégateur d'information géolocalisé (France)
+# (AI)Faire.info — Agrégateur d'information géolocalisé (France)
 
 Vue cartographique unifiée de l'actualité publique française en quasi temps réel.
 
