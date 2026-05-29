@@ -25,5 +25,13 @@ class Settings(BaseSettings):
     DEFAULT_EVENTS_LIMIT: int = 500
     DEFAULT_SINCE_HOURS: int = 48
 
+    # CORS : liste d'origines autorisées, séparées par des virgules.
+    # "*" autorise toutes les origines (API publique en lecture seule, sans cookies).
+    CORS_ORIGINS: str = "*"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
 
 settings = Settings()

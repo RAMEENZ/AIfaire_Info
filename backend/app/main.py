@@ -42,11 +42,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# API publique en lecture seule : pas de cookies/credentials, donc on peut
+# autoriser toutes les origines en toute sécurité (la combinaison "*" +
+# allow_credentials=True est rejetée par les navigateurs et serait invalide).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
