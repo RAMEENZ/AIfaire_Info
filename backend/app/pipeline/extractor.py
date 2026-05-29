@@ -37,7 +37,13 @@ Pour chaque article, extrais :
 1. **lieu_nom** : nom d'une commune, département ou région française (ex: "Lyon", "Gironde", "Bretagne"). Si l'événement est national ou non localisable en France, retourne "national". Ne retourne jamais de pays étrangers ni de zones géographiques non françaises.
 2. **categorie** : une des valeurs exactes : "meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite"
 3. **resume_ia** : teaser factuel de 1-2 phrases maximum
-4. **gravite** : 0=info, 1=vigilance/mineur, 2=alerte/modéré, 3=urgence/grave
+4. **gravite** — critères stricts :
+   - 3 = URGENCE : événement inhabituel touchant l'ensemble de la population française (attentat majeur, catastrophe nationale, pandémie déclarée, panne électrique nationale généralisée). RÉSERVÉ aux crises d'ampleur réellement nationale.
+   - 2 = ALERTE : alerte officielle émise par une autorité (Météo-France orange/rouge, ANSM rappel médicament, Vigicrues niveau 3-4, alerte préfectorale régionale). Incident grave localisé avec blessés/victimes confirmées.
+   - 1 = VIGILANCE : vigilance météo jaune, risque signalé sans victime, perturbation notable de transport, information de prudence locale.
+   - 0 = INFORMATION : actualité courante, faits divers sans urgence, résultats sportifs, politique, économie, culture.
+
+La grande majorité des articles RSS doivent être classés 0. N'attribue 2 ou 3 que si c'est explicitement justifié.
 
 Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après.
 {"lieu_nom": "...", "categorie": "...", "resume_ia": "...", "gravite": 0}
@@ -73,15 +79,31 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
 }
 
 GRAVITY_KEYWORDS: dict[int, list[str]] = {
-    3: ["catastrophe", "alerte rouge", "mort", "tués", "victimes", "bilan humain",
-        "urgence absolue", "décès", "en danger", "situation dramatique",
-        "blessés graves", "état d'urgence", "évacuation", "disparu", "noyé",
-        "enseveli", "immeuble effondré", "explosion", "incendie mortel"],
-    2: ["alerte orange", "important", "danger", "risque élevé",
-        "situation critique", "blessés", "perturbation majeure",
-        "fermeture", "barrage", "confinement", "déviation obligatoire"],
-    1: ["vigilance", "attention", "prudence", "perturbation", "risque",
-        "ralentissement", "avis de", "préconisation"],
+    3: [
+        # Crises nationales uniquement
+        "état d'urgence", "catastrophe nationale", "plan rouge",
+        "attentat", "attaque terroriste", "alerte attentat",
+        "mort", "tués", "victimes", "décès", "bilan humain",
+        "blessés graves", "en danger de mort", "urgence absolue",
+        "immeuble effondré", "explosion meurtrière", "incendie mortel",
+        "évacuation massive", "noyé", "enseveli", "disparu en mer",
+    ],
+    2: [
+        # Alertes officielles et incidents graves localisés
+        "alerte orange", "vigilance orange", "alerte rouge météo", "vigilance rouge",
+        "alerte officielle", "alerte sanitaire", "rappel de médicament", "rappel de lot",
+        "alerte vigicrues", "crue importante", "inondation grave",
+        "arrêté préfectoral d'urgence", "fermeture préfectorale",
+        "confinement", "évacuation préventive", "zone de danger",
+        "couvre-feu", "blessés légers", "perturbation majeure confirmée",
+    ],
+    1: [
+        # Vigilances météo et risques signalés sans victime
+        "vigilance jaune", "vigilance météo", "avis de vigilance",
+        "risque de", "prudence recommandée", "attention particulière",
+        "perturbation prévue", "trafic perturbé", "grève prévue",
+        "ralentissement important", "fermeture temporaire de route",
+    ],
 }
 
 TOPONYM_PATTERNS: list[str] = [
@@ -133,7 +155,7 @@ async def _rule_based_extract(titre: str, description: str | None) -> dict[str, 
                 candidate = match.group(1).strip()
                 try:
                     geo = await geocode(candidate)
-                    if geo.get("confiance_geo", 0.0) >= 0.5:
+                    if geo.get("confiance_geo", 0.0) >= 0.65:
                         lieu_nom = candidate
                         break
                 except Exception as exc:

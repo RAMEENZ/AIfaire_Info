@@ -109,12 +109,18 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
 
   useEffect(() => {
     if (selectedEvent?.lieu_lat != null && selectedEvent?.lieu_lon != null) {
-      const zoom =
+      const targetZoom =
         selectedEvent.lieu_niveau === "commune" ? 13
         : selectedEvent.lieu_niveau === "departement" ? 10
         : selectedEvent.lieu_niveau === "region" ? 8
         : 7;
-      mapRef.current?.flyTo([selectedEvent.lieu_lat, selectedEvent.lieu_lon], zoom, { duration: 1.0 });
+      // Never zoom out — only pan+zoom-in so markers don't re-cluster after selection
+      const currentZoom = mapRef.current?.getZoom() ?? 0;
+      mapRef.current?.flyTo(
+        [selectedEvent.lieu_lat, selectedEvent.lieu_lon],
+        Math.max(currentZoom, targetZoom),
+        { duration: 0.8 }
+      );
     }
   }, [selectedEvent]);
 
@@ -137,10 +143,10 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <MarkerClusterGroup
-          chunkedLoading
           showCoverageOnHover={false}
           iconCreateFunction={createClusterCustomIcon}
           maxClusterRadius={50}
+          disableClusteringAtZoom={12}
         >
           {events.map((event) => (
             <EventMarker

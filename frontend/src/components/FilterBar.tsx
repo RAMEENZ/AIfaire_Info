@@ -21,7 +21,7 @@ interface FilterBarProps {
 }
 
 const GRAVITE_OPTIONS: { value: number; label: string }[] = [
-  { value: 0, label: "Tous" },
+  { value: 0, label: "Informations" },
   { value: 1, label: "Vigilance+" },
   { value: 2, label: "Alerte+" },
   { value: 3, label: "Urgence" },
