@@ -1,9 +1,10 @@
 import asyncio
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from app.database import AsyncSessionLocal
@@ -148,31 +149,37 @@ async def _save_events(events: list[dict[str, Any]]) -> int:
     if not events:
         return 0
 
-    saved = 0
+    # Déduplique par source_url à l'intérieur du lot (un même article peut
+    # apparaître dans plusieurs flux) — sinon ON CONFLICT échoue sur le lot.
+    deduped: dict[str, dict[str, Any]] = {}
+    for e in events:
+        deduped[e["source_url"]] = e
+
+    now = datetime.now(timezone.utc)
+    rows: list[dict[str, Any]] = []
+    for evt_data in deduped.values():
+        row = dict(evt_data)
+        # Les inserts bulk (Core) ne déclenchent pas les defaults Python de l'ORM —
+        # on fournit id et created_at explicitement.
+        row.setdefault("id", str(uuid.uuid4()))
+        row.setdefault("created_at", now)
+        rows.append(row)
+
     async with AsyncSessionLocal() as session:
         try:
-            urls = [e["source_url"] for e in events]
-            existing_stmt = select(Event.source_url).where(Event.source_url.in_(urls))
-            existing_result = await session.execute(existing_stmt)
-            existing_urls: set[str] = {row[0] for row in existing_result}
-
-            new_events = [e for e in events if e["source_url"] not in existing_urls]
-
-            for evt_data in new_events:
-                try:
-                    event = Event(**evt_data)
-                    session.add(event)
-                    saved += 1
-                except Exception as exc:
-                    logger.warning("Failed to create event for '%s': %s", evt_data.get("source_url"), exc)
-                    continue
-
+            stmt = (
+                pg_insert(Event)
+                .values(rows)
+                .on_conflict_do_nothing(index_elements=["source_url"])
+            )
+            result = await session.execute(stmt)
             await session.commit()
+            # rowcount = nombre de lignes réellement insérées (les conflits sont ignorés)
+            return result.rowcount if result.rowcount is not None else 0
         except Exception as exc:
             logger.error("Failed to save events batch: %s", exc, exc_info=True)
             await session.rollback()
-
-    return saved
+            return 0
 
 
 _GEO_SEMAPHORE = asyncio.Semaphore(8)  # max 8 items traitables en parallèle (geocoding API)
