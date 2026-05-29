@@ -129,6 +129,16 @@ _NATIONAL_TERMS: frozenset[str] = frozenset({
     "france entière", "france entiere", "tout le pays",
 })
 
+# Termes trop ambigus pour être géocodés en lieu précis (directions cardinales
+# seules, termes génériques) — retourner "national" évite les faux positifs.
+_AMBIGUOUS_TERMS: frozenset[str] = frozenset({
+    "nord", "sud", "est", "ouest", "centre",
+    "littoral", "côtes", "cotes", "côte", "cote",
+    "territoire", "région", "region", "ville", "communes",
+    "intérieur", "interieur", "extérieur", "exterieur",
+    "métropole", "metropole",
+})
+
 
 async def geocode(lieu_nom: str | None) -> GeoResult:
     empty: GeoResult = {
@@ -145,12 +155,22 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
     lieu_clean = lieu_nom.strip()
     cache_key = lieu_clean.lower()
 
+    # Rejeter les lieux trop courts pour être non-ambigus (< 3 caractères)
+    if len(lieu_clean) < 3:
+        return empty
+
     if cache_key in _NATIONAL_TERMS:
         return empty
 
     # Strip leading French articles early so "la France" → "france" hits national check
     _m_early = _LEADING_ARTICLE_RE.match(cache_key)
     if _m_early and _m_early.group(1).strip() in _NATIONAL_TERMS:
+        return empty
+
+    # Rejeter les termes directionnels/génériques ambigus
+    if cache_key in _AMBIGUOUS_TERMS:
+        return empty
+    if _m_early and _m_early.group(1).strip() in _AMBIGUOUS_TERMS:
         return empty
 
     if cache_key in _geo_cache:
@@ -201,25 +221,20 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
             _geo_cache_put(cache_key, result)
             return result
 
-    # Cascade : commune → département → commune (seuil bas)
-    # Note: _geocode_region removed from cascade — geo.api.gouv.fr/regions has no "centre" field
+    # Cascade : commune → département.
     # Les helpers renvoient None en cas d'erreur réseau transitoire (vs un dict
     # vide pour un "aucun résultat" définitif) afin de ne pas empoisonner le cache.
     async with _GEO_SEMAPHORE:
         result = await _geocode_commune(lieu_clean)
-    if result is not None and result["confiance_geo"] >= 0.6:
+    if result is not None and result["confiance_geo"] >= 0.62:
         _geo_cache_put(cache_key, result)
         return result
 
     async with _GEO_SEMAPHORE:
         result_dept = await _geocode_departement(lieu_clean)
-    if result_dept is not None and result_dept["confiance_geo"] >= 0.5:
+    if result_dept is not None and result_dept["confiance_geo"] >= 0.65:
         _geo_cache_put(cache_key, result_dept)
         return result_dept
-
-    if result is not None and result["confiance_geo"] >= 0.3:
-        _geo_cache_put(cache_key, result)
-        return result
 
     # On ne met le résultat négatif en cache que si les deux requêtes ont
     # abouti sans erreur (sinon une panne API temporaire figerait ce lieu en
@@ -294,7 +309,9 @@ async def _geocode_departement(nom: str) -> GeoResult | None:
     if not coords or len(coords) < 2:
         return empty
 
-    confiance = 0.7 if nom.lower() in dept.get("nom", "").lower() else 0.5
+    # Confiance élevée seulement si le nom cherché est contenu dans le résultat ;
+    # les matchs flous (0.4) seront rejetés par le seuil de la cascade.
+    confiance = 0.7 if nom.lower() in dept.get("nom", "").lower() else 0.4
 
     return {
         "lat": float(coords[1]),

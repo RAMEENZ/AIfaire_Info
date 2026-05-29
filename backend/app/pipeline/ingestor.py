@@ -28,18 +28,30 @@ CONNECTORS = [
 ]
 
 
+_GEO_COORD_MIN_CONFIDENCE = 0.55  # seuil en-dessous duquel on refuse de placer sur la carte
+
+
 def _build_event(item: dict[str, Any], geo: dict[str, Any]) -> dict[str, Any]:
     # Utiliser "is not None" et non "or" : une coordonnée légitime de 0.0
     # (méridien de Greenwich, qui traverse la France) ne doit pas être écartée.
-    lat = item.get("lieu_lat") if item.get("lieu_lat") is not None else geo.get("lat")
+    connector_has_coords = item.get("lieu_lat") is not None
+    lat = item.get("lieu_lat") if connector_has_coords else geo.get("lat")
     lon = item.get("lieu_lon") if item.get("lieu_lon") is not None else geo.get("lon")
+
+    _item_conf = item.get("lieu_confiance_geo")
+    confiance_geo = _item_conf if _item_conf is not None else geo.get("confiance_geo", 0.0)
+
+    # Si les coordonnées viennent du geocoding (pas du connecteur) et que la
+    # confiance est trop faible, on ne les retient pas — évite les faux positifs
+    # sur la carte.
+    if not connector_has_coords and confiance_geo < _GEO_COORD_MIN_CONFIDENCE:
+        lat = None
+        lon = None
 
     geom = None
     if lat is not None and lon is not None:
         geom = f"SRID=4326;POINT({lon} {lat})"
 
-    _item_conf = item.get("lieu_confiance_geo")
-    confiance_geo = _item_conf if _item_conf is not None else geo.get("confiance_geo", 0.0)
     niveau = geo.get("niveau") or item.get("lieu_niveau", "national")
     code_insee = item.get("lieu_code_insee") or geo.get("code_insee")
 
