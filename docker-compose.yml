@@ -19,12 +19,14 @@ services:
       - ollama_data:/root/.ollama
     restart: unless-stopped
     healthcheck:
-      # Healthy only once mistral is fully downloaded and listed
-      test: ["CMD-SHELL", "ollama list 2>/dev/null | grep -q mistral"]
-      interval: 30s
-      timeout: 10s
-      retries: 40          # 40 × 30s = 20 min max pour le téléchargement
-      start_period: 30s
+      # Healthy dès que le serveur répond — le téléchargement du modèle est géré
+      # par ollama-init en arrière-plan (sinon deadlock : le backend attendrait
+      # un modèle qui ne peut se télécharger qu'après démarrage).
+      test: ["CMD-SHELL", "ollama list > /dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
 
   ollama-init:
     image: ollama/ollama:latest
@@ -35,7 +37,7 @@ services:
     entrypoint: >
       sh -c "
         echo '[ollama-init] Attente du serveur Ollama...'
-        until curl -sf http://ollama:11434/api/tags > /dev/null 2>&1; do sleep 3; done
+        until ollama list > /dev/null 2>&1; do sleep 3; done
         echo '[ollama-init] Téléchargement de mistral:7b-instruct (~4.1 Go)...'
         ollama pull mistral:7b-instruct
         echo '[ollama-init] Modèle prêt.'
