@@ -78,6 +78,20 @@ npm run dev
 Interface disponible sur http://localhost:3000  
 API + Swagger : http://localhost:8000/docs
 
+### Tests (backend)
+
+Suite de tests unitaires hors-ligne (pas de base de données ni de réseau requis) :
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
+Couvre le géocodeur (termes nationaux, articles, alias, régions, DOM-TOM),
+l'extracteur (catégorisation/gravité par règles, overrides de source) et
+le calcul de statut des connecteurs.
+
 ### Variables d'environnement backend
 
 | Variable | Défaut | Description |
