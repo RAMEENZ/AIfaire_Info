@@ -178,9 +178,12 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
             return result
 
     # DOM-TOM par nom normalisé — try with and without leading article
+    # (on renvoie une copie pour ne jamais exposer l'objet de table partagé)
     for _lookup_key in (lieu_lower, _stripped_lower):
         if _lookup_key in DOM_TOM_COORDS:
-            return DOM_TOM_COORDS[_lookup_key]
+            result = dict(DOM_TOM_COORDS[_lookup_key])
+            _geo_cache_put(cache_key, result)
+            return result
 
     # Alias — try with and without leading article
     alias_target = LIEU_ALIASES.get(lieu_lower) or LIEU_ALIASES.get(_stripped_lower)
@@ -191,36 +194,44 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
             return alias_result
 
     # Région métropolitaine connue — try with and without leading article
+    # (copie défensive : ne jamais exposer/cacher l'objet de table partagé)
     for _lookup_key in (lieu_lower, _stripped_lower):
         if _lookup_key in REGION_COORDS:
-            result = REGION_COORDS[_lookup_key]
+            result = dict(REGION_COORDS[_lookup_key])
             _geo_cache_put(cache_key, result)
             return result
 
     # Cascade : commune → département → commune (seuil bas)
     # Note: _geocode_region removed from cascade — geo.api.gouv.fr/regions has no "centre" field
+    # Les helpers renvoient None en cas d'erreur réseau transitoire (vs un dict
+    # vide pour un "aucun résultat" définitif) afin de ne pas empoisonner le cache.
     async with _GEO_SEMAPHORE:
         result = await _geocode_commune(lieu_clean)
-    if result["confiance_geo"] >= 0.6:
+    if result is not None and result["confiance_geo"] >= 0.6:
         _geo_cache_put(cache_key, result)
         return result
 
     async with _GEO_SEMAPHORE:
         result_dept = await _geocode_departement(lieu_clean)
-    if result_dept["confiance_geo"] >= 0.5:
+    if result_dept is not None and result_dept["confiance_geo"] >= 0.5:
         _geo_cache_put(cache_key, result_dept)
         return result_dept
 
-    if result["confiance_geo"] >= 0.3:
+    if result is not None and result["confiance_geo"] >= 0.3:
         _geo_cache_put(cache_key, result)
         return result
 
-    # Cache negative results too to avoid repeated failed API calls
-    _geo_cache_put(cache_key, empty)
+    # On ne met le résultat négatif en cache que si les deux requêtes ont
+    # abouti sans erreur (sinon une panne API temporaire figerait ce lieu en
+    # "national" pour toute la durée du process).
+    if result is not None and result_dept is not None:
+        _geo_cache_put(cache_key, empty)
     return empty
 
 
-async def _geocode_commune(lieu_nom: str) -> GeoResult:
+async def _geocode_commune(lieu_nom: str) -> GeoResult | None:
+    """Renvoie un GeoResult, un dict vide (aucun résultat définitif) ou
+    None en cas d'erreur réseau transitoire (pour ne pas empoisonner le cache)."""
     empty: GeoResult = {"lat": None, "lon": None, "code_insee": None, "niveau": "national", "confiance_geo": 0.0}
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -230,34 +241,36 @@ async def _geocode_commune(lieu_nom: str) -> GeoResult:
             )
             resp.raise_for_status()
             data = resp.json()
-
-        features = data.get("features", [])
-        if not features:
-            return empty
-
-        feat = features[0]
-        props = feat.get("properties", {})
-        coords = feat.get("geometry", {}).get("coordinates", [])
-
-        if not coords or len(coords) < 2:
-            return empty
-
-        score = float(props.get("score", 0.0))
-        code_insee = props.get("citycode") or props.get("id", "")
-
-        return {
-            "lat": float(coords[1]),
-            "lon": float(coords[0]),
-            "code_insee": code_insee,
-            "niveau": "commune",
-            "confiance_geo": round(score, 3),
-        }
     except Exception as exc:
         logger.debug("BAN geocoding failed for '%s': %s", lieu_nom, exc)
+        return None
+
+    features = data.get("features", [])
+    if not features:
         return empty
 
+    feat = features[0]
+    props = feat.get("properties", {})
+    coords = feat.get("geometry", {}).get("coordinates", [])
 
-async def _geocode_departement(nom: str) -> GeoResult:
+    if not coords or len(coords) < 2:
+        return empty
+
+    score = float(props.get("score", 0.0))
+    code_insee = props.get("citycode") or props.get("id", "")
+
+    return {
+        "lat": float(coords[1]),
+        "lon": float(coords[0]),
+        "code_insee": code_insee,
+        "niveau": "commune",
+        "confiance_geo": round(score, 3),
+    }
+
+
+async def _geocode_departement(nom: str) -> GeoResult | None:
+    """Renvoie un GeoResult, un dict vide (aucun résultat définitif) ou
+    None en cas d'erreur réseau transitoire."""
     empty: GeoResult = {"lat": None, "lon": None, "code_insee": None, "niveau": "national", "confiance_geo": 0.0}
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -267,29 +280,29 @@ async def _geocode_departement(nom: str) -> GeoResult:
             )
             resp.raise_for_status()
             data = resp.json()
-
-        if not data:
-            return empty
-
-        dept = data[0]
-        centre = dept.get("centre", {})
-        coords = centre.get("coordinates", [])
-
-        if not coords or len(coords) < 2:
-            return empty
-
-        confiance = 0.7 if nom.lower() in dept.get("nom", "").lower() else 0.5
-
-        return {
-            "lat": float(coords[1]),
-            "lon": float(coords[0]),
-            "code_insee": dept.get("code", ""),
-            "niveau": "departement",
-            "confiance_geo": confiance,
-        }
     except Exception as exc:
         logger.debug("Dept geocoding failed for '%s': %s", nom, exc)
+        return None
+
+    if not data:
         return empty
+
+    dept = data[0]
+    centre = dept.get("centre", {})
+    coords = centre.get("coordinates", [])
+
+    if not coords or len(coords) < 2:
+        return empty
+
+    confiance = 0.7 if nom.lower() in dept.get("nom", "").lower() else 0.5
+
+    return {
+        "lat": float(coords[1]),
+        "lon": float(coords[0]),
+        "code_insee": dept.get("code", ""),
+        "niveau": "departement",
+        "confiance_geo": confiance,
+    }
 
 
 async def _geocode_departement_by_code(code: str) -> GeoResult:

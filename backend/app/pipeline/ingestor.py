@@ -29,14 +29,17 @@ CONNECTORS = [
 
 
 def _build_event(item: dict[str, Any], geo: dict[str, Any]) -> dict[str, Any]:
-    lat = item.get("lieu_lat") or geo.get("lat")
-    lon = item.get("lieu_lon") or geo.get("lon")
+    # Utiliser "is not None" et non "or" : une coordonnée légitime de 0.0
+    # (méridien de Greenwich, qui traverse la France) ne doit pas être écartée.
+    lat = item.get("lieu_lat") if item.get("lieu_lat") is not None else geo.get("lat")
+    lon = item.get("lieu_lon") if item.get("lieu_lon") is not None else geo.get("lon")
 
     geom = None
     if lat is not None and lon is not None:
         geom = f"SRID=4326;POINT({lon} {lat})"
 
-    confiance_geo = item.get("lieu_confiance_geo") or geo.get("confiance_geo", 0.0)
+    _item_conf = item.get("lieu_confiance_geo")
+    confiance_geo = _item_conf if _item_conf is not None else geo.get("confiance_geo", 0.0)
     niveau = geo.get("niveau") or item.get("lieu_niveau", "national")
     code_insee = item.get("lieu_code_insee") or geo.get("code_insee")
 
@@ -232,7 +235,27 @@ async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
     return connector.name, saved, connector.last_error
 
 
+# Verrou global : empêche plusieurs ingestions de tourner en parallèle.
+# Protège à la fois le job planifié et l'endpoint manuel /ingest/run contre
+# l'empilement (déclenchements rapides / cross-origin) qui saturerait la base,
+# le pool de connexions et le budget API Anthropic.
+_INGEST_LOCK = asyncio.Lock()
+
+
+def ingestion_in_progress() -> bool:
+    return _INGEST_LOCK.locked()
+
+
 async def ingest_all() -> dict[str, Any]:
+    if _INGEST_LOCK.locked():
+        logger.info("Ingestion already in progress — skipping this trigger")
+        return {"status": "skipped", "reason": "already_running", "total_saved": 0}
+
+    async with _INGEST_LOCK:
+        return await _ingest_all_inner()
+
+
+async def _ingest_all_inner() -> dict[str, Any]:
     logger.info("Starting full ingestion pipeline")
     start = datetime.now(timezone.utc)
 
