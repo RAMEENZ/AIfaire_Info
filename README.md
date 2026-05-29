@@ -18,12 +18,12 @@ Vue cartographique unifiée de l'actualité publique française en quasi temps r
 | Vigicrues | Crue | API publique GeoJSON |
 | USGS FDSNWS (RéNaSS) | Séisme | API publique |
 | Enedis | Énergie | Open data |
-| 105 flux RSS (presse, officiel) | Toutes | RSS |
+| 114 flux RSS (presse, officiel) | Toutes | RSS |
 
 ### Flux RSS inclus
-Presse nationale (France Info, Le Monde, BFM, RTL…), grandes régions (Actu.fr × 12 régions),
+Presse nationale (France Info, Le Monde, BFM, RTL…), grandes régions (Actu.fr × 13 régions),
 quotidiens régionaux (Ouest-France, La Voix du Nord, Sud-Ouest, DNA, Le Progrès…),
-35 stations France Bleu, 10 La 1ère DOM-TOM, sources officielles
+43 stations France Bleu, 10 La 1ère DOM-TOM, sources officielles
 (Gouvernement.fr, Santé Publique France, ANSM, Ministère de l'Intérieur, Service-Public.fr, Sénat).
 
 ## Pipeline
