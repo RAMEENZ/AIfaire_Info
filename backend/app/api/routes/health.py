@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -9,6 +10,8 @@ from app.database import get_db
 from app.models import ConnectorStatus
 from app.pipeline.scheduler import get_next_ingest_time
 from app.schemas import HealthResponse, ConnectorStatusSchema
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -69,8 +72,14 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> HealthResponse:
                 )
             )
 
+    # L'endpoint de santé ne doit jamais renvoyer 500 : on protège le parsing.
+    next_ingest_at = None
     next_ingest_raw = get_next_ingest_time()
-    next_ingest_at = datetime.fromisoformat(next_ingest_raw) if next_ingest_raw else None
+    if next_ingest_raw:
+        try:
+            next_ingest_at = datetime.fromisoformat(next_ingest_raw)
+        except (ValueError, TypeError):
+            logger.warning("Could not parse next_ingest time: %r", next_ingest_raw)
 
     return HealthResponse(
         connectors=connectors,

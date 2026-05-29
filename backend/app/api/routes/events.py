@@ -10,7 +10,7 @@ from app.config import settings
 from app.database import get_db
 from app.models import Event
 from app.schemas import EventDetail, EventList
-from app.pipeline.ingestor import ingest_all
+from app.pipeline.ingestor import ingest_all, ingestion_in_progress
 
 router = APIRouter()
 
@@ -149,7 +149,13 @@ async def get_stats(db: AsyncSession = Depends(get_db)) -> dict:
 
 @router.post("/ingest/run")
 async def trigger_ingest(background_tasks: BackgroundTasks) -> dict:
-    """Déclenche manuellement l'ingestion de tous les connecteurs."""
+    """Déclenche manuellement l'ingestion de tous les connecteurs.
+
+    Idempotent : si une ingestion est déjà en cours, le déclenchement est
+    ignoré (ingest_all pose un verrou global) afin d'éviter tout empilement.
+    """
+    if ingestion_in_progress():
+        return {"status": "already_running", "message": "Une ingestion est déjà en cours"}
     background_tasks.add_task(ingest_all)
     return {"status": "started", "message": "Ingestion déclenchée en arrière-plan"}
 
