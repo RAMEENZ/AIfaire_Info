@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.database import init_db
+from app.database import init_db, migrate_db
 from app.api.routes.events import router as events_router
 from app.api.routes.health import router as health_router
 from app.pipeline.scheduler import start_scheduler, stop_scheduler, startup_ingestion
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("Starting FAIRE INFO backend (env=%s)", settings.APP_ENV)
     await init_db()
+    await migrate_db()
     logger.info("Database initialized")
 
     start_scheduler()

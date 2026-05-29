@@ -1,3 +1,4 @@
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 from app.config import settings
@@ -40,3 +41,11 @@ async def init_db() -> None:
     import app.models  # noqa: F401 — registers models in metadata
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+
+async def migrate_db() -> None:
+    """Idempotent DDL migrations for columns added after initial create_all."""
+    async with engine.begin() as conn:
+        await conn.execute(text(
+            "ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}' NOT NULL"
+        ))

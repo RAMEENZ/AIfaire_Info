@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = ""
     OLLAMA_MODEL: str = "mistral:7b-instruct"
 
+    # Activer le fetch du contenu complet des articles avant extraction IA.
+    # Désactiver si la VM a un accès internet limité ou pour économiser la bande passante.
+    FETCH_FULL_ARTICLES: bool = True
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]

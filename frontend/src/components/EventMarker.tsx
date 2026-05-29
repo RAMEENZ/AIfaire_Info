@@ -119,6 +119,20 @@ export default function EventMarker({ event, isSelected, onSelect }: EventMarker
             </div>
           )}
 
+          {/* Tags */}
+          {event.tags && event.tags.length > 0 && (
+            <div className="px-3 pb-2 flex flex-wrap gap-1">
+              {event.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-xs"
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* Footer */}
           <div className="px-3 pb-3 border-t border-gray-100 pt-2 flex justify-between text-xs text-gray-500">
             <span>{sourceLabel}</span>

@@ -108,6 +108,19 @@ function EventCard({
             {event.resume_ia}
           </p>
         )}
+
+        {event.tags && event.tags.length > 0 && (
+          <div className="w-full flex flex-wrap gap-1 mt-1">
+            {event.tags.slice(0, 4).map((tag) => (
+              <span
+                key={tag}
+                className="px-1 py-0.5 rounded bg-gray-100 text-gray-500 text-xs leading-none"
+              >
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-gray-400">
@@ -238,7 +251,8 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
       e.titre.toLowerCase().includes(searchLower) ||
       (e.lieu_nom?.toLowerCase().includes(searchLower) ?? false) ||
       (e.resume_ia?.toLowerCase().includes(searchLower) ?? false) ||
-      (e.auteur?.toLowerCase().includes(searchLower) ?? false)
+      (e.auteur?.toLowerCase().includes(searchLower) ?? false) ||
+      (e.tags?.some((t) => t.toLowerCase().includes(searchLower)) ?? false)
     );
   };
 

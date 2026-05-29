@@ -29,6 +29,7 @@ export interface Event {
   lieu_niveau: LieuNiveau;
   lieu_confiance_geo: number;
   resume_ia: string | null;
+  tags: string[];
   cluster_id: string | null;
   score_confiance: number;
   created_at: string;
