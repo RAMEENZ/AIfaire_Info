@@ -91,6 +91,7 @@ def _build_event(item: dict[str, Any], geo: dict[str, Any]) -> dict[str, Any]:
         "lieu_confiance_geo": float(confiance_geo),
         "geom": geom,
         "resume_ia": item.get("resume_ia"),
+        "tags": item.get("tags", []),
         "cluster_id": None,
         "score_confiance": float(item.get("score_confiance", 1.0)),
     }

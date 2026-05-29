@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import String, Integer, Float, DateTime, Text, Index
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 from geoalchemy2 import Geometry
 from app.database import Base
@@ -37,6 +38,7 @@ class Event(Base):
     )
 
     resume_ia: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    tags: Mapped[list] = mapped_column(ARRAY(String), nullable=False, server_default="{}", default=list)
     cluster_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)
     score_confiance: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
 

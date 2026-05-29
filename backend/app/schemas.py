@@ -20,6 +20,7 @@ class EventBase(BaseModel):
     lieu_niveau: str
     lieu_confiance_geo: float = Field(ge=0.0, le=1.0)
     resume_ia: Optional[str] = None
+    tags: List[str] = []
     cluster_id: Optional[str] = None
     score_confiance: float = Field(ge=0.0, le=1.0)
     created_at: datetime

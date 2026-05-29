@@ -36,20 +36,24 @@ def _cache_put(key: str, value: dict[str, Any]) -> None:
 SYSTEM_PROMPT = """\
 Tu es un assistant d'extraction d'information pour un agrégateur d'actualités françaises géolocalisé.
 
-Pour chaque article, extrais :
-1. **lieu_nom** : nom d'une commune, département ou région française (ex: "Lyon", "Gironde", "Bretagne"). Si l'événement est national ou non localisable en France, retourne "national". Ne retourne jamais de pays étrangers ni de zones géographiques non françaises.
-2. **categorie** : une des valeurs exactes : "meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite"
-3. **resume_ia** : teaser factuel de 1-2 phrases maximum
-4. **gravite** — critères stricts :
-   - 3 = URGENCE : événement inhabituel touchant l'ensemble de la population française (attentat majeur, catastrophe nationale, pandémie déclarée, panne électrique nationale généralisée). RÉSERVÉ aux crises d'ampleur réellement nationale.
-   - 2 = ALERTE : alerte officielle émise par une autorité (Météo-France orange/rouge, ANSM rappel médicament, Vigicrues niveau 3-4, alerte préfectorale régionale). Incident grave localisé avec blessés/victimes confirmées.
-   - 1 = VIGILANCE : vigilance météo jaune, risque signalé sans victime, perturbation notable de transport, information de prudence locale.
-   - 0 = INFORMATION : actualité courante, faits divers sans urgence, résultats sportifs, politique, économie, culture.
+Pour chaque article, extrais EXACTEMENT ces 5 champs :
 
-La grande majorité des articles RSS doivent être classés 0. N'attribue 2 ou 3 que si c'est explicitement justifié.
+1. **lieu_nom** : commune, département ou région française précise (ex: "Lyon", "Gironde", "Bretagne"). Retourne "national" si l'événement n'est pas localisable en France. Ne retourne JAMAIS un pays étranger.
+
+2. **categorie** : valeur exacte parmi : "meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite"
+
+3. **resume_ia** : 1-2 phrases factuelles résumant l'essentiel de l'article.
+
+4. **gravite** — critères stricts :
+   - 3 = URGENCE : crise d'ampleur nationale touchant toute la population (attentat majeur, catastrophe nationale, pandémie déclarée). TRÈS RARE.
+   - 2 = ALERTE : alerte officielle d'une autorité (Météo-France orange/rouge, ANSM, Vigicrues 3-4, arrêté préfectoral). Incident grave avec victimes confirmées.
+   - 1 = VIGILANCE : vigilance météo jaune, risque sans victime, perturbation transport notable.
+   - 0 = INFORMATION : actualité courante. La grande majorité des articles = 0.
+
+5. **tags** : liste JSON de 3 à 5 mots-clés thématiques en français, en minuscules (ex: ["grève", "sncf", "île-de-france"]). Concis et pertinents, sans répéter lieu_nom ou categorie.
 
 Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après.
-{"lieu_nom": "...", "categorie": "...", "resume_ia": "...", "gravite": 0}
+{"lieu_nom": "...", "categorie": "...", "resume_ia": "...", "gravite": 0, "tags": ["...", "..."]}
 """
 
 CATEGORY_KEYWORDS: dict[str, list[str]] = {
@@ -126,16 +130,39 @@ def _validate_extraction(raw: dict) -> dict[str, Any]:
     except (TypeError, ValueError):
         gravite = 0
 
-    return {"lieu_nom": lieu_nom, "categorie": categorie, "resume_ia": resume_ia, "gravite": gravite}
+    raw_tags = raw.get("tags", [])
+    if isinstance(raw_tags, list):
+        tags = [str(t).strip().lower() for t in raw_tags if t and str(t).strip()][:5]
+    else:
+        tags = []
+
+    return {
+        "lieu_nom": lieu_nom,
+        "categorie": categorie,
+        "resume_ia": resume_ia,
+        "gravite": gravite,
+        "tags": tags,
+    }
 
 
-async def _extract_with_ollama(titre: str, description: str) -> dict[str, Any] | None:
-    """Call the local Ollama model. Returns None on any error (caller falls back)."""
-    clean_description = _strip_html(description) if description else ""
+def _build_user_content(titre: str, description: str, full_text: str | None = None) -> str:
+    """Build the user message sent to any AI backend."""
     today = datetime.now(timezone.utc).strftime("%d/%m/%Y")
-    user_content = f"Date: {today}\nTitre: {titre}"
-    if clean_description:
-        user_content += f"\n\nDescription: {clean_description[:1000]}"
+    parts = [f"Date: {today}", f"Titre: {titre}"]
+    if full_text:
+        # Full article text gives much better location and tag extraction
+        parts.append(f"\nContenu de l'article:\n{full_text[:3000]}")
+    else:
+        clean_desc = _strip_html(description) if description else ""
+        if clean_desc:
+            parts.append(f"\nDescription: {clean_desc[:1000]}")
+    return "\n".join(parts)
+
+
+async def _extract_with_ollama(titre: str, description: str,
+                                full_text: str | None = None) -> dict[str, Any] | None:
+    """Call the local Ollama model. Returns None on any error (caller falls back)."""
+    user_content = _build_user_content(titre, description, full_text)
 
     async with _OLLAMA_SEMAPHORE:
         try:
@@ -243,17 +270,15 @@ async def _rule_based_extract(titre: str, description: str | None) -> dict[str, 
         "categorie": categorie,
         "resume_ia": resume_ia,
         "gravite": gravite,
+        "tags": [],
     }
 
 
-async def _extract_with_anthropic(titre: str, description: str, cache_key: str) -> dict[str, Any]:
+async def _extract_with_anthropic(titre: str, description: str, cache_key: str,
+                                   full_text: str | None = None) -> dict[str, Any]:
     """Call Anthropic Claude Haiku. Falls back to rule-based on error."""
     client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-    clean_description = _strip_html(description) if description else ""
-    today = datetime.now(timezone.utc).strftime("%d/%m/%Y")
-    user_content = f"Date: {today}\nTitre: {titre}"
-    if clean_description:
-        user_content += f"\n\nDescription: {clean_description[:1000]}"
+    user_content = _build_user_content(titre, description, full_text)
 
     async with _CLAUDE_SEMAPHORE:
         if cache_key in _extract_cache:
@@ -261,7 +286,7 @@ async def _extract_with_anthropic(titre: str, description: str, cache_key: str) 
         try:
             message = await client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=256,
+                max_tokens=350,
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_content}],
             )
@@ -280,24 +305,25 @@ async def _extract_with_anthropic(titre: str, description: str, cache_key: str) 
         except Exception as exc:
             logger.error("Anthropic extraction failed for '%s': %s", titre[:80], exc)
             fallback = {"lieu_nom": "national", "categorie": "actualite",
-                        "resume_ia": titre[:200], "gravite": 0}
+                        "resume_ia": titre[:200], "gravite": 0, "tags": []}
             _cache_put(cache_key, fallback)
             return fallback
 
 
-async def extract_with_claude(titre: str, description: str) -> dict[str, Any]:
+async def extract_with_claude(titre: str, description: str,
+                              full_text: str | None = None) -> dict[str, Any]:
     """Route extraction: Ollama (local) → Anthropic → rule-based fallback."""
     key = _cache_key(titre, description)
     if key in _extract_cache:
         return _extract_cache[key]
 
     if settings.OLLAMA_BASE_URL:
-        result = await _extract_with_ollama(titre, description)
+        result = await _extract_with_ollama(titre, description, full_text)
         if result is None:
             logger.info("Ollama unavailable — falling back to rule-based extraction")
             result = await _rule_based_extract(titre, description)
     elif settings.ANTHROPIC_API_KEY:
-        return await _extract_with_anthropic(titre, description, key)
+        return await _extract_with_anthropic(titre, description, key, full_text)
     else:
         result = await _rule_based_extract(titre, description)
 
@@ -334,14 +360,22 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
     titre = item.get("titre", "")
     description = item.get("description", "") or item.get("raw", {}).get("summary", "")
 
-    extraction = await extract_with_claude(titre, description)
+    # Fetch full article content when an AI backend is available — richer context
+    # greatly improves location extraction and tag quality.
+    full_text: str | None = None
+    if settings.FETCH_FULL_ARTICLES and (settings.OLLAMA_BASE_URL or settings.ANTHROPIC_API_KEY):
+        source_url = item.get("source_url", "")
+        if source_url:
+            from app.pipeline.fetcher import fetch_article_text
+            full_text = await fetch_article_text(source_url)
+
+    extraction = await extract_with_claude(titre, description, full_text)
 
     updated = dict(item)
 
     if not updated.get("lieu_nom") or updated.get("source") == "presse_rss":
         extracted_lieu = extraction["lieu_nom"]
         current_lieu = updated.get("lieu_nom")
-        # Preserve a regional lieu_nom provided by the feed when extraction only returns "national"
         if extracted_lieu != "national" or not current_lieu:
             updated["lieu_nom"] = extracted_lieu
 
@@ -351,6 +385,8 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
         updated["categorie"] = extraction["categorie"]
     if updated.get("gravite", 0) == 0 and extraction["gravite"] > 0:
         updated["gravite"] = extraction["gravite"]
+
+    updated["tags"] = extraction.get("tags", [])
 
     # Override catégorie pour les sources autoritatives connues
     auteur_lower = (updated.get("auteur") or "").lower()
