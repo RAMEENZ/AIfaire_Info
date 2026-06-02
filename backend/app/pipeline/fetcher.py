@@ -57,10 +57,13 @@ def _is_safe_url(url: str) -> bool:
         host = parsed.hostname or ""
         if not host:
             return False
-        # Si c'est une adresse IP littérale, vérifier qu'elle n'est pas privée
+        # Si c'est une adresse IP littérale, vérifier qu'elle n'est pas privée.
+        # Les adresses IPv6 mappées IPv4 (::ffff:169.254.169.254) contournent
+        # les blocs IPv4 purs : on les vérifie contre la liste IPv4.
         try:
             addr = ipaddress.ip_address(host)
-            return not any(addr in net for net in _BLOCKED_NETWORKS)
+            check = addr.ipv4_mapped if addr.ipv4_mapped is not None else addr
+            return not any(check in net for net in _BLOCKED_NETWORKS)
         except ValueError:
             # Hostname DNS — on lui fait confiance (la protection SSRF complète
             # nécessiterait une résolution DNS pré-requête, hors scope ici)

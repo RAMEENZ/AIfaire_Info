@@ -109,6 +109,8 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
 
   useEffect(() => {
     if (selectedEvent?.lieu_lat != null && selectedEvent?.lieu_lon != null) {
+      const container = mapRef.current?.getContainer();
+      if (!container || container.offsetWidth === 0 || container.offsetHeight === 0) return;
       const targetZoom =
         selectedEvent.lieu_niveau === "commune" ? 13
         : selectedEvent.lieu_niveau === "departement" ? 10

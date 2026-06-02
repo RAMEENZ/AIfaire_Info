@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import dynamic from "next/dynamic";
 
@@ -16,8 +16,8 @@ function exportToCSV(events: Event[]) {
   const headers = ["id", "titre", "source", "auteur", "categorie", "gravite", "lieu_nom", "lieu_niveau", "lieu_lat", "lieu_lon", "date_publication", "source_url", "resume_ia"];
   const esc = (v: string | null | undefined) => `"${(v ?? "").replace(/"/g, '""')}"`;
   const rows = events.map((e) => [
-    e.id, esc(e.titre), e.source, esc(e.auteur), e.categorie,
-    e.gravite, esc(e.lieu_nom), e.lieu_niveau,
+    e.id, esc(e.titre), esc(e.source), esc(e.auteur), esc(e.categorie),
+    e.gravite, esc(e.lieu_nom), esc(e.lieu_niveau),
     e.lieu_lat ?? "", e.lieu_lon ?? "",
     e.date_publication, esc(e.source_url), esc(e.resume_ia),
   ]);
@@ -101,6 +101,11 @@ export default function HomePage() {
 
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [mobileView, setMobileView] = useState<"map" | "feed">("map");
+  const ingestTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    return () => { ingestTimersRef.current.forEach(clearTimeout); };
+  }, []);
 
   const handleResetFilters = useCallback(() => {
     setFilters({ categories: ALL_CATEGORIES, gravite_min: 0, depuis_heures: 48 });
@@ -115,8 +120,7 @@ export default function HomePage() {
     await triggerIngest();
     const t1 = setTimeout(refreshEvents, 10_000);
     const t2 = setTimeout(refreshEvents, 35_000);
-    // Cleanup si le composant démonte avant l'expiration des timers
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    ingestTimersRef.current.push(t1, t2);
   }, [refreshEvents]);
 
   const allEvents: Event[] = useMemo(() => eventsData?.events ?? [], [eventsData]);

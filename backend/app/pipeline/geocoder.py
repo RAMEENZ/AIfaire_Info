@@ -16,7 +16,9 @@ _MAX_GEO_CACHE = 1024  # evict all when full; most lieu_nom values repeat across
 
 def _geo_cache_put(key: str, value: "GeoResult") -> None:
     if len(_geo_cache) >= _MAX_GEO_CACHE:
-        _geo_cache.clear()
+        keys = list(_geo_cache)
+        for k in keys[: len(keys) // 2]:
+            del _geo_cache[k]
     _geo_cache[key] = value
 
 
@@ -33,7 +35,7 @@ def _get_geo_client() -> httpx.AsyncClient:
     if _GEO_HTTP_CLIENT is None or _GEO_HTTP_CLIENT.is_closed:
         _GEO_HTTP_CLIENT = httpx.AsyncClient(
             timeout=10.0,
-            limits=httpx.Limits(max_connections=16, max_keepalive_connections=8),
+            limits=httpx.Limits(max_connections=8, max_keepalive_connections=4),
         )
     return _GEO_HTTP_CLIENT
 
@@ -387,8 +389,8 @@ async def _geocode_region(nom: str) -> GeoResult:
             GEO_REGION_URL,
             params={"nom": nom, "fields": "code,nom,centre", "limit": 1},
         )
-            resp.raise_for_status()
-            data = resp.json()
+        resp.raise_for_status()
+        data = resp.json()
 
         if not data:
             return empty

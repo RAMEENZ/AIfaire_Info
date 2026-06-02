@@ -1,4 +1,5 @@
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -26,7 +27,7 @@ async def list_events(
     gravite_min: Optional[int] = Query(None, ge=0, le=3),
     niveau: Optional[str] = Query(None),
     depuis: Optional[datetime] = Query(None),
-    q: Optional[str] = Query(None, description="Recherche textuelle (titre, résumé, lieu)"),
+    q: Optional[str] = Query(None, max_length=200, description="Recherche textuelle (titre, résumé, lieu)"),
     limit: int = Query(default=settings.DEFAULT_EVENTS_LIMIT, ge=1, le=settings.MAX_EVENTS_LIMIT),
     national_only: bool = Query(False),
     db: AsyncSession = Depends(get_db),
@@ -172,13 +173,13 @@ async def trigger_ingest(
 
 @router.get("/events/{event_id}", response_model=EventDetail)
 async def get_event(
-    event_id: str,
+    event_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ) -> EventDetail:
-    result = await db.execute(select(Event).where(Event.id == event_id))
+    result = await db.execute(select(Event).where(Event.id == str(event_id)))
     event = result.scalar_one_or_none()
 
     if event is None:
-        raise HTTPException(status_code=404, detail=f"Event '{event_id}' not found")
+        raise HTTPException(status_code=404, detail="Event not found")
 
     return event

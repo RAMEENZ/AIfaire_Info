@@ -322,6 +322,9 @@ async def extract_with_claude(titre: str, description: str,
     if settings.OLLAMA_BASE_URL:
         result = await _extract_with_ollama(titre, description, full_text)
         if result is None:
+            if settings.ANTHROPIC_API_KEY:
+                logger.info("Ollama unavailable — falling back to Anthropic")
+                return await _extract_with_anthropic(titre, description, key, full_text)
             logger.info("Ollama unavailable — falling back to rule-based extraction")
             result = await _rule_based_extract(titre, description)
     elif settings.ANTHROPIC_API_KEY:

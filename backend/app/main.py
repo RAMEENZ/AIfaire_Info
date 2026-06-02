@@ -42,7 +42,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     start_scheduler()
 
     import asyncio
-    asyncio.create_task(startup_ingestion())
+
+    def _on_startup_done(task: asyncio.Task) -> None:
+        exc = task.exception() if not task.cancelled() else None
+        if exc:
+            logger.error("startup_ingestion raised an unhandled exception: %s", exc)
+
+    task = asyncio.create_task(startup_ingestion())
+    task.add_done_callback(_on_startup_done)
 
     yield
 
