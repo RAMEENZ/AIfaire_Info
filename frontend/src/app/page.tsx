@@ -113,8 +113,10 @@ export default function HomePage() {
 
   const handleTriggerIngest = useCallback(async () => {
     await triggerIngest();
-    setTimeout(refreshEvents, 10_000);
-    setTimeout(refreshEvents, 35_000);
+    const t1 = setTimeout(refreshEvents, 10_000);
+    const t2 = setTimeout(refreshEvents, 35_000);
+    // Cleanup si le composant démonte avant l'expiration des timers
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [refreshEvents]);
 
   const allEvents: Event[] = useMemo(() => eventsData?.events ?? [], [eventsData]);

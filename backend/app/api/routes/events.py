@@ -2,7 +2,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -74,6 +74,10 @@ async def list_events(
         lat_min, lon_min, lat_max, lon_max = parts
         if lat_min >= lat_max or lon_min >= lon_max:
             raise HTTPException(status_code=422, detail="bbox: lat_min < lat_max and lon_min < lon_max required")
+        if not (-90 <= lat_min <= 90 and -90 <= lat_max <= 90):
+            raise HTTPException(status_code=422, detail="bbox: latitudes must be in [-90, 90]")
+        if not (-180 <= lon_min <= 180 and -180 <= lon_max <= 180):
+            raise HTTPException(status_code=422, detail="bbox: longitudes must be in [-180, 180]")
         bbox_wkt = f"POLYGON(({lon_min} {lat_min},{lon_max} {lat_min},{lon_max} {lat_max},{lon_min} {lat_max},{lon_min} {lat_min}))"
         stmt = stmt.where(
             func.ST_Within(
@@ -148,12 +152,18 @@ async def get_stats(db: AsyncSession = Depends(get_db)) -> dict:
 
 
 @router.post("/ingest/run")
-async def trigger_ingest(background_tasks: BackgroundTasks) -> dict:
+async def trigger_ingest(
+    background_tasks: BackgroundTasks,
+    x_api_key: Optional[str] = Header(None),
+) -> dict:
     """Déclenche manuellement l'ingestion de tous les connecteurs.
 
     Idempotent : si une ingestion est déjà en cours, le déclenchement est
     ignoré (ingest_all pose un verrou global) afin d'éviter tout empilement.
+    Si INGEST_API_KEY est configuré, le header X-Api-Key est requis.
     """
+    if settings.INGEST_API_KEY and x_api_key != settings.INGEST_API_KEY:
+        raise HTTPException(status_code=401, detail="X-Api-Key manquant ou incorrect")
     if ingestion_in_progress():
         return {"status": "already_running", "message": "Une ingestion est déjà en cours"}
     background_tasks.add_task(ingest_all)

@@ -230,21 +230,20 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
         searchInputRef.current?.blur();
       } else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !inInput && onSelectEvent) {
         e.preventDefault();
-        // Use stable reference via ref to avoid stale closure
-        const sortedIds = Array.from(
+        // Interroger le DOM directement pour avoir la liste triée/filtrée actuelle
+        // (évite les stale closures sur les events filtrés).
+        const cards = Array.from(
           document.querySelectorAll<HTMLElement>("[id^='event-card-']")
-        ).map((el) => el.id.replace("event-card-", ""));
-        if (sortedIds.length === 0) return;
+        );
+        if (cards.length === 0) return;
+        const sortedIds = cards.map((el) => el.id.replace("event-card-", ""));
         const currentIdx = selectedEventId ? sortedIds.indexOf(selectedEventId) : -1;
         const nextIdx =
           e.key === "ArrowDown"
             ? Math.min(currentIdx + 1, sortedIds.length - 1)
             : Math.max(currentIdx - 1, 0);
-        if (nextIdx !== currentIdx) {
-          // Find the event object from DOM order and call onSelectEvent
-          const nextId = sortedIds[nextIdx];
-          const nextEl = document.getElementById(`event-card-${nextId}`);
-          nextEl?.click();
+        if (nextIdx !== currentIdx && nextIdx >= 0) {
+          cards[nextIdx].click();
         }
       }
     };

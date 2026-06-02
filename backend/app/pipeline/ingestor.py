@@ -34,9 +34,11 @@ _GEO_COORD_MIN_CONFIDENCE = 0.55  # seuil en-dessous duquel on refuse de placer 
 def _build_event(item: dict[str, Any], geo: dict[str, Any]) -> dict[str, Any]:
     # Utiliser "is not None" et non "or" : une coordonnée légitime de 0.0
     # (méridien de Greenwich, qui traverse la France) ne doit pas être écartée.
+    # Les deux coordonnées sont solidaires : on les prend du connecteur si et
+    # seulement si le connecteur a fourni une latitude (les deux vont ensemble).
     connector_has_coords = item.get("lieu_lat") is not None
     lat = item.get("lieu_lat") if connector_has_coords else geo.get("lat")
-    lon = item.get("lieu_lon") if item.get("lieu_lon") is not None else geo.get("lon")
+    lon = item.get("lieu_lon") if connector_has_coords else geo.get("lon")
 
     _item_conf = item.get("lieu_confiance_geo")
     confiance_geo = _item_conf if _item_conf is not None else geo.get("confiance_geo", 0.0)

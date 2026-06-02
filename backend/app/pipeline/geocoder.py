@@ -23,6 +23,28 @@ def _geo_cache_put(key: str, value: "GeoResult") -> None:
 # Limit concurrent geocoding API calls (BAN + geo.api.gouv.fr rate-limit at ~10 rps)
 _GEO_SEMAPHORE = asyncio.Semaphore(8)
 
+# Client HTTP partagé : réutilise les connexions TCP keep-alive plutôt que
+# d'ouvrir une nouvelle connexion à chaque appel de geocoding.
+_GEO_HTTP_CLIENT: httpx.AsyncClient | None = None
+
+
+def _get_geo_client() -> httpx.AsyncClient:
+    global _GEO_HTTP_CLIENT
+    if _GEO_HTTP_CLIENT is None or _GEO_HTTP_CLIENT.is_closed:
+        _GEO_HTTP_CLIENT = httpx.AsyncClient(
+            timeout=10.0,
+            limits=httpx.Limits(max_connections=16, max_keepalive_connections=8),
+        )
+    return _GEO_HTTP_CLIENT
+
+
+async def close_geo_client() -> None:
+    """Ferme proprement le client HTTP partagé (appeler au shutdown de l'app)."""
+    global _GEO_HTTP_CLIENT
+    if _GEO_HTTP_CLIENT is not None and not _GEO_HTTP_CLIENT.is_closed:
+        await _GEO_HTTP_CLIENT.aclose()
+        _GEO_HTTP_CLIENT = None
+
 BAN_URL = "https://api-adresse.data.gouv.fr/search/"
 GEO_DEPT_URL = "https://geo.api.gouv.fr/departements"
 GEO_REGION_URL = "https://geo.api.gouv.fr/regions"
@@ -206,7 +228,14 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
             return result
 
     # Alias — try with and without leading article
-    alias_target = LIEU_ALIASES.get(lieu_lower) or LIEU_ALIASES.get(_stripped_lower)
+    # Utiliser `in` plutôt que `or` : une valeur None explicite dans le dict
+    # (ex. "dom-tom") est une sentinelle intentionnelle, pas une absence de clé.
+    # L'opérateur `or` traiterait None comme falsy et évaluerait le second membre.
+    alias_target = (
+        LIEU_ALIASES[lieu_lower]
+        if lieu_lower in LIEU_ALIASES
+        else LIEU_ALIASES.get(_stripped_lower)
+    )
     if alias_target is not None:
         alias_result = await geocode(alias_target)
         if alias_result["confiance_geo"] >= 0.5:
@@ -249,13 +278,13 @@ async def _geocode_commune(lieu_nom: str) -> GeoResult | None:
     None en cas d'erreur réseau transitoire (pour ne pas empoisonner le cache)."""
     empty: GeoResult = {"lat": None, "lon": None, "code_insee": None, "niveau": "national", "confiance_geo": 0.0}
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                BAN_URL,
-                params={"q": lieu_nom, "limit": 1, "type": "municipality"},
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        client = _get_geo_client()
+        resp = await client.get(
+            BAN_URL,
+            params={"q": lieu_nom, "limit": 1, "type": "municipality"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
     except Exception as exc:
         logger.debug("BAN geocoding failed for '%s': %s", lieu_nom, exc)
         return None
@@ -288,13 +317,13 @@ async def _geocode_departement(nom: str) -> GeoResult | None:
     None en cas d'erreur réseau transitoire."""
     empty: GeoResult = {"lat": None, "lon": None, "code_insee": None, "niveau": "national", "confiance_geo": 0.0}
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                GEO_DEPT_URL,
-                params={"nom": nom, "fields": "code,nom,centre", "limit": 1},
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        client = _get_geo_client()
+        resp = await client.get(
+            GEO_DEPT_URL,
+            params={"nom": nom, "fields": "code,nom,centre", "limit": 1},
+        )
+        resp.raise_for_status()
+        data = resp.json()
     except Exception as exc:
         logger.debug("Dept geocoding failed for '%s': %s", nom, exc)
         return None
@@ -325,13 +354,13 @@ async def _geocode_departement(nom: str) -> GeoResult | None:
 async def _geocode_departement_by_code(code: str) -> GeoResult:
     empty: GeoResult = {"lat": None, "lon": None, "code_insee": None, "niveau": "national", "confiance_geo": 0.0}
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                f"{GEO_DEPT_URL}/{code}",
-                params={"fields": "code,nom,centre"},
-            )
-            resp.raise_for_status()
-            dept = resp.json()
+        client = _get_geo_client()
+        resp = await client.get(
+            f"{GEO_DEPT_URL}/{code}",
+            params={"fields": "code,nom,centre"},
+        )
+        resp.raise_for_status()
+        dept = resp.json()
 
         centre = dept.get("centre", {})
         coords = centre.get("coordinates", [])
@@ -353,11 +382,11 @@ async def _geocode_departement_by_code(code: str) -> GeoResult:
 async def _geocode_region(nom: str) -> GeoResult:
     empty: GeoResult = {"lat": None, "lon": None, "code_insee": None, "niveau": "national", "confiance_geo": 0.0}
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                GEO_REGION_URL,
-                params={"nom": nom, "fields": "code,nom,centre", "limit": 1},
-            )
+        client = _get_geo_client()
+        resp = await client.get(
+            GEO_REGION_URL,
+            params={"nom": nom, "fields": "code,nom,centre", "limit": 1},
+        )
             resp.raise_for_status()
             data = resp.json()
 

@@ -1,3 +1,4 @@
+import hashlib
 import httpx
 from datetime import datetime, timezone
 from typing import Any
@@ -53,7 +54,12 @@ class VigicruesConnector(BaseConnector):
                     continue
 
                 nom = props.get("lbentcru") or props.get("acroentcru") or "Cours d'eau"
-                code = props.get("CdEntCru") or props.get("id") or ""
+                code = props.get("CdEntCru") or props.get("id")
+                if not code:
+                    # Sans identifiant unique, l'URL serait identique pour tous
+                    # les tronçons non codifiés → ON CONFLICT écrase tous sauf un.
+                    # On génère un identifiant stable depuis le nom du tronçon.
+                    code = "unknown-" + hashlib.md5(nom.encode()).hexdigest()[:8]
                 label = NIVEAU_LABELS.get(niveau, "Inconnu")
                 titre = f"Vigilance crues {label} – {nom}"
 
