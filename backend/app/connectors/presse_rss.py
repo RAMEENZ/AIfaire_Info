@@ -202,7 +202,7 @@ async def _fetch_feed(client: httpx.AsyncClient, feed_cfg: dict[str, Any]) -> li
         except Exception as exc:
             raise RuntimeError(f"{feed_name}: fetch failed: {exc}") from exc
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     parsed = await loop.run_in_executor(None, feedparser.parse, content)
 
     cutoff = datetime.now(timezone.utc) - _MAX_ARTICLE_AGE

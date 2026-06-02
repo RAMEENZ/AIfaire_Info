@@ -223,7 +223,7 @@ async def _delete_source_events(source: str) -> int:
 async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
     raw_items = await connector.run()
 
-    if connector.replace_on_ingest and raw_items:
+    if connector.replace_on_ingest:
         deleted = await _delete_source_events(connector.name)
         logger.info("replace_on_ingest: deleted %d old %s events", deleted, connector.name)
 

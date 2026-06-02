@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.connectors.base import BaseConnector
+from app.geo_data import DEPT_CODE_TO_NAME
 
 COUPURES_URL = (
     "https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets"
@@ -84,7 +85,8 @@ class EnedisConnector(BaseConnector):
                 date_pub = self._parse_date(date_debut_raw) or datetime.now(timezone.utc)
 
                 cause = record.get("cause_perturbation") or record.get("cause") or "Coupure"
-                lieu_label = commune or (f"Département {dept}" if dept else "France")
+                dept_name = DEPT_CODE_TO_NAME.get(str(dept).zfill(2)) if dept else None
+                lieu_label = commune or dept_name or (f"Département {dept}" if dept else "France")
                 titre = f"{cause} – {lieu_label}"
                 if nb_clients:
                     titre += f" ({nb_clients:,} clients)"

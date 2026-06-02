@@ -211,6 +211,12 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
   const [search, setSearch] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (activeTag && !events.some((e) => e.tags?.includes(activeTag))) {
+      setActiveTag(null);
+    }
+  }, [events, activeTag]);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
