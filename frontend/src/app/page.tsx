@@ -8,8 +8,15 @@ import EventFeed from "@/components/EventFeed";
 import FilterBar from "@/components/FilterBar";
 import StatusBar from "@/components/StatusBar";
 import StatsBar from "@/components/StatsBar";
+import AlertSettings from "@/components/AlertSettings";
 import { fetchEvents, fetchHealth, triggerIngest } from "@/lib/api";
 import { ALL_CATEGORIES, GRAVITE_CONFIG, REFRESH_INTERVAL } from "@/lib/constants";
+import {
+  AlertSettings as AlertSettingsType,
+  loadAlertSettings,
+  shouldAlert,
+  sendEventNotification,
+} from "@/lib/notifications";
 import { Categorie, Event, EventFilters } from "@/lib/types";
 
 function exportToCSV(events: Event[]) {
@@ -164,6 +171,30 @@ export default function HomePage() {
     }
   }, [urgentCount]);
 
+  // ── Alertes navigateur ───────────────────────────────────────────────────
+  const [alertSettings, setAlertSettings] = useState<AlertSettingsType | null>(null);
+  const seenEventIdsRef = useRef<Set<string> | null>(null);
+
+  useEffect(() => {
+    setAlertSettings(loadAlertSettings());
+  }, []);
+
+  useEffect(() => {
+    if (!alertSettings) return;
+    // Premier passage : on mémorise les IDs déjà présents sans notifier
+    // (sinon tout le feed initial déclencherait une avalanche d'alertes).
+    if (seenEventIdsRef.current === null) {
+      seenEventIdsRef.current = new Set(allEvents.map((e) => e.id));
+      return;
+    }
+    const seen = seenEventIdsRef.current;
+    const fresh = allEvents.filter((e) => !seen.has(e.id));
+    for (const e of fresh) {
+      seen.add(e.id);
+      if (shouldAlert(e, alertSettings)) sendEventNotification(e);
+    }
+  }, [allEvents, alertSettings]);
+
   const handleCategoriesChange = useCallback((categories: Categorie[]) => {
     setFilters((prev) => ({ ...prev, categories }));
   }, []);
@@ -216,6 +247,7 @@ export default function HomePage() {
             {GRAVITE_CONFIG[maxGravite]?.label}
           </span>
         )}
+        <AlertSettings onChange={setAlertSettings} />
         <button
           onClick={() => {
             navigator.clipboard.writeText(window.location.href).catch(() => {});
