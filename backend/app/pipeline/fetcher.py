@@ -7,7 +7,7 @@ within a single ingestion run.
 import asyncio
 import ipaddress
 import logging
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 import trafilatura
@@ -20,6 +20,9 @@ _MAX_ARTICLE_CACHE = 1024
 # Parallel fetches: enough to saturate a typical 100 Mbit link without
 # triggering rate-limiting on the target sites.
 _FETCH_SEMAPHORE = asyncio.Semaphore(15)
+
+# Nombre maximal de redirections suivies manuellement (chacune revalidée SSRF).
+_MAX_REDIRECTS = 5
 
 _HEADERS = {
     "User-Agent": (
@@ -44,11 +47,21 @@ _BLOCKED_NETWORKS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = [
 ]
 
 
-def _is_safe_url(url: str) -> bool:
-    """Retourne False pour tout schéma non-HTTP(S) ou adresse IP privée/loopback.
+def _ip_is_blocked(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    # Les adresses IPv6 mappées IPv4 (::ffff:169.254.169.254) contournent les
+    # blocs IPv4 purs : on les ramène à leur forme IPv4 avant comparaison.
+    check = addr.ipv4_mapped if getattr(addr, "ipv4_mapped", None) is not None else addr
+    return any(check in net for net in _BLOCKED_NETWORKS)
 
-    Seules les URL avec hostname DNS (non-IP) ou IP publiques sont acceptées.
-    Cela bloque le vecteur SSRF le plus direct via des flux RSS malveillants.
+
+async def _is_safe_url(url: str) -> bool:
+    """Retourne False pour tout schéma non-HTTP(S) ou hôte qui résout vers une
+    adresse privée/loopback/link-local.
+
+    Contrairement à une simple vérification de littéral IP, on résout le nom DNS
+    et on vérifie TOUTES les adresses retournées : cela bloque les attaques SSRF
+    par nom de domaine (ex. un flux RSS pointant vers un hostname qui résout en
+    169.254.169.254 — endpoint de métadonnées cloud).
     """
     try:
         parsed = urlparse(url)
@@ -57,17 +70,31 @@ def _is_safe_url(url: str) -> bool:
         host = parsed.hostname or ""
         if not host:
             return False
-        # Si c'est une adresse IP littérale, vérifier qu'elle n'est pas privée.
-        # Les adresses IPv6 mappées IPv4 (::ffff:169.254.169.254) contournent
-        # les blocs IPv4 purs : on les vérifie contre la liste IPv4.
+
+        # Littéral IP : vérification directe, pas de résolution nécessaire.
         try:
-            addr = ipaddress.ip_address(host)
-            check = addr.ipv4_mapped if addr.ipv4_mapped is not None else addr
-            return not any(check in net for net in _BLOCKED_NETWORKS)
+            return not _ip_is_blocked(ipaddress.ip_address(host))
         except ValueError:
-            # Hostname DNS — on lui fait confiance (la protection SSRF complète
-            # nécessiterait une résolution DNS pré-requête, hors scope ici)
-            return True
+            pass
+
+        # Hostname DNS : on résout et on rejette si une seule adresse est bloquée.
+        try:
+            loop = asyncio.get_running_loop()
+            infos = await loop.getaddrinfo(host, parsed.port or 80,
+                                           proto=0, type=0)
+        except Exception as exc:
+            logger.debug("_is_safe_url: DNS resolution failed for %s: %s", host, exc)
+            return False
+        if not infos:
+            return False
+        for info in infos:
+            sockaddr = info[4]
+            try:
+                if _ip_is_blocked(ipaddress.ip_address(sockaddr[0])):
+                    return False
+            except ValueError:
+                return False
+        return True
     except Exception:
         return False
 
@@ -86,7 +113,7 @@ async def fetch_article_text(url: str) -> str | None:
     Returns None if the request fails, the page is inaccessible, or the
     extracted content is too short to be useful.
     """
-    if not _is_safe_url(url):
+    if not await _is_safe_url(url):
         logger.debug("fetch_article_text: blocked unsafe URL %s", url)
         return None
 
@@ -95,12 +122,30 @@ async def fetch_article_text(url: str) -> str | None:
 
     async with _FETCH_SEMAPHORE:
         try:
+            # follow_redirects=False : on suit les redirections manuellement pour
+            # revalider chaque saut. Sinon une 302 vers http://169.254.169.254/
+            # contournerait le contrôle SSRF déjà passé sur l'URL initiale.
             async with httpx.AsyncClient(
                 timeout=15.0,
-                follow_redirects=True,
+                follow_redirects=False,
                 headers=_HEADERS,
             ) as client:
-                resp = await client.get(url)
+                current_url = url
+                resp = None
+                for _ in range(_MAX_REDIRECTS + 1):
+                    resp = await client.get(current_url)
+                    if resp.is_redirect and resp.has_redirect_location:
+                        # urljoin gère les Location relatives (ex. "/article/2").
+                        next_url = urljoin(current_url, resp.headers["location"])
+                        if not await _is_safe_url(next_url):
+                            logger.debug("fetch_article_text: blocked redirect to %s", next_url)
+                            return None
+                        current_url = next_url
+                        continue
+                    break
+                else:
+                    logger.debug("fetch_article_text: too many redirects for %s", url)
+                    return None
                 resp.raise_for_status()
                 html = resp.text
         except Exception as exc:
@@ -120,7 +165,8 @@ async def fetch_article_text(url: str) -> str | None:
         return None
 
     if text and len(text.strip()) >= 150:
-        _cache_put(url, text.strip())
-        return _article_cache[url]
+        cleaned = text.strip()
+        _cache_put(url, cleaned)
+        return cleaned
 
     return None

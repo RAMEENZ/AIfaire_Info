@@ -34,7 +34,7 @@ async def purge_old_events() -> int:
                 stmt = (
                     delete(Event)
                     .where(Event.source == source)
-                    .where(Event.created_at < cutoff)
+                    .where(Event.date_publication < cutoff)
                 )
                 result = await session.execute(stmt)
                 deleted = result.rowcount
@@ -51,7 +51,7 @@ async def purge_old_events() -> int:
             stmt_default = (
                 delete(Event)
                 .where(Event.source.not_in(known_sources))
-                .where(Event.created_at < default_cutoff)
+                .where(Event.date_publication < default_cutoff)
             )
             result_default = await session.execute(stmt_default)
             deleted_default = result_default.rowcount

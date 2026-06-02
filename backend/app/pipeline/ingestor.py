@@ -200,11 +200,15 @@ async def _save_events(events: list[dict[str, Any]]) -> int:
             return 0
 
 
-_GEO_SEMAPHORE = asyncio.Semaphore(8)  # max 8 items traitables en parallèle (geocoding API)
+# Plafond du nombre d'items traités simultanément. Le vrai back-pressure vient
+# des sémaphores internes (geocoder=8, Anthropic=4, Ollama=1, fetch=15) ; ce
+# plafond se contente d'éviter une explosion du nombre de coroutines sur de gros
+# lots, sans étrangler les items qui ne font ni géocodage ni extraction.
+_PROCESS_SEMAPHORE = asyncio.Semaphore(32)
 
 
 async def _process_item_limited(item: dict[str, Any]) -> dict[str, Any] | None:
-    async with _GEO_SEMAPHORE:
+    async with _PROCESS_SEMAPHORE:
         return await _process_item(item)
 
 
@@ -223,9 +227,19 @@ async def _delete_source_events(source: str) -> int:
 async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
     raw_items = await connector.run()
 
-    if connector.replace_on_ingest:
+    # On ne supprime les anciens événements QUE si le fetch a réussi (last_error
+    # est remis à None par run() en cas de succès). Sinon un échec transitoire
+    # (5xx amont → liste vide) viderait la carte alors que les alertes en cours
+    # sont toujours valides. Une liste vide après un fetch réussi = vrai
+    # « retour au calme » → suppression légitime.
+    if connector.replace_on_ingest and connector.last_error is None:
         deleted = await _delete_source_events(connector.name)
         logger.info("replace_on_ingest: deleted %d old %s events", deleted, connector.name)
+    elif connector.replace_on_ingest:
+        logger.warning(
+            "replace_on_ingest: skipping delete for %s — fetch failed (%s), keeping existing events",
+            connector.name, connector.last_error,
+        )
 
     process_tasks = [_process_item_limited(item) for item in raw_items]
     processed = await asyncio.gather(*process_tasks, return_exceptions=True)

@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Literal
 
@@ -44,6 +45,17 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+    @model_validator(mode="after")
+    def _reject_insecure_defaults_in_prod(self) -> "Settings":
+        # Fail-closed : en production, refuser de démarrer avec le mot de passe
+        # de base de données par défaut (visible dans le code source).
+        if self.APP_ENV == "production" and ":password@" in self.DATABASE_URL:
+            raise ValueError(
+                "DATABASE_URL utilise le mot de passe par défaut 'password' en "
+                "production. Définissez un mot de passe fort via l'environnement."
+            )
+        return self
 
 
 settings = Settings()

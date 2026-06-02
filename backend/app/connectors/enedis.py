@@ -1,3 +1,5 @@
+import hashlib
+import json
 import httpx
 from datetime import datetime, timezone
 from typing import Any
@@ -91,7 +93,16 @@ class EnedisConnector(BaseConnector):
                 if nb_clients:
                     titre += f" ({nb_clients:,} clients)"
 
-                record_id = record.get("recordid") or record.get("id") or hash(str(record))
+                # hash() builtin est randomisé par process (PYTHONHASHSEED) : le
+                # même enregistrement produirait une source_url différente à
+                # chaque redémarrage, cassant la déduplication ON CONFLICT. On
+                # utilise un hash déterministe sur une sérialisation stable.
+                record_id = record.get("recordid") or record.get("id")
+                if not record_id:
+                    digest = hashlib.sha1(
+                        json.dumps(record, sort_keys=True, default=str).encode()
+                    ).hexdigest()
+                    record_id = digest[:16]
                 source_url = f"https://opendata.enedis.fr/explore/dataset/coupures-delectricite/record/{record_id}"
 
                 date_fin = self._parse_date(date_fin_raw)
