@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # "*" autorise toutes les origines (API publique en lecture seule, sans cookies).
     CORS_ORIGINS: str = "*"
 
+    # Clé optionnelle pour l'endpoint POST /api/ingest/run.
+    # Vide = pas d'auth (dev/local). En prod, définir une valeur aléatoire forte.
+    INGEST_API_KEY: str = ""
+
     # Ollama : laissé vide → fallback Anthropic ou règles
     OLLAMA_BASE_URL: str = ""
     OLLAMA_MODEL: str = "mistral:7b-instruct"

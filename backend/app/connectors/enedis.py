@@ -92,6 +92,11 @@ class EnedisConnector(BaseConnector):
                 record_id = record.get("recordid") or record.get("id") or hash(str(record))
                 source_url = f"https://opendata.enedis.fr/explore/dataset/coupures-delectricite/record/{record_id}"
 
+                date_fin = self._parse_date(date_fin_raw)
+                resume = titre
+                if date_fin:
+                    resume += f". Fin prévue : {date_fin.strftime('%d/%m/%Y %H:%M')} UTC."
+
                 results.append(
                     {
                         "source": self.name,
@@ -99,12 +104,14 @@ class EnedisConnector(BaseConnector):
                         "titre": titre,
                         "auteur": "Enedis",
                         "date_publication": date_pub.isoformat(),
-                        "date_evenement": self._parse_date(date_fin_raw).isoformat() if self._parse_date(date_fin_raw) else None,
+                        "date_evenement": date_fin.isoformat() if date_fin else None,
                         "categorie": "energie",
                         "gravite": gravite,
                         "lieu_nom": lieu_label,
                         "lieu_code_insee": str(dept) if dept else None,
                         "lieu_niveau": "commune" if commune else ("departement" if dept else "national"),
+                        "resume_ia": resume,
+                        "skip_extraction": True,
                         "raw": record,
                     }
                 )

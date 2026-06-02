@@ -277,7 +277,9 @@ async def _rule_based_extract(titre: str, description: str | None) -> dict[str, 
 async def _extract_with_anthropic(titre: str, description: str, cache_key: str,
                                    full_text: str | None = None) -> dict[str, Any]:
     """Call Anthropic Claude Haiku. Falls back to rule-based on error."""
-    client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    # Timeout explicite : le SDK Anthropic défaut à 600 s, ce qui bloquerait
+    # les 4 slots semaphore pendant 10 min en cas de lenteur API.
+    client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY, timeout=45.0)
     user_content = _build_user_content(titre, description, full_text)
 
     async with _CLAUDE_SEMAPHORE:

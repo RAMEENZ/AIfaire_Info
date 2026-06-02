@@ -9,6 +9,7 @@ from app.config import settings
 from app.database import init_db, migrate_db
 from app.api.routes.events import router as events_router
 from app.api.routes.health import router as health_router
+from app.pipeline.geocoder import close_geo_client
 from app.pipeline.scheduler import start_scheduler, stop_scheduler, startup_ingestion
 
 logging.basicConfig(
@@ -21,6 +22,19 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("Starting FAIRE INFO backend (env=%s)", settings.APP_ENV)
+
+    # Avertissement de sécurité : mot de passe DB par défaut en production
+    if settings.APP_ENV == "production" and "password" in settings.DATABASE_URL:
+        logger.warning(
+            "SECURITY: DATABASE_URL contains the default password 'password'. "
+            "Set POSTGRES_PASSWORD in your environment before going live."
+        )
+    if settings.APP_ENV == "production" and not settings.INGEST_API_KEY:
+        logger.warning(
+            "SECURITY: INGEST_API_KEY is not set — POST /api/ingest/run is unprotected. "
+            "Set INGEST_API_KEY in your environment to restrict access."
+        )
+
     await init_db()
     await migrate_db()
     logger.info("Database initialized")
@@ -33,6 +47,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
     stop_scheduler()
+    await close_geo_client()
     logger.info("FAIRE INFO backend stopped")
 
 
