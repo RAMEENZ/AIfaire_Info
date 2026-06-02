@@ -163,6 +163,69 @@ _AMBIGUOUS_TERMS: frozenset[str] = frozenset({
     "métropole", "metropole",
 })
 
+# Pays étrangers et lieux hors-France : l'app couvre la France. Ces noms,
+# souvent extraits à tort des actualités internationales, ne doivent JAMAIS
+# être placés sur la carte (sinon un marqueur "Australie" atterrit au hasard).
+# On retourne "national" pour les garder dans le feed sans polluer la carte.
+_FOREIGN_PLACES: frozenset[str] = frozenset({
+    # ── Pays (noms français courants) ──────────────────────────────────────
+    "afghanistan", "afrique du sud", "albanie", "algérie", "algerie",
+    "allemagne", "angola", "arabie saoudite", "argentine", "arménie", "armenie",
+    "australie", "autriche", "azerbaïdjan", "azerbaidjan", "bangladesh",
+    "belgique", "bénin", "benin", "biélorussie", "bielorussie", "birmanie",
+    "bolivie", "brésil", "bresil", "bulgarie", "burkina faso", "cambodge",
+    "cameroun", "canada", "chili", "chine", "chypre", "colombie", "congo",
+    "corée du nord", "coree du nord", "corée du sud", "coree du sud",
+    "costa rica", "côte d'ivoire", "cote d'ivoire", "croatie", "cuba",
+    "danemark", "égypte", "egypte", "émirats arabes unis", "emirats arabes unis",
+    "équateur", "equateur", "espagne", "estonie", "états-unis", "etats-unis",
+    "éthiopie", "ethiopie", "finlande", "gabon", "géorgie", "georgie", "ghana",
+    "grèce", "grece", "guatemala", "guinée", "guinee", "haïti", "haiti",
+    "honduras", "hongrie", "inde", "indonésie", "indonesie", "irak", "iran",
+    "irlande", "islande", "israël", "israel", "italie", "japon", "jordanie",
+    "kazakhstan", "kenya", "kosovo", "koweït", "koweit", "laos", "lettonie",
+    "liban", "libéria", "liberia", "libye", "lituanie", "luxembourg",
+    "madagascar", "malaisie", "mali", "malte", "maroc", "mauritanie", "mexique",
+    "moldavie", "monaco", "mongolie", "monténégro", "montenegro", "mozambique",
+    "namibie", "népal", "nepal", "nicaragua", "niger", "nigéria", "nigeria",
+    "norvège", "norvege", "nouvelle-zélande", "nouvelle-zelande", "oman",
+    "ouganda", "ouzbékistan", "ouzbekistan", "pakistan", "palestine", "panama",
+    "paraguay", "pays-bas", "pérou", "perou", "philippines", "pologne",
+    "portugal", "qatar", "république tchèque", "republique tcheque", "roumanie",
+    "royaume-uni", "russie", "rwanda", "sénégal", "senegal", "serbie",
+    "singapour", "slovaquie", "slovénie", "slovenie", "somalie", "soudan",
+    "sri lanka", "suède", "suede", "suisse", "syrie", "tadjikistan", "taïwan",
+    "taiwan", "tanzanie", "tchad", "thaïlande", "thailande", "togo", "tunisie",
+    "turkménistan", "turkmenistan", "turquie", "ukraine", "uruguay", "venezuela",
+    "viêt nam", "viet nam", "vietnam", "yémen", "yemen", "zambie", "zimbabwe",
+    # ── Grandes villes étrangères récurrentes dans l'actu ──────────────────
+    "madrid", "barcelone", "londres", "berlin", "rome", "milan", "naples",
+    "bruxelles", "anvers", "amsterdam", "rotterdam", "genève", "geneve",
+    "zurich", "lausanne", "lisbonne", "porto", "vienne", "varsovie", "prague",
+    "budapest", "athènes", "athenes", "moscou", "kiev", "kyiv", "saint-pétersbourg",
+    "saint-petersbourg", "washington", "new york", "los angeles", "chicago",
+    "miami", "pékin", "pekin", "shanghai", "shanghaï", "tokyo", "séoul", "seoul",
+    "bombay", "mumbai", "new delhi", "le caire", "tel aviv", "jérusalem",
+    "jerusalem", "beyrouth", "damas", "bagdad", "téhéran", "teheran", "istanbul",
+    "ankara", "rabat", "casablanca", "alger", "tunis", "dakar", "abidjan",
+    "montréal", "montreal", "québec", "quebec", "ottawa", "toronto",
+    "buenos aires", "rio de janeiro", "são paulo", "sao paulo", "mexico",
+    "sydney", "melbourne", "dubaï", "dubai", "abou dabi", "doha",
+    "plzen", "suhl", "madère", "madere",
+    # ── Continents / grandes régions du monde ──────────────────────────────
+    "europe", "afrique", "asie", "amérique", "amerique", "amérique du nord",
+    "amerique du nord", "amérique du sud", "amerique du sud", "amérique latine",
+    "amerique latine", "océanie", "oceanie", "moyen-orient", "maghreb",
+    "union européenne", "union europeenne", "balkans", "scandinavie",
+    # ── Non-lieux fréquemment extraits à tort ──────────────────────────────
+    "instagram", "facebook", "tiktok", "twitter", "youtube", "snapchat",
+    "whatsapp", "linkedin", "netflix", "google", "amazon", "apple", "microsoft",
+    "grand chelem", "roland-garros", "roland garros", "ligue des champions",
+    "coupe du monde", "jeux olympiques", "tour de france", "champions league",
+    "premier league", "liga", "bundesliga", "serie a", "nba", "fifa", "uefa",
+    "otan", "onu", "ue", "g7", "g20", "fmi", "bce",
+})
+
 
 async def geocode(lieu_nom: str | None) -> GeoResult:
     empty: GeoResult = {
@@ -195,6 +258,13 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
     if cache_key in _AMBIGUOUS_TERMS:
         return empty
     if _m_early and _m_early.group(1).strip() in _AMBIGUOUS_TERMS:
+        return empty
+
+    # Rejeter les pays étrangers / villes hors-France / non-lieux (réseaux
+    # sociaux, compétitions sportives…) pour ne pas les placer sur la carte.
+    if cache_key in _FOREIGN_PLACES:
+        return empty
+    if _m_early and _m_early.group(1).strip() in _FOREIGN_PLACES:
         return empty
 
     if cache_key in _geo_cache:

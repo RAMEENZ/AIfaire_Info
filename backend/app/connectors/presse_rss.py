@@ -1,6 +1,7 @@
 import asyncio
 import html as _html
 import re as _re
+import unicodedata
 import feedparser
 import httpx
 from datetime import datetime, timedelta, timezone
@@ -163,9 +164,38 @@ def _strip_html(text: str) -> str:
     return ' '.join(text.split())
 
 
+# Balises éditoriales en tête de titre, à retirer avant déduplication : un même
+# article publié par deux médias peut s'intituler "VIDÉO. X" chez l'un et "X"
+# chez l'autre. On les neutralise pour que les variantes se regroupent.
+_EDITORIAL_PREFIX_RE = _re.compile(
+    r'^(?:'
+    r'vid[ée]o|photos?|en\s+images?|en\s+direct|direct|live|replay|reportage|'
+    r'interview|portrait|analyse|d[ée]cryptage|t[ée]moignage|exclusif|exclusivit[ée]|'
+    r'info\s+\w+|carte|infographie|tribune|[ée]dito|chronique|podcast|enqu[êe]te|'
+    r'r[ée]cit|fait\s+divers|insolite|bonne\s+nouvelle'
+    r')\s*[:.\-–—]\s*',
+    _re.IGNORECASE,
+)
+
+
 def _title_key(title: str) -> str:
-    """Clé de normalisation pour déduplication par titre."""
-    return _re.sub(r'[^\w]', '', title.lower())[:100]
+    """Clé de normalisation pour déduplication par titre.
+
+    Retire accents, balises éditoriales de tête ("VIDÉO.", "EN IMAGES :") et
+    ponctuation, afin que le même sujet repris par plusieurs médias produise
+    la même clé et soit dédupliqué.
+    """
+    t = title.lower().strip()
+    # Retire une éventuelle balise éditoriale en tête (potentiellement répétée)
+    prev = None
+    while prev != t:
+        prev = t
+        t = _EDITORIAL_PREFIX_RE.sub('', t, count=1).strip()
+    # Supprime les accents (é → e) pour fusionner "décès" / "deces"
+    t = unicodedata.normalize('NFKD', t)
+    t = ''.join(c for c in t if not unicodedata.combining(c))
+    # Ne garde que les caractères alphanumériques
+    return _re.sub(r'[^a-z0-9]', '', t)[:100]
 
 
 def _parse_rss_date(entry: Any) -> datetime:
