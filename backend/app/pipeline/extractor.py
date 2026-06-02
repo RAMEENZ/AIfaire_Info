@@ -23,14 +23,35 @@ _CLAUDE_SEMAPHORE = asyncio.Semaphore(4)
 # Ollama (local CPU): one inference at a time to avoid OOM
 _OLLAMA_SEMAPHORE = asyncio.Semaphore(1)
 
+# Client Anthropic réutilisé entre tous les appels : recréer le client (et donc
+# son pool de connexions HTTP) à chaque article gaspille des handshakes TCP/TLS
+# et peut épuiser les ports éphémères sous charge.
+_anthropic_client: "anthropic.AsyncAnthropic | None" = None
+
+
+def _get_anthropic_client() -> "anthropic.AsyncAnthropic":
+    global _anthropic_client
+    if _anthropic_client is None:
+        # Timeout explicite : le SDK Anthropic défaut à 600 s, ce qui bloquerait
+        # les 4 slots semaphore pendant 10 min en cas de lenteur API.
+        _anthropic_client = anthropic.AsyncAnthropic(
+            api_key=settings.ANTHROPIC_API_KEY, timeout=45.0
+        )
+    return _anthropic_client
+
 
 def _cache_key(titre: str, description: str) -> str:
     return hashlib.sha256((titre + (description or "")[:200]).encode()).hexdigest()
 
 
 def _cache_put(key: str, value: dict[str, Any]) -> None:
+    # Demi-éviction (comme geocoder) plutôt que clear() total : évite que tout
+    # le cache devienne froid d'un coup, ce qui provoquerait un afflux d'appels
+    # LLM payants juste après le franchissement de la capacité.
     if len(_extract_cache) >= _MAX_EXTRACT_CACHE:
-        _extract_cache.clear()
+        keys = list(_extract_cache)
+        for k in keys[: len(keys) // 2]:
+            del _extract_cache[k]
     _extract_cache[key] = value
 
 SYSTEM_PROMPT = """\
@@ -102,7 +123,7 @@ GRAVITY_KEYWORDS: dict[int, list[str]] = {
         "alerte vigicrues", "crue importante", "inondation grave",
         "arrêté préfectoral d'urgence", "fermeture préfectorale",
         "confinement", "évacuation préventive", "zone de danger",
-        "couvre-feu", "blessés légers", "perturbation majeure confirmée",
+        "couvre-feu", "blessés légers", "blessés", "blessé", "perturbation majeure confirmée",
     ],
     1: [
         # Vigilances météo et risques signalés sans victime
@@ -277,9 +298,7 @@ async def _rule_based_extract(titre: str, description: str | None) -> dict[str, 
 async def _extract_with_anthropic(titre: str, description: str, cache_key: str,
                                    full_text: str | None = None) -> dict[str, Any]:
     """Call Anthropic Claude Haiku. Falls back to rule-based on error."""
-    # Timeout explicite : le SDK Anthropic défaut à 600 s, ce qui bloquerait
-    # les 4 slots semaphore pendant 10 min en cas de lenteur API.
-    client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY, timeout=45.0)
+    client = _get_anthropic_client()
     user_content = _build_user_content(titre, description, full_text)
 
     async with _CLAUDE_SEMAPHORE:
@@ -298,18 +317,23 @@ async def _extract_with_anthropic(titre: str, description: str, cache_key: str,
             except json.JSONDecodeError:
                 start, end = raw_text.find("{"), raw_text.rfind("}") + 1
                 if start >= 0 and end > start:
-                    result = json.loads(raw_text[start:end])
+                    try:
+                        result = json.loads(raw_text[start:end])
+                    except json.JSONDecodeError as exc:
+                        raise ValueError(f"Malformed JSON slice: {raw_text[:200]}") from exc
                 else:
                     raise ValueError(f"No JSON in response: {raw_text[:200]}")
             extracted = _validate_extraction(result)
             _cache_put(cache_key, extracted)
             return extracted
         except Exception as exc:
+            # Échec transitoire (429, 529, réseau, JSON tronqué) : on renvoie un
+            # fallback dégradé pour CE run mais SANS le mettre en cache, afin que
+            # l'ingestion suivante retente l'extraction. Mettre le fallback en
+            # cache « empoisonnerait » la clé pour toute la durée du process.
             logger.error("Anthropic extraction failed for '%s': %s", titre[:80], exc)
-            fallback = {"lieu_nom": "national", "categorie": "actualite",
-                        "resume_ia": titre[:200], "gravite": 0, "tags": []}
-            _cache_put(cache_key, fallback)
-            return fallback
+            return {"lieu_nom": "national", "categorie": "actualite",
+                    "resume_ia": titre[:200], "gravite": 0, "tags": []}
 
 
 async def extract_with_claude(titre: str, description: str,

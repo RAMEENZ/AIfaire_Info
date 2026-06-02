@@ -158,7 +158,7 @@ def test_geo_cache_put_evicts_when_full():
     for i in range(_MAX_GEO_CACHE):
         _geo_cache[f"key{i}"] = sentinel
     assert len(_geo_cache) == _MAX_GEO_CACHE
-    # next put should clear then insert
+    # next put should evict the oldest half then insert (half-eviction, pas clear total)
     _geo_cache_put("overflow", sentinel)
-    assert len(_geo_cache) == 1
+    assert len(_geo_cache) == _MAX_GEO_CACHE - (_MAX_GEO_CACHE // 2) + 1
     assert "overflow" in _geo_cache

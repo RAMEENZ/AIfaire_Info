@@ -87,16 +87,21 @@ async def list_events(
             )
         )
 
-    count_stmt = select(func.count()).select_from(stmt.subquery())
-    total_result = await db.execute(count_stmt)
-    total = total_result.scalar_one()
-
-    stmt = stmt.order_by(Event.gravite.desc(), Event.date_publication.desc()).limit(limit)
+    # Une seule requête : la fonction fenêtre count() OVER() renvoie le total
+    # filtré sur chaque ligne, ce qui évite un second passage des prédicats WHERE
+    # (un COUNT séparé doublait l'évaluation du filtre, bbox spatial compris).
+    stmt = (
+        stmt.add_columns(func.count().over().label("total_count"))
+        .order_by(Event.gravite.desc(), Event.date_publication.desc())
+        .limit(limit)
+    )
     result = await db.execute(stmt)
-    events = result.scalars().all()
+    rows = result.all()
+    events = [row[0] for row in rows]
+    total = rows[0].total_count if rows else 0
 
     return EventList(
-        events=list(events),
+        events=events,
         total=total,
         generated_at=datetime.now(timezone.utc),
     )
@@ -161,9 +166,18 @@ async def trigger_ingest(
 
     Idempotent : si une ingestion est déjà en cours, le déclenchement est
     ignoré (ingest_all pose un verrou global) afin d'éviter tout empilement.
-    Si INGEST_API_KEY est configuré, le header X-Api-Key est requis.
+    Si INGEST_API_KEY est configuré, le header X-Api-Key est requis. En
+    production, l'absence de clé verrouille l'endpoint (fail-closed) : on refuse
+    plutôt que d'exposer un déclencheur de pipeline non authentifié sur le net.
     """
-    if settings.INGEST_API_KEY and x_api_key != settings.INGEST_API_KEY:
+    if not settings.INGEST_API_KEY:
+        if settings.APP_ENV == "production":
+            raise HTTPException(
+                status_code=503,
+                detail="Ingestion désactivée : INGEST_API_KEY non configuré en production",
+            )
+        # dev/test : pas de clé requise, on laisse passer.
+    elif x_api_key != settings.INGEST_API_KEY:
         raise HTTPException(status_code=401, detail="X-Api-Key manquant ou incorrect")
     if ingestion_in_progress():
         return {"status": "already_running", "message": "Une ingestion est déjà en cours"}
