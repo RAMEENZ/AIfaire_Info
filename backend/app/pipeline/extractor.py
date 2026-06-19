@@ -152,10 +152,22 @@ GRAVITY_KEYWORDS: dict[int, list[str]] = {
     ],
 }
 
+# Valeurs renvoyées par le modèle qui ne sont PAS des lieux français géocodables :
+# on les ramène à « national » pour éviter un géocodage hasardeux (ex. « Mondial »
+# matche une commune, « N/A » part en requête API inutile).
+_NON_LIEU_VALUES = {
+    "", "n/a", "na", "null", "none", "inconnu", "non spécifié", "non specifie",
+    "monde", "international", "étranger", "etranger", "europe", "ue",
+    "france", "nationale", "pays", "non localisable",
+}
+
+
 def _validate_extraction(raw: dict) -> dict[str, Any]:
     """Normalize and validate a raw extraction dict from any AI backend."""
     _raw_lieu = raw.get("lieu_nom")
     lieu_nom = (str(_raw_lieu).strip() if _raw_lieu and _raw_lieu != "null" else "") or "national"
+    if lieu_nom.lower() in _NON_LIEU_VALUES:
+        lieu_nom = "national"
 
     categorie = str(raw.get("categorie", "actualite")).strip()
     if categorie not in {"meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite"}:
@@ -413,6 +425,43 @@ def _looks_french(titre: str, description: str) -> bool:
     return bool(_FRANCE_HINTS_RE.search(text))
 
 
+# Plafond de gravité déterministe pour la presse. Le petit modèle local
+# sur-évalue massivement (≈40 % des articles classés en alerte). On borne sa
+# sortie par un scan de mots-clés conservateur : une gravité élevée n'est retenue
+# que si des termes d'alerte EXPLICITES apparaissent. Le LLM ne peut que RÉDUIRE
+# ce plafond (min), jamais inventer une alerte. Échelle de l'app : 3 = crise
+# nationale (très rare), 2 = alerte officielle, 1 = vigilance/incident, 0 = info.
+_GRAVITY_CEIL_3_RE = re.compile(
+    r"\b(état d'urgence|catastrophe nationale|plan rouge|attentat|"
+    r"attaque terroriste|pandémie|alerte enlèvement)\b",
+    re.IGNORECASE,
+)
+_GRAVITY_CEIL_2_RE = re.compile(
+    r"\b(vigilance orange|vigilance rouge|alerte rouge|alerte orange|"
+    r"rappel (?:de )?(?:produit|lot|médicament)|vigicrues|arrêté préfectoral|"
+    r"évacuation|confinement|couvre-feu|prise d'otage|fusillade|explosion|"
+    r"séisme|magnitude|effondrement)\b",
+    re.IGNORECASE,
+)
+_GRAVITY_CEIL_1_RE = re.compile(
+    r"\b(vigilance jaune|accident|incendie|bless[ée]s?|noyades?|noyés?|"
+    r"grève|manifestation|perturbation|canicule|vague de chaleur|orages?|"
+    r"tempête|intempéries|coupure|inondation|crue|disparition)\b",
+    re.IGNORECASE,
+)
+
+
+def _press_gravity_ceiling(titre: str, description: str) -> int:
+    text = f"{titre} {description or ''}"
+    if _GRAVITY_CEIL_3_RE.search(text):
+        return 3
+    if _GRAVITY_CEIL_2_RE.search(text):
+        return 2
+    if _GRAVITY_CEIL_1_RE.search(text):
+        return 1
+    return 0
+
+
 
 async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
     if item.get("skip_extraction"):
@@ -457,17 +506,27 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
 
     updated = dict(item)
 
-    if not updated.get("lieu_nom") or updated.get("source") == "presse_rss":
-        extracted_lieu = extraction["lieu_nom"]
-        current_lieu = updated.get("lieu_nom")
-        if extracted_lieu != "national" or not current_lieu:
-            updated["lieu_nom"] = extracted_lieu
+    if updated.get("source") == "presse_rss":
+        # Pour la presse, le verdict du modèle fait autorité, y compris
+        # « national » : sinon un article international/national repris par un
+        # flux régional (ex. « Guerre au Moyen-Orient » sur Actu Occitanie)
+        # hériterait à tort de la région du flux et serait mal placé sur la carte.
+        updated["lieu_nom"] = extraction["lieu_nom"]
+    elif not updated.get("lieu_nom") and extraction["lieu_nom"] != "national":
+        updated["lieu_nom"] = extraction["lieu_nom"]
 
     if not updated.get("resume_ia"):
         updated["resume_ia"] = extraction["resume_ia"]
     if not updated.get("categorie") or updated.get("source") == "presse_rss":
         updated["categorie"] = extraction["categorie"]
-    if updated.get("gravite", 0) == 0 and extraction["gravite"] > 0:
+
+    if updated.get("source") == "presse_rss":
+        # Borne la gravité du petit modèle par un plafond déterministe (cf.
+        # _press_gravity_ceiling) : sans corroboration par mot-clé d'alerte, un
+        # article ordinaire reste à 0 même si le modèle a halluciné un « 3 ».
+        ceiling = _press_gravity_ceiling(titre, description)
+        updated["gravite"] = min(int(extraction["gravite"]), ceiling)
+    elif updated.get("gravite", 0) == 0 and extraction["gravite"] > 0:
         updated["gravite"] = extraction["gravite"]
 
     updated["tags"] = extraction.get("tags", [])
