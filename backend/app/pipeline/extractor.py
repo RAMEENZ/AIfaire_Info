@@ -77,6 +77,23 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après.
 {"lieu_nom": "...", "categorie": "...", "resume_ia": "...", "gravite": 0, "tags": ["...", "..."]}
 """
 
+# Prompt allégé pour les petits modèles locaux (qwen2.5:1.5b, phi3:mini…).
+# Plus direct, moins de prose — les modèles <3B suivent mieux les instructions
+# courtes avec un exemple concret plutôt qu'une longue description.
+SYSTEM_PROMPT_SMALL = """\
+Extrait 5 champs d'un article d'actualité française. Réponds UNIQUEMENT en JSON, sans texte avant ni après.
+
+Champs :
+- lieu_nom : ville/département/région française (ex: "Lyon", "Gironde"). "national" si pas localisable en France. Jamais un pays étranger.
+- categorie : UN SEUL parmi : meteo, crue, seisme, energie, sante, transport, ordre_public, actualite
+- resume_ia : 1 phrase courte et factuelle résumant l'article.
+- gravite : entier 0-3 (0=info, 1=vigilance, 2=alerte officielle, 3=urgence nationale)
+- tags : liste de 3 à 5 mots-clés en minuscules
+
+Exemple de réponse :
+{"lieu_nom": "Marseille", "categorie": "ordre_public", "resume_ia": "Un incendie s'est déclaré dans le 13e arrondissement, causant l'évacuation de 50 personnes.", "gravite": 2, "tags": ["incendie", "évacuation", "bouches-du-rhône"]}
+"""
+
 CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "crue":         ["crue", "inondation", "débordement", "vigicrues", "montée des eaux",
                      "submersion", "zone inondable", "plan de prévention inondation"],
@@ -184,6 +201,12 @@ async def _extract_with_ollama(titre: str, description: str,
                                 full_text: str | None = None) -> dict[str, Any] | None:
     """Call the local Ollama model. Returns None on any error (caller falls back)."""
     user_content = _build_user_content(titre, description, full_text)
+    # Les petits modèles (<3B) suivent mieux un prompt court et direct.
+    is_small_model = any(
+        tag in settings.OLLAMA_MODEL.lower()
+        for tag in ("1.5b", "3b", "mini", "small", "tiny", "1b", "0.5b")
+    )
+    prompt = SYSTEM_PROMPT_SMALL if is_small_model else SYSTEM_PROMPT
 
     async with _OLLAMA_SEMAPHORE:
         try:
@@ -193,12 +216,12 @@ async def _extract_with_ollama(titre: str, description: str,
                     json={
                         "model": settings.OLLAMA_MODEL,
                         "messages": [
-                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "system", "content": prompt},
                             {"role": "user", "content": user_content},
                         ],
                         "stream": False,
                         "format": "json",
-                        "options": {"temperature": 0.1, "num_predict": 300},
+                        "options": {"temperature": 0.1, "num_predict": 350},
                     },
                 )
                 resp.raise_for_status()
