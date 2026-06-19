@@ -54,8 +54,11 @@ services:
       DATABASE_URL: postgresql+asyncpg://faire_info:${POSTGRES_PASSWORD:-password}@db:5432/faire_info
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b-instruct}
+      METEO_FRANCE_API_KEY: ${METEO_FRANCE_API_KEY:-}
+      INGEST_API_KEY: ${INGEST_API_KEY:-}
+      FETCH_FULL_ARTICLES: ${FETCH_FULL_ARTICLES:-false}
       APP_ENV: production
       LOG_LEVEL: INFO
     depends_on:
