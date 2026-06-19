@@ -212,6 +212,15 @@ async def _process_item_limited(item: dict[str, Any]) -> dict[str, Any] | None:
         return await _process_item(item)
 
 
+# Taille des lots traités-puis-sauvegardés. Sur une VM CPU, l'enrichissement LLM
+# d'un article de presse prend plusieurs secondes : sans sauvegarde incrémentale,
+# un run de 120 articles ne commitait qu'au bout de ~12 min, et toute coupure
+# (rebuild, redémarrage) perdait l'intégralité du travail. En sauvegardant par
+# lots, les événements apparaissent progressivement (~1 min pour le 1er lot) et
+# la progression survit à un redémarrage.
+_SAVE_BATCH_SIZE = 10
+
+
 async def _delete_source_events(source: str) -> int:
     async with AsyncSessionLocal() as session:
         try:
@@ -241,27 +250,47 @@ async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
             connector.name, connector.last_error,
         )
 
-    process_tasks = [_process_item_limited(item) for item in raw_items]
-    processed = await asyncio.gather(*process_tasks, return_exceptions=True)
+    # Traitement et sauvegarde par lots : les événements sont commités au fur et
+    # à mesure (pas seulement en fin de run), pour qu'ils apparaissent vite et
+    # survivent à un redémarrage en cours d'ingestion.
+    total_saved = 0
+    if not raw_items:
+        # Aucun item (ex. connecteur replace_on_ingest revenu au calme) : la
+        # boucle ne tournerait pas, on met quand même le statut à jour.
+        await _upsert_connector_status(
+            name=connector.name,
+            last_run=connector.last_run or datetime.now(timezone.utc),
+            last_error=connector.last_error,
+            count=0,
+        )
+    for batch_start in range(0, len(raw_items), _SAVE_BATCH_SIZE):
+        batch = raw_items[batch_start : batch_start + _SAVE_BATCH_SIZE]
+        processed = await asyncio.gather(
+            *(_process_item_limited(item) for item in batch),
+            return_exceptions=True,
+        )
 
-    valid_events: list[dict[str, Any]] = []
-    for r in processed:
-        if isinstance(r, Exception):
-            logger.warning("Processing raised exception: %s", r)
-        elif r is not None:
-            valid_events.append(r)
+        valid_events: list[dict[str, Any]] = []
+        for r in processed:
+            if isinstance(r, Exception):
+                logger.warning("Processing raised exception: %s", r)
+            elif r is not None:
+                valid_events.append(r)
 
-    saved = await _save_events(valid_events)
+        total_saved += await _save_events(valid_events)
 
-    await _upsert_connector_status(
-        name=connector.name,
-        last_run=connector.last_run or datetime.now(timezone.utc),
-        last_error=connector.last_error,
-        count=saved,
-    )
+        # Statut mis à jour à chaque lot : la table ConnectorStatus (lue par
+        # /api/health) reflète la progression au lieu de rester vide jusqu'à la
+        # fin du run.
+        await _upsert_connector_status(
+            name=connector.name,
+            last_run=connector.last_run or datetime.now(timezone.utc),
+            last_error=connector.last_error,
+            count=total_saved,
+        )
 
-    logger.info("Connector %s: %d raw → %d saved", connector.name, len(raw_items), saved)
-    return connector.name, saved, connector.last_error
+    logger.info("Connector %s: %d raw → %d saved", connector.name, len(raw_items), total_saved)
+    return connector.name, total_saved, connector.last_error
 
 
 # Verrou global : empêche plusieurs ingestions de tourner en parallèle.
