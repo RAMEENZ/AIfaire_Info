@@ -34,13 +34,14 @@ services:
       - ollama_data:/root/.ollama
     environment:
       OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
     entrypoint: >
       sh -c "
-        echo '[ollama-init] Attente du serveur Ollama...'
+        echo \"[ollama-init] Attente du serveur Ollama...\"
         until ollama list > /dev/null 2>&1; do sleep 3; done
-        echo '[ollama-init] Téléchargement de mistral:7b-instruct (~4.1 Go)...'
-        ollama pull mistral:7b-instruct
-        echo '[ollama-init] Modèle prêt.'
+        echo \"[ollama-init] Téléchargement de ${OLLAMA_MODEL:-qwen2.5:1.5b}...\"
+        ollama pull ${OLLAMA_MODEL:-qwen2.5:1.5b}
+        echo \"[ollama-init] Modèle prêt.\"
       "
     depends_on:
       - ollama
@@ -55,7 +56,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL-http://ollama:11434}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-mistral:7b-instruct}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
       METEO_FRANCE_API_KEY: ${METEO_FRANCE_API_KEY:-}
       INGEST_API_KEY: ${INGEST_API_KEY:-}
       FETCH_FULL_ARTICLES: ${FETCH_FULL_ARTICLES:-false}
