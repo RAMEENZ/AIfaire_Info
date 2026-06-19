@@ -20,8 +20,9 @@ _MAX_EXTRACT_CACHE = 2048
 
 # Anthropic: 4 parallel calls (API rate-limit friendly)
 _CLAUDE_SEMAPHORE = asyncio.Semaphore(4)
-# Ollama (local CPU): one inference at a time to avoid OOM
-_OLLAMA_SEMAPHORE = asyncio.Semaphore(1)
+# Ollama (local CPU): 2 inférences en parallèle pour qwen2.5:1.5b (~1.5 Go chacune).
+# Passer à 1 si la VM a moins de 4 Go de RAM disponible.
+_OLLAMA_SEMAPHORE = asyncio.Semaphore(2)
 
 # Client Anthropic réutilisé entre tous les appels : recréer le client (et donc
 # son pool de connexions HTTP) à chaque article gaspille des handshakes TCP/TLS
@@ -396,6 +397,23 @@ SOURCE_CAT_OVERRIDES: dict[str, str] = {
 }
 
 
+_FRANCE_HINTS_RE = re.compile(
+    r"\b(france|français|française|paris|lyon|marseille|bordeaux|toulouse|nantes|"
+    r"lille|strasbourg|rennes|montpellier|nice|grenoble|metz|nancy|caen|rouen|"
+    r"bretagne|normandie|alsace|occitanie|provence|île-de-france|préfet|mairie|"
+    r"sncf|ratp|edf|enedis|météo-france|insee|sénat|élysée|gouvernement français|"
+    r"départem|région|commune|arrondissement)\b",
+    re.IGNORECASE,
+)
+
+
+def _looks_french(titre: str, description: str) -> bool:
+    """Heuristique rapide : l'article mentionne-t-il la France ou une entité française ?"""
+    text = titre + " " + (description or "")[:300]
+    return bool(_FRANCE_HINTS_RE.search(text))
+
+
+
 async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
     if item.get("skip_extraction"):
         return item
@@ -412,16 +430,30 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
     titre = item.get("titre", "")
     description = item.get("description", "") or item.get("raw", {}).get("summary", "")
 
-    # Fetch full article content when an AI backend is available — richer context
-    # greatly improves location extraction and tag quality.
-    full_text: str | None = None
-    if settings.FETCH_FULL_ARTICLES and (settings.OLLAMA_BASE_URL or settings.ANTHROPIC_API_KEY):
-        source_url = item.get("source_url", "")
-        if source_url:
-            from app.pipeline.fetcher import fetch_article_text
-            full_text = await fetch_article_text(source_url)
+    # Pour la presse généraliste, beaucoup d'articles concernent l'étranger.
+    # Si le titre+description ne contient aucun indice français ET qu'on utilise
+    # Ollama (coûteux en CPU), on bascule directement sur le fallback règles.
+    # On laisse toujours passer si Anthropic est disponible (pas de coût CPU).
+    use_ai = settings.OLLAMA_BASE_URL or settings.ANTHROPIC_API_KEY
+    if (
+        use_ai
+        and settings.OLLAMA_BASE_URL
+        and not settings.ANTHROPIC_API_KEY
+        and item.get("source") == "presse_rss"
+        and not _looks_french(titre, description)
+    ):
+        extraction = await _rule_based_extract(titre, description)
+    else:
+        # Fetch full article content when an AI backend is available — richer context
+        # greatly improves location extraction and tag quality.
+        full_text: str | None = None
+        if settings.FETCH_FULL_ARTICLES and use_ai:
+            source_url = item.get("source_url", "")
+            if source_url:
+                from app.pipeline.fetcher import fetch_article_text
+                full_text = await fetch_article_text(source_url)
 
-    extraction = await extract_with_claude(titre, description, full_text)
+        extraction = await extract_with_claude(titre, description, full_text)
 
     updated = dict(item)
 
