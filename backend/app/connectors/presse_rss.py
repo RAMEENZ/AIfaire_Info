@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
 
+from app.config import settings
 from app.connectors.base import BaseConnector
 
 # Flux RSS accessibles depuis un serveur.
@@ -99,54 +100,6 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "La Nouvelle République",        "url": "https://www.lanouvellerepublique.fr/rss",             "region": "Centre-Val de Loire"},
     {"name": "Paris Normandie",               "url": "https://www.paris-normandie.fr/rss",                 "region": "Normandie"},
     {"name": "Presse Océan",                  "url": "https://www.presseocean.fr/rss",                     "region": "Pays de la Loire"},
-
-    # ── FRANCE BLEU — STATIONS RÉGIONALES ────────────────────────────────────
-    {"name": "France Bleu Alsace",            "url": "https://www.francebleu.fr/alsace/rss",                "region": "Grand Est"},
-    {"name": "France Bleu Armorique",         "url": "https://www.francebleu.fr/armorique/rss",             "region": "Bretagne"},
-    {"name": "France Bleu Azur",              "url": "https://www.francebleu.fr/azur/rss",                  "region": "Provence-Alpes-Côte d'Azur"},
-    {"name": "France Bleu Gard Lozère",       "url": "https://www.francebleu.fr/gard-lozere/rss",           "region": "Occitanie"},
-    {"name": "France Bleu Gironde",           "url": "https://www.francebleu.fr/gironde/rss",               "region": "Nouvelle-Aquitaine"},
-    {"name": "France Bleu Isère",             "url": "https://www.francebleu.fr/isere/rss",                 "region": "Auvergne-Rhône-Alpes"},
-    {"name": "France Bleu Nord",              "url": "https://www.francebleu.fr/nord/rss",                  "region": "Hauts-de-France"},
-    {"name": "France Bleu Normandie Caen",    "url": "https://www.francebleu.fr/normandie-caen/rss",        "region": "Normandie"},
-    {"name": "France Bleu Paris",             "url": "https://www.francebleu.fr/paris/rss",                 "region": "Île-de-France"},
-    {"name": "France Bleu Pays d'Auvergne",   "url": "https://www.francebleu.fr/pays-d-auvergne/rss",      "region": "Auvergne-Rhône-Alpes"},
-    {"name": "France Bleu Pays de Savoie",    "url": "https://www.francebleu.fr/pays-de-savoie/rss",       "region": "Auvergne-Rhône-Alpes"},
-    {"name": "France Bleu RCFM",              "url": "https://www.francebleu.fr/rcfm/rss",                  "region": "Corse"},
-    {"name": "France Bleu Roussillon",        "url": "https://www.francebleu.fr/roussillon/rss",            "region": "Occitanie"},
-    {"name": "France Bleu Touraine",          "url": "https://www.francebleu.fr/touraine/rss",              "region": "Centre-Val de Loire"},
-    {"name": "France Bleu Bourgogne",         "url": "https://www.francebleu.fr/bourgogne/rss",             "region": "Bourgogne-Franche-Comté"},
-    {"name": "France Bleu Besançon",          "url": "https://www.francebleu.fr/besancon/rss",              "region": "Bourgogne-Franche-Comté"},
-    {"name": "France Bleu Poitou",            "url": "https://www.francebleu.fr/poitou/rss",                "region": "Nouvelle-Aquitaine"},
-    {"name": "France Bleu Maine",             "url": "https://www.francebleu.fr/maine/rss",                 "region": "Pays de la Loire"},
-
-    # ── FRANCE BLEU — STATIONS RÉGIONALES (suite) ────────────────────────────
-    {"name": "France Bleu Lorraine Nord",     "url": "https://www.francebleu.fr/lorraine-nord/rss",         "region": "Grand Est"},
-    {"name": "France Bleu Champagne",         "url": "https://www.francebleu.fr/champagne/rss",             "region": "Grand Est"},
-    {"name": "France Bleu Normandie Rouen",   "url": "https://www.francebleu.fr/normandie-rouen/rss",       "region": "Normandie"},
-    {"name": "France Bleu Cotentin",          "url": "https://www.francebleu.fr/cotentin/rss",              "region": "Normandie"},
-    {"name": "France Bleu Berry",             "url": "https://www.francebleu.fr/berry/rss",                 "region": "Centre-Val de Loire"},
-    {"name": "France Bleu Orléans",           "url": "https://www.francebleu.fr/orleans/rss",               "region": "Centre-Val de Loire"},
-    {"name": "France Bleu Hérault",           "url": "https://www.francebleu.fr/herault/rss",               "region": "Occitanie"},
-    {"name": "France Bleu Occitanie",         "url": "https://www.francebleu.fr/occitanie/rss",             "region": "Occitanie"},
-    {"name": "France Bleu Périgord",          "url": "https://www.francebleu.fr/perigord/rss",              "region": "Nouvelle-Aquitaine"},
-    {"name": "France Bleu Limousin",          "url": "https://www.francebleu.fr/limousin/rss",              "region": "Nouvelle-Aquitaine"},
-    {"name": "France Bleu Pays Basque",       "url": "https://www.francebleu.fr/pays-basque/rss",           "region": "Nouvelle-Aquitaine"},
-    {"name": "France Bleu Gascogne",          "url": "https://www.francebleu.fr/gascogne/rss",              "region": "Nouvelle-Aquitaine"},
-    {"name": "France Bleu Provence",          "url": "https://www.francebleu.fr/provence/rss",              "region": "Provence-Alpes-Côte d'Azur"},
-    {"name": "France Bleu Vaucluse",          "url": "https://www.francebleu.fr/vaucluse/rss",              "region": "Provence-Alpes-Côte d'Azur"},
-    {"name": "France Bleu Picardie",          "url": "https://www.francebleu.fr/picardie/rss",              "region": "Hauts-de-France"},
-    {"name": "France Bleu Breizh Izel",       "url": "https://www.francebleu.fr/breizh-izel/rss",           "region": "Bretagne"},
-
-    # ── FRANCE BLEU — STATIONS RÉGIONALES (fin) ──────────────────────────────
-    {"name": "France Bleu Drôme Ardèche",    "url": "https://www.francebleu.fr/drome-ardeche/rss",         "region": "Auvergne-Rhône-Alpes"},
-    {"name": "France Bleu Loire Océan",      "url": "https://www.francebleu.fr/loire-ocean/rss",           "region": "Pays de la Loire"},
-    {"name": "France Bleu Mayenne",          "url": "https://www.francebleu.fr/mayenne/rss",               "region": "Pays de la Loire"},
-    {"name": "France Bleu Auxerre",          "url": "https://www.francebleu.fr/auxerre/rss",               "region": "Bourgogne-Franche-Comté"},
-    {"name": "France Bleu Belfort-Montbél.", "url": "https://www.francebleu.fr/belfort-montbeliard/rss",   "region": "Bourgogne-Franche-Comté"},
-    {"name": "France Bleu Creuse",           "url": "https://www.francebleu.fr/creuse/rss",                "region": "Nouvelle-Aquitaine"},
-    {"name": "France Bleu La Rochelle",      "url": "https://www.francebleu.fr/la-rochelle/rss",           "region": "Nouvelle-Aquitaine"},
-    {"name": "France Bleu Saint-Étienne",    "url": "https://www.francebleu.fr/saint-etienne-loire/rss",   "region": "Auvergne-Rhône-Alpes"},
 ]
 
 UA = "Mozilla/5.0 (compatible; FaireInfo/1.0; aggregator)"
@@ -155,6 +108,11 @@ _MAX_ARTICLE_AGE = timedelta(hours=72)
 
 # Limit simultaneous HTTP requests to avoid overwhelming news sites or the local connection pool
 _FETCH_SEMAPHORE = asyncio.Semaphore(20)
+
+# Plafond d'articles conservés par flux (les plus récents). Évite qu'un flux
+# volumineux (Google News renvoie ~100 entrées) ne monopolise à lui seul le
+# budget de traitement IA au détriment de la diversité des sources.
+_MAX_PER_FEED = 25
 
 
 def _strip_html(text: str) -> str:
@@ -283,7 +241,10 @@ async def _fetch_feed(client: httpx.AsyncClient, feed_cfg: dict[str, Any]) -> li
         except Exception:
             continue
 
-    return results
+    # Ne garde que les plus récents de ce flux (les chaînes ISO-8601 en UTC se
+    # trient lexicographiquement dans l'ordre chronologique).
+    results.sort(key=lambda r: r["date_publication"], reverse=True)
+    return results[:_MAX_PER_FEED]
 
 
 class PresseRSSConnector(BaseConnector):
@@ -315,5 +276,14 @@ class PresseRSSConnector(BaseConnector):
                 # Remplace la version nationale par la version régionale
                 seen[key] = item
 
-        self._logger.info("presse_rss: %d raw → %d after title dedup", len(raw), len(seen))
-        return list(seen.values())
+        # Plafond global : on ne traite que les N articles les plus récents
+        # (chaque article coûte un appel LLM ~12 s sur CPU). Sans ce plafond, un
+        # run de ~1000 articles sature le CPU plus d'une heure avant tout commit.
+        items = list(seen.values())
+        items.sort(key=lambda it: it.get("date_publication") or "", reverse=True)
+        capped = items[: settings.MAX_PRESSE_ARTICLES]
+        self._logger.info(
+            "presse_rss: %d raw → %d after title dedup → %d after cap (max=%d)",
+            len(raw), len(seen), len(capped), settings.MAX_PRESSE_ARTICLES,
+        )
+        return capped

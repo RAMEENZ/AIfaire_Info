@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     # Désactiver si la VM a un accès internet limité ou pour économiser la bande passante.
     FETCH_FULL_ARTICLES: bool = True
 
+    # Plafond d'articles de presse traités par cycle d'ingestion (les plus
+    # récents). Chaque article passe par le LLM (classement + résumé + lieu),
+    # ~12 s sur CPU avec un petit modèle : sans plafond, un run de ~1000 articles
+    # sature le CPU pendant plus d'une heure avant le moindre commit. 120 ≈ 12 min.
+    MAX_PRESSE_ARTICLES: int = 120
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]

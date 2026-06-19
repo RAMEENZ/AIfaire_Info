@@ -60,6 +60,7 @@ services:
       METEO_FRANCE_API_KEY: ${METEO_FRANCE_API_KEY:-}
       INGEST_API_KEY: ${INGEST_API_KEY:-}
       FETCH_FULL_ARTICLES: ${FETCH_FULL_ARTICLES:-false}
+      MAX_PRESSE_ARTICLES: ${MAX_PRESSE_ARTICLES:-120}
       APP_ENV: production
       LOG_LEVEL: INFO
     depends_on:
