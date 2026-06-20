@@ -7,7 +7,10 @@ export type Categorie =
   | "transport"
   | "ordre_public"
   | "actualite"
-  | "incendie";
+  | "incendie"
+  | "nucleaire"
+  | "pollution"
+  | "cyber";
 
 export type LieuNiveau = "commune" | "departement" | "region" | "national";
 
