@@ -37,71 +37,26 @@ def get_scheduler() -> AsyncIOScheduler:
     if _scheduler is None:
         _scheduler = AsyncIOScheduler(timezone=settings.SCHEDULER_TIMEZONE)
 
-        _scheduler.add_job(
-            _run_ingestion_job,
-            trigger=CronTrigger(
-                hour=settings.SCHEDULER_HOUR_MORNING,
-                minute=0,
-                timezone=settings.SCHEDULER_TIMEZONE,
-            ),
-            id="ingest_morning",
-            name="Morning ingestion (9h00)",
-            replace_existing=True,
-            max_instances=1,
-            coalesce=True,
-        )
-
-        _scheduler.add_job(
-            _run_ingestion_job,
-            trigger=CronTrigger(
-                hour=settings.SCHEDULER_HOUR_MIDDAY,
-                minute=0,
-                timezone=settings.SCHEDULER_TIMEZONE,
-            ),
-            id="ingest_midday",
-            name=f"Midday ingestion ({settings.SCHEDULER_HOUR_MIDDAY}h00)",
-            replace_existing=True,
-            max_instances=1,
-            coalesce=True,
-        )
-
-        _scheduler.add_job(
-            _run_ingestion_job,
-            trigger=CronTrigger(
-                hour=settings.SCHEDULER_HOUR_EVENING,
-                minute=0,
-                timezone=settings.SCHEDULER_TIMEZONE,
-            ),
-            id="ingest_evening",
-            name="Evening ingestion (19h00)",
-            replace_existing=True,
-            max_instances=1,
-            coalesce=True,
-        )
-
-        _scheduler.add_job(
-            _run_ingestion_job,
-            trigger=CronTrigger(
-                hour=settings.SCHEDULER_HOUR_NIGHT,
-                minute=0,
-                timezone=settings.SCHEDULER_TIMEZONE,
-            ),
-            id="ingest_night",
-            name=f"Night ingestion ({settings.SCHEDULER_HOUR_NIGHT}h00)",
-            replace_existing=True,
-            max_instances=1,
-            coalesce=True,
-        )
+        # Deux ingestions par jour : 07h00 et 19h00 (cycle 12h)
+        for hour, job_id, label in [
+            (7,  "ingest_morning", "Morning ingestion (07h00)"),
+            (19, "ingest_evening", "Evening ingestion (19h00)"),
+        ]:
+            _scheduler.add_job(
+                _run_ingestion_job,
+                trigger=CronTrigger(hour=hour, minute=0, timezone=settings.SCHEDULER_TIMEZONE),
+                id=job_id,
+                name=label,
+                replace_existing=True,
+                max_instances=1,
+                coalesce=True,
+            )
 
         _scheduler.add_job(
             _run_purge_job,
-            trigger=CronTrigger(
-                hour=3,
-                minute=0,
-                timezone=settings.SCHEDULER_TIMEZONE,
-            ),
+            trigger=CronTrigger(hour=3, minute=0, timezone=settings.SCHEDULER_TIMEZONE),
             id="purge_daily",
-            name="Daily purge (3h00)",
+            name="Daily purge (03h00)",
             replace_existing=True,
             max_instances=1,
             coalesce=True,
@@ -127,13 +82,8 @@ def start_scheduler() -> AsyncIOScheduler:
 def get_next_ingest_time() -> str | None:
     if _scheduler is None or not _scheduler.running:
         return None
-    job = _scheduler.get_job("ingest_morning") or _scheduler.get_job("ingest_midday") or \
-          _scheduler.get_job("ingest_evening") or _scheduler.get_job("ingest_night")
-    if job is None:
-        return None
-    # Find the soonest next run across all ingest jobs
     earliest = None
-    for jid in ("ingest_morning", "ingest_midday", "ingest_evening", "ingest_night"):
+    for jid in ("ingest_morning", "ingest_evening"):
         j = _scheduler.get_job(jid)
         if j and j.next_run_time:
             if earliest is None or j.next_run_time < earliest:

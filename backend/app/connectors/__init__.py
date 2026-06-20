@@ -6,6 +6,9 @@ from app.connectors.presse_rss import PresseRSSConnector
 from app.connectors.sncf import SNCFConnector
 from app.connectors.bison_fute import BisonFuteConnector
 from app.connectors.incendies import IncendiesConnector
+from app.connectors.cert_fr import CertFrConnector
+from app.connectors.irsn import IRSNConnector
+from app.connectors.air_quality import AirQualityConnector
 
 __all__ = [
     "MeteoFranceConnector",
@@ -16,4 +19,7 @@ __all__ = [
     "SNCFConnector",
     "BisonFuteConnector",
     "IncendiesConnector",
+    "CertFrConnector",
+    "IRSNConnector",
+    "AirQualityConnector",
 ]

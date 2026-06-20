@@ -17,9 +17,11 @@ from app.connectors.presse_rss import PresseRSSConnector
 from app.connectors.sncf import SNCFConnector
 from app.connectors.bison_fute import BisonFuteConnector
 from app.connectors.incendies import IncendiesConnector
+from app.connectors.cert_fr import CertFrConnector
+from app.connectors.irsn import IRSNConnector
+from app.connectors.air_quality import AirQualityConnector
 from app.pipeline.extractor import maybe_extract
 from app.pipeline.geocoder import geocode
-from app.pipeline.telegram_alert import send_alerts
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,9 @@ CONNECTORS = [
     SNCFConnector(),
     BisonFuteConnector(),
     IncendiesConnector(),
+    CertFrConnector(),
+    IRSNConnector(),
+    AirQualityConnector(),
 ]
 
 
@@ -284,11 +289,7 @@ async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
             elif r is not None:
                 valid_events.append(r)
 
-        batch_saved = await _save_events(valid_events)
-        total_saved += batch_saved
-
-        if batch_saved > 0:
-            await send_alerts(valid_events)
+        total_saved += await _save_events(valid_events)
 
         # Statut mis à jour à chaque lot : la table ConnectorStatus (lue par
         # /api/health) reflète la progression au lieu de rester vide jusqu'à la

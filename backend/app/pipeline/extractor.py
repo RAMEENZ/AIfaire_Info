@@ -100,6 +100,17 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "incendie":     ["incendie de forêt", "feu de forêt", "feux de forêt", "départ de feu",
                      "sapeur-pompier", "pompiers", "SDIS", "DFCI", "hectares brûlés",
                      "pyromane", "incendie criminel", "brûlis"],
+    "nucleaire":    ["nucléaire", "central nucléaire", "réacteur", "IRSN", "ASN", "EDF nucléaire",
+                     "radioactivité", "irradiation", "contamination radioactive", "fuite radioactive",
+                     "incident nucléaire", "centrale atomique", "combustible nucléaire"],
+    "pollution":    ["pollution", "qualité de l'air", "indice de qualité", "particules fines",
+                     "PM2.5", "PM10", "dioxyde d'azote", "ozone", "alerte pollution",
+                     "pollution atmosphérique", "nappe phréatique contaminée", "marée noire",
+                     "déversement", "dégazage", "pollution des eaux", "eau potable"],
+    "cyber":        ["cyberattaque", "ransomware", "piratage", "ANSSI", "CERT-FR", "vulnérabilité",
+                     "faille de sécurité", "logiciel malveillant", "phishing", "hameçonnage",
+                     "violation de données", "fuite de données", "intrusion informatique",
+                     "rançongiciel", "attaque informatique"],
     "sante":        ["épidémie", "pandémie", "virus", "contamination", "hôpital débordé",
                      "urgences saturées", "santé publique", "santépublique", "spf", "alerte sanitaire",
                      "intoxication", "rappel de lot", "listeria", "salmonelle", "grippe",
@@ -154,7 +165,7 @@ def _validate_extraction(raw: dict) -> dict[str, Any]:
         lieu_nom = "national"
 
     categorie = str(raw.get("categorie", "actualite")).strip()
-    if categorie not in {"meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite", "incendie"}:
+    if categorie not in {"meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite", "incendie", "nucleaire", "pollution", "cyber"}:
         categorie = "actualite"
 
     _raw_resume = raw.get("resume_ia")

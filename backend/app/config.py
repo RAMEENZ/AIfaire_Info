@@ -13,19 +13,10 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://faire_info:password@localhost:5432/faire_info"
     METEO_FRANCE_API_KEY: str = ""
 
-    # Alertes Telegram : définir les deux variables pour activer les notifications.
-    # TELEGRAM_BOT_TOKEN : token obtenu via @BotFather
-    # TELEGRAM_CHAT_ID : ID du canal ou groupe destination (ex: "-1001234567890")
-    TELEGRAM_BOT_TOKEN: str = ""
-    TELEGRAM_CHAT_ID: str = ""
     APP_ENV: Literal["development", "production", "test"] = "development"
     LOG_LEVEL: str = "INFO"
 
     SCHEDULER_TIMEZONE: str = "Europe/Paris"
-    SCHEDULER_HOUR_MORNING: int = 9
-    SCHEDULER_HOUR_MIDDAY: int = 13
-    SCHEDULER_HOUR_EVENING: int = 19
-    SCHEDULER_HOUR_NIGHT: int = 23
 
     MAX_EVENTS_LIMIT: int = 1000
     DEFAULT_EVENTS_LIMIT: int = 500
