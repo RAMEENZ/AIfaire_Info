@@ -281,6 +281,7 @@ async def _extract_with_mistral(titre: str, description: str,
                 )
                 resp.raise_for_status()
                 raw_text = resp.json()["choices"][0]["message"]["content"].strip()
+                logger.info("Mistral OK [%s] '%s'", settings.MISTRAL_MODEL, titre[:50])
         except Exception as exc:
             logger.warning("Mistral extraction failed for '%s': %s", titre[:60], exc)
             return None
