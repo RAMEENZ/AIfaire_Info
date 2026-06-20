@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ALL_CATEGORIES, CATEGORY_CONFIG } from "@/lib/constants";
 import { Categorie, EventFilters } from "@/lib/types";
 
@@ -44,6 +45,10 @@ export default function FilterBar({
   isLoading,
   eventCounts,
 }: FilterBarProps) {
+  // Feature 3: custom date range
+  const [showDateRange, setShowDateRange] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+
   function toggleCategory(cat: Categorie) {
     if (filters.categories.includes(cat)) {
       if (filters.categories.length === 1) return;
@@ -57,11 +62,23 @@ export default function FilterBar({
     onCategoriesChange([...ALL_CATEGORIES]);
   }
 
+  // When user picks a "from" date, convert to hours-ago and update filter
+  const handleDateFrom = (value: string) => {
+    setDateFrom(value);
+    if (value) {
+      const hoursAgo = Math.ceil((Date.now() - new Date(value).getTime()) / 3_600_000);
+      onDepuisHeuresChange(Math.max(1, hoursAgo));
+    }
+  };
+
   const allSelected = filters.categories.length === ALL_CATEGORIES.length;
   const isDefault =
     allSelected &&
     filters.gravite_min === DEFAULT_FILTERS.gravite_min &&
     filters.depuis_heures === DEFAULT_FILTERS.depuis_heures;
+
+  // Check if current depuis_heures matches one of the presets
+  const matchesPreset = DEPUIS_OPTIONS.some((o) => o.value === filters.depuis_heures);
 
   return (
     <div className="flex items-center gap-3 flex-wrap flex-1 min-w-0">
@@ -129,14 +146,18 @@ export default function FilterBar({
       </div>
 
       {/* Période */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 flex-wrap">
         <span className="text-xs text-gray-500 hidden md:inline">Période :</span>
         {DEPUIS_OPTIONS.map((opt) => (
           <button
             key={opt.value}
-            onClick={() => onDepuisHeuresChange(opt.value)}
+            onClick={() => {
+              onDepuisHeuresChange(opt.value);
+              setShowDateRange(false);
+              setDateFrom("");
+            }}
             className={`text-xs px-2 py-1 rounded border transition-colors ${
-              filters.depuis_heures === opt.value
+              filters.depuis_heures === opt.value && !showDateRange
                 ? "bg-gray-700 text-white border-gray-700"
                 : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
             }`}
@@ -144,12 +165,58 @@ export default function FilterBar({
             {opt.label}
           </button>
         ))}
+
+        {/* Feature 3: Intervalle toggle */}
+        <button
+          onClick={() => {
+            setShowDateRange((v) => {
+              if (v) {
+                // closing — reset date
+                setDateFrom("");
+              }
+              return !v;
+            });
+          }}
+          className={`px-2 py-1 rounded text-xs border transition-colors ${
+            showDateRange
+              ? "bg-indigo-600 text-white border-indigo-700"
+              : "bg-white text-gray-600 border-gray-200 hover:border-indigo-400"
+          }`}
+          title="Intervalle personnalisé"
+        >
+          📅
+        </button>
+
+        {/* Feature 3: Date range inputs */}
+        {showDateRange && (
+          <div className="flex items-center gap-1 flex-wrap">
+            <label className="text-[10px] text-gray-500 hidden sm:inline">Depuis&nbsp;:</label>
+            <input
+              type="datetime-local"
+              value={dateFrom}
+              onChange={(e) => handleDateFrom(e.target.value)}
+              className="text-[10px] px-1.5 py-1 border border-gray-300 rounded text-gray-700 bg-white hover:border-indigo-400 focus:outline-none focus:border-indigo-500 transition-colors"
+              title="Début de la période"
+            />
+            {dateFrom && !matchesPreset && (
+              <span className="text-[10px] text-indigo-600 font-medium whitespace-nowrap">
+                ≈ {filters.depuis_heures >= 168
+                  ? `${Math.round(filters.depuis_heures / 24)}j`
+                  : `${filters.depuis_heures}h`} ago
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Reset filters */}
       {!isDefault && onResetFilters && (
         <button
-          onClick={onResetFilters}
+          onClick={() => {
+            onResetFilters();
+            setShowDateRange(false);
+            setDateFrom("");
+          }}
           className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-100 transition-colors"
           title="Réinitialiser tous les filtres"
         >
