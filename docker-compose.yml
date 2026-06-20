@@ -62,7 +62,7 @@ services:
       INGEST_API_KEY: ${INGEST_API_KEY:-}
       FETCH_FULL_ARTICLES: ${FETCH_FULL_ARTICLES:-true}
       MAX_PRESSE_ARTICLES: ${MAX_PRESSE_ARTICLES:-120}
-      APP_ENV: production
+      APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: INFO
     depends_on:
       db:
