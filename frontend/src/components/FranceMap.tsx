@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import type { Map as LeafletMap } from "leaflet";
+import type { GeoJsonObject, Feature, Geometry } from "geojson";
 
 import EventMarker from "./EventMarker";
 import { CATEGORY_CONFIG, GRAVITE_CONFIG, FRANCE_CENTER, FRANCE_DEFAULT_ZOOM } from "@/lib/constants";
@@ -29,6 +30,9 @@ const DOM_TOM = [
   { code: "988", name: "N-Calédonie",  center: [-20.90, 165.60] as [number, number], zoom:  8 },
 ];
 
+const DEPT_GEOJSON_URL =
+  "https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements-version-simplifiee.geojson";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createClusterCustomIcon(cluster: any) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -42,6 +46,20 @@ function createClusterCustomIcon(cluster: any) {
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
+}
+
+function deptCodeFromInsee(inseeCode: string): string {
+  if (inseeCode.startsWith("97") || inseeCode.startsWith("98")) {
+    return inseeCode.slice(0, 3);
+  }
+  return inseeCode.slice(0, 2);
+}
+
+function graviteColor(gravite: number): { color: string; opacity: number } | null {
+  if (gravite >= 3) return { color: "#EF4444", opacity: 0.4 };
+  if (gravite >= 2) return { color: "#F97316", opacity: 0.3 };
+  if (gravite >= 1) return { color: "#F59E0B", opacity: 0.2 };
+  return null;
 }
 
 function MapLegend() {
@@ -94,6 +112,16 @@ function MapLegend() {
 
 export default function FranceMap({ events, selectedEvent, onSelectEvent }: FranceMapProps) {
   const mapRef = useRef<LeafletMap | null>(null);
+  const [deptGeoJSON, setDeptGeoJSON] = useState<GeoJsonObject | null>(null);
+  const [showRiskLayer, setShowRiskLayer] = useState(false);
+
+  const deptMaxGravite = new Map<string, number>();
+  for (const event of events) {
+    if (!event.lieu_code_insee) continue;
+    const code = deptCodeFromInsee(event.lieu_code_insee);
+    const current = deptMaxGravite.get(code) ?? 0;
+    if (event.gravite > current) deptMaxGravite.set(code, event.gravite);
+  }
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -108,6 +136,13 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
   }, []);
 
   useEffect(() => {
+    fetch(DEPT_GEOJSON_URL)
+      .then((r) => r.json())
+      .then((data: GeoJsonObject) => setDeptGeoJSON(data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (selectedEvent?.lieu_lat != null && selectedEvent?.lieu_lon != null) {
       const container = mapRef.current?.getContainer();
       if (!container || container.offsetWidth === 0 || container.offsetHeight === 0) return;
@@ -116,7 +151,6 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
         : selectedEvent.lieu_niveau === "departement" ? 10
         : selectedEvent.lieu_niveau === "region" ? 8
         : 7;
-      // Never zoom out — only pan+zoom-in so markers don't re-cluster after selection
       const currentZoom = mapRef.current?.getZoom() ?? 0;
       mapRef.current?.flyTo(
         [selectedEvent.lieu_lat, selectedEvent.lieu_lon],
@@ -128,6 +162,29 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
 
   const flyTo = (center: [number, number], zoom: number) => {
     mapRef.current?.flyTo(center, zoom, { duration: 1.2 });
+  };
+
+  const styleFeature = (feature?: Feature<Geometry, { code: string }>) => {
+    if (!feature) return {};
+    const code = feature.properties?.code ?? "";
+    const gravite = deptMaxGravite.get(code) ?? 0;
+    const fill = graviteColor(gravite);
+    if (!fill) {
+      return {
+        fillColor: "transparent",
+        fillOpacity: 0,
+        color: "#94A3B8",
+        weight: 0.5,
+        opacity: 0.3,
+      };
+    }
+    return {
+      fillColor: fill.color,
+      fillOpacity: fill.opacity,
+      color: fill.color,
+      weight: 1,
+      opacity: 0.5,
+    };
   };
 
   return (
@@ -144,6 +201,15 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        {showRiskLayer && deptGeoJSON && (
+          <GeoJSON
+            key={JSON.stringify(Array.from(deptMaxGravite.entries()))}
+            data={deptGeoJSON}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            style={(feature) => styleFeature(feature as Feature<Geometry, { code: string }>)}
+            pane="tilePane"
+          />
+        )}
         <MarkerClusterGroup
           showCoverageOnHover={false}
           iconCreateFunction={createClusterCustomIcon}
@@ -160,6 +226,21 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
           ))}
         </MarkerClusterGroup>
       </MapContainer>
+
+      {/* Bouton toggle couche risque départements */}
+      <div className="absolute top-2 right-2 z-[1000]">
+        <button
+          onClick={() => setShowRiskLayer((v) => !v)}
+          className={`px-2.5 py-1 text-[11px] font-medium rounded border shadow-md transition-colors ${
+            showRiskLayer
+              ? "bg-red-600 text-white border-red-700 hover:bg-red-700"
+              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-blue-700"
+          }`}
+          title="Afficher/masquer la couche de risque par département"
+        >
+          Risque depts
+        </button>
+      </div>
 
       {/* Panneau de navigation DOM-TOM */}
       <div className="absolute bottom-7 left-2 z-[1000]">

@@ -15,7 +15,7 @@ from app.pipeline.ingestor import ingest_all, ingestion_in_progress
 
 router = APIRouter()
 
-VALID_CATEGORIES = {"meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite"}
+VALID_CATEGORIES = {"meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite", "incendie"}
 VALID_NIVEAUX = {"commune", "departement", "region", "national"}
 BBOX_RE = re.compile(r"^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$")
 

@@ -53,7 +53,6 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql+asyncpg://faire_info:${POSTGRES_PASSWORD:-password}@db:5432/faire_info
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
@@ -61,6 +60,8 @@ services:
       INGEST_API_KEY: ${INGEST_API_KEY:-}
       FETCH_FULL_ARTICLES: ${FETCH_FULL_ARTICLES:-false}
       MAX_PRESSE_ARTICLES: ${MAX_PRESSE_ARTICLES:-120}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       APP_ENV: production
       LOG_LEVEL: INFO
     depends_on:
