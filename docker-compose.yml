@@ -13,40 +13,6 @@ services:
       timeout: 5s
       retries: 5
 
-  ollama:
-    image: ollama/ollama:latest
-    volumes:
-      - ollama_data:/root/.ollama
-    restart: unless-stopped
-    healthcheck:
-      # Healthy dès que le serveur répond — le téléchargement du modèle est géré
-      # par ollama-init en arrière-plan (sinon deadlock : le backend attendrait
-      # un modèle qui ne peut se télécharger qu'après démarrage).
-      test: ["CMD-SHELL", "ollama list > /dev/null 2>&1 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
-
-  ollama-init:
-    image: ollama/ollama:latest
-    volumes:
-      - ollama_data:/root/.ollama
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
-    entrypoint: >
-      sh -c "
-        echo \"[ollama-init] Attente du serveur Ollama...\"
-        until ollama list > /dev/null 2>&1; do sleep 3; done
-        echo \"[ollama-init] Téléchargement de ${OLLAMA_MODEL:-qwen2.5:1.5b}...\"
-        ollama pull ${OLLAMA_MODEL:-qwen2.5:1.5b}
-        echo \"[ollama-init] Modèle prêt.\"
-      "
-    depends_on:
-      - ollama
-    restart: "no"
-
   backend:
     build: ./backend
     ports:
@@ -56,8 +22,6 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
       MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-small-latest}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
       METEO_FRANCE_API_KEY: ${METEO_FRANCE_API_KEY:-}
       INGEST_API_KEY: ${INGEST_API_KEY:-}
       FETCH_FULL_ARTICLES: ${FETCH_FULL_ARTICLES:-true}
@@ -89,4 +53,3 @@ services:
 
 volumes:
   pgdata:
-  ollama_data:
