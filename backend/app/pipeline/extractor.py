@@ -17,9 +17,8 @@ logger = logging.getLogger(__name__)
 _extract_cache: dict[str, dict[str, Any]] = {}
 _MAX_EXTRACT_CACHE = 2048
 
-# Ollama (local CPU): 2 inférences en parallèle pour qwen2.5:1.5b (~1.5 Go chacune).
-# Passer à 1 si la VM a moins de 4 Go de RAM disponible.
 _OLLAMA_SEMAPHORE = asyncio.Semaphore(2)
+_MISTRAL_SEMAPHORE = asyncio.Semaphore(10)
 
 
 def _cache_key(titre: str, description: str) -> str:
@@ -43,7 +42,7 @@ Pour chaque article, extrais EXACTEMENT ces 5 champs :
 
 1. **lieu_nom** : commune, département ou région française précise (ex: "Lyon", "Gironde", "Bretagne"). Retourne "national" si l'événement n'est pas localisable en France. Ne retourne JAMAIS un pays étranger.
 
-2. **categorie** : valeur exacte parmi : "meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite"
+2. **categorie** : valeur exacte parmi : "meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite", "incendie", "nucleaire", "pollution", "cyber"
 
 3. **resume_ia** : 1-2 phrases factuelles résumant l'essentiel de l'article.
 
@@ -67,7 +66,7 @@ Extrait 5 champs d'un article d'actualité française. Réponds UNIQUEMENT en JS
 
 Champs :
 - lieu_nom : ville/département/région française (ex: "Lyon", "Gironde"). "national" si pas localisable en France. Jamais un pays étranger.
-- categorie : UN SEUL parmi : meteo, crue, seisme, energie, sante, transport, ordre_public, actualite
+- categorie : UN SEUL parmi : meteo, crue, seisme, energie, sante, transport, ordre_public, actualite, incendie, nucleaire, pollution, cyber
 - resume_ia : 1 phrase courte et factuelle résumant l'article.
 - gravite : entier 0-3 (0=info, 1=vigilance, 2=alerte officielle, 3=urgence nationale)
 - tags : liste de 3 à 5 mots-clés en minuscules
@@ -255,6 +254,54 @@ async def _extract_with_ollama(titre: str, description: str,
     return _validate_extraction(result)
 
 
+async def _extract_with_mistral(titre: str, description: str,
+                                full_text: str | None = None) -> dict[str, Any] | None:
+    """Call the Mistral AI API. Returns None on any error (caller falls back)."""
+    user_content = _build_user_content(titre, description, full_text)
+
+    async with _MISTRAL_SEMAPHORE:
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    "https://api.mistral.ai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {settings.MISTRAL_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": settings.MISTRAL_MODEL,
+                        "messages": [
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user", "content": user_content},
+                        ],
+                        "temperature": 0.1,
+                        "max_tokens": 350,
+                        "response_format": {"type": "json_object"},
+                    },
+                )
+                resp.raise_for_status()
+                raw_text = resp.json()["choices"][0]["message"]["content"].strip()
+        except Exception as exc:
+            logger.warning("Mistral extraction failed for '%s': %s", titre[:60], exc)
+            return None
+
+    try:
+        result = json.loads(raw_text)
+    except json.JSONDecodeError:
+        start, end = raw_text.find("{"), raw_text.rfind("}") + 1
+        if start >= 0 and end > start:
+            try:
+                result = json.loads(raw_text[start:end])
+            except json.JSONDecodeError:
+                logger.warning("Mistral: unparseable JSON for '%s'", titre[:60])
+                return None
+        else:
+            logger.warning("Mistral: no JSON in response for '%s'", titre[:60])
+            return None
+
+    return _validate_extraction(result)
+
+
 TOPONYM_PATTERNS: list[str] = [
     r'\bà\s+([A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+(?:[- ][A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+){0,3})',
     r'\ben\s+([A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+(?:[- ][A-ZÉÀÈÊËÙÛÜ][a-zéàèêëîïôûùüç]+){0,2})',
@@ -328,17 +375,24 @@ async def _rule_based_extract(titre: str, description: str | None) -> dict[str, 
 
 async def extract_with_claude(titre: str, description: str,
                               full_text: str | None = None) -> dict[str, Any]:
-    """Extraction : Ollama local → fallback règles."""
+    """Extraction : Mistral API → Ollama local → fallback règles."""
     key = _cache_key(titre, description)
     if key in _extract_cache:
         return _extract_cache[key]
 
-    if settings.OLLAMA_BASE_URL:
+    result: dict[str, Any] | None = None
+
+    if settings.MISTRAL_API_KEY:
+        result = await _extract_with_mistral(titre, description, full_text)
+        if result is None:
+            logger.info("Mistral unavailable — falling back to Ollama/rules")
+
+    if result is None and settings.OLLAMA_BASE_URL:
         result = await _extract_with_ollama(titre, description, full_text)
         if result is None:
             logger.info("Ollama unavailable — falling back to rule-based extraction")
-            result = await _rule_based_extract(titre, description)
-    else:
+
+    if result is None:
         result = await _rule_based_extract(titre, description)
 
     _cache_put(key, result)
@@ -428,11 +482,14 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
     titre = item.get("titre", "")
     description = item.get("description", "") or item.get("raw", {}).get("summary", "")
 
+    _has_ai = bool(settings.MISTRAL_API_KEY or settings.OLLAMA_BASE_URL)
+
     # Pour la presse généraliste, beaucoup d'articles concernent l'étranger.
-    # Si le titre+description ne contient aucun indice français ET qu'Ollama est
-    # configuré (coûteux en CPU), on bascule directement sur le fallback règles.
+    # Si le titre+description ne contient aucun indice français ET qu'un backend
+    # IA est configuré (Mistral ou Ollama), on bascule directement sur le fallback
+    # règles pour ne pas consommer de quota/CPU sur des articles hors-scope.
     if (
-        settings.OLLAMA_BASE_URL
+        _has_ai
         and item.get("source") == "presse_rss"
         and not _looks_french(titre, description)
     ):
@@ -441,7 +498,7 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
         # Fetch full article content when an AI backend is available — richer context
         # greatly improves location extraction and tag quality.
         full_text: str | None = None
-        if settings.FETCH_FULL_ARTICLES and settings.OLLAMA_BASE_URL:
+        if settings.FETCH_FULL_ARTICLES and _has_ai:
             source_url = item.get("source_url", "")
             if source_url:
                 from app.pipeline.fetcher import fetch_article_text
