@@ -21,7 +21,6 @@ from app.connectors.cert_fr import CertFrConnector
 from app.connectors.irsn import IRSNConnector
 from app.connectors.air_quality import AirQualityConnector
 from app.connectors.opensky import OpenSkyConnector
-from app.pipeline.alerts import send_alert_email
 from app.pipeline.extractor import maybe_extract
 from app.pipeline.geocoder import geocode
 
@@ -305,10 +304,6 @@ async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
         )
 
     logger.info("Connector %s: %d raw → %d saved", connector.name, len(raw_items), total_saved)
-
-    # Alertes email pour les événements de haute gravité ingérés
-    await send_alert_email(raw_items)
-
     return connector.name, total_saved, connector.last_error
 
 
