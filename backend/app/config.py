@@ -30,9 +30,13 @@ class Settings(BaseSettings):
     # Vide = pas d'auth (dev/local). En prod, définir une valeur aléatoire forte.
     INGEST_API_KEY: str = ""
 
-    # Ollama : laissé vide → fallback Anthropic ou règles
+    # Mistral AI (prioritaire sur Ollama quand la clé est renseignée)
+    MISTRAL_API_KEY: str = ""
+    MISTRAL_MODEL: str = "mistral-small-latest"
+
+    # Ollama : fallback local si MISTRAL_API_KEY est vide
     OLLAMA_BASE_URL: str = ""
-    OLLAMA_MODEL: str = "mistral:7b-instruct"
+    OLLAMA_MODEL: str = "qwen2.5:1.5b"
 
     # Activer le fetch du contenu complet des articles avant extraction IA.
     # Désactiver si la VM a un accès internet limité ou pour économiser la bande passante.
