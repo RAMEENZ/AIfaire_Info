@@ -203,3 +203,13 @@ async def get_event(
         raise HTTPException(status_code=404, detail="Event not found")
 
     return event
+
+
+@router.get("/brief")
+async def get_brief() -> dict:
+    """Retourne le dernier brief matinal généré par Mistral."""
+    from app.pipeline.brief import get_latest_brief
+    brief = await get_latest_brief()
+    if brief is None:
+        return {"brief": None, "message": "Aucun brief disponible. Le prochain sera généré à 09h00."}
+    return brief
