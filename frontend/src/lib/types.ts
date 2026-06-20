@@ -6,7 +6,8 @@ export type Categorie =
   | "sante"
   | "transport"
   | "ordre_public"
-  | "actualite";
+  | "actualite"
+  | "incendie";
 
 export type LieuNiveau = "commune" | "departement" | "region" | "national";
 

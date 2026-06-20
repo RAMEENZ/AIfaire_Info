@@ -7,7 +7,6 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
-import anthropic
 import httpx
 
 from app.config import settings
@@ -18,27 +17,9 @@ logger = logging.getLogger(__name__)
 _extract_cache: dict[str, dict[str, Any]] = {}
 _MAX_EXTRACT_CACHE = 2048
 
-# Anthropic: 4 parallel calls (API rate-limit friendly)
-_CLAUDE_SEMAPHORE = asyncio.Semaphore(4)
 # Ollama (local CPU): 2 inférences en parallèle pour qwen2.5:1.5b (~1.5 Go chacune).
 # Passer à 1 si la VM a moins de 4 Go de RAM disponible.
 _OLLAMA_SEMAPHORE = asyncio.Semaphore(2)
-
-# Client Anthropic réutilisé entre tous les appels : recréer le client (et donc
-# son pool de connexions HTTP) à chaque article gaspille des handshakes TCP/TLS
-# et peut épuiser les ports éphémères sous charge.
-_anthropic_client: "anthropic.AsyncAnthropic | None" = None
-
-
-def _get_anthropic_client() -> "anthropic.AsyncAnthropic":
-    global _anthropic_client
-    if _anthropic_client is None:
-        # Timeout explicite : le SDK Anthropic défaut à 600 s, ce qui bloquerait
-        # les 4 slots semaphore pendant 10 min en cas de lenteur API.
-        _anthropic_client = anthropic.AsyncAnthropic(
-            api_key=settings.ANTHROPIC_API_KEY, timeout=45.0
-        )
-    return _anthropic_client
 
 
 def _cache_key(titre: str, description: str) -> str:
@@ -116,6 +97,9 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "ordre_public": ["manifestation", "émeute", "violence urbaine", "attentat", "terrorisme",
                      "incendie criminel", "fusillade", "agression", "cambriolage", "braquage",
                      "prise d'otage", "mort suspecte", "homicide", "tir"],
+    "incendie":     ["incendie de forêt", "feu de forêt", "feux de forêt", "départ de feu",
+                     "sapeur-pompier", "pompiers", "SDIS", "DFCI", "hectares brûlés",
+                     "pyromane", "incendie criminel", "brûlis"],
     "sante":        ["épidémie", "pandémie", "virus", "contamination", "hôpital débordé",
                      "urgences saturées", "santé publique", "santépublique", "spf", "alerte sanitaire",
                      "intoxication", "rappel de lot", "listeria", "salmonelle", "grippe",
@@ -170,7 +154,7 @@ def _validate_extraction(raw: dict) -> dict[str, Any]:
         lieu_nom = "national"
 
     categorie = str(raw.get("categorie", "actualite")).strip()
-    if categorie not in {"meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite"}:
+    if categorie not in {"meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite", "incendie"}:
         categorie = "actualite"
 
     _raw_resume = raw.get("resume_ia")
@@ -331,50 +315,9 @@ async def _rule_based_extract(titre: str, description: str | None) -> dict[str, 
     }
 
 
-async def _extract_with_anthropic(titre: str, description: str, cache_key: str,
-                                   full_text: str | None = None) -> dict[str, Any]:
-    """Call Anthropic Claude Haiku. Falls back to rule-based on error."""
-    client = _get_anthropic_client()
-    user_content = _build_user_content(titre, description, full_text)
-
-    async with _CLAUDE_SEMAPHORE:
-        if cache_key in _extract_cache:
-            return _extract_cache[cache_key]
-        try:
-            message = await client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=350,
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_content}],
-            )
-            raw_text = message.content[0].text.strip()
-            try:
-                result = json.loads(raw_text)
-            except json.JSONDecodeError:
-                start, end = raw_text.find("{"), raw_text.rfind("}") + 1
-                if start >= 0 and end > start:
-                    try:
-                        result = json.loads(raw_text[start:end])
-                    except json.JSONDecodeError as exc:
-                        raise ValueError(f"Malformed JSON slice: {raw_text[:200]}") from exc
-                else:
-                    raise ValueError(f"No JSON in response: {raw_text[:200]}")
-            extracted = _validate_extraction(result)
-            _cache_put(cache_key, extracted)
-            return extracted
-        except Exception as exc:
-            # Échec transitoire (429, 529, réseau, JSON tronqué) : on renvoie un
-            # fallback dégradé pour CE run mais SANS le mettre en cache, afin que
-            # l'ingestion suivante retente l'extraction. Mettre le fallback en
-            # cache « empoisonnerait » la clé pour toute la durée du process.
-            logger.error("Anthropic extraction failed for '%s': %s", titre[:80], exc)
-            return {"lieu_nom": "national", "categorie": "actualite",
-                    "resume_ia": titre[:200], "gravite": 0, "tags": []}
-
-
 async def extract_with_claude(titre: str, description: str,
                               full_text: str | None = None) -> dict[str, Any]:
-    """Route extraction: Ollama (local) → Anthropic → rule-based fallback."""
+    """Extraction : Ollama local → fallback règles."""
     key = _cache_key(titre, description)
     if key in _extract_cache:
         return _extract_cache[key]
@@ -382,13 +325,8 @@ async def extract_with_claude(titre: str, description: str,
     if settings.OLLAMA_BASE_URL:
         result = await _extract_with_ollama(titre, description, full_text)
         if result is None:
-            if settings.ANTHROPIC_API_KEY:
-                logger.info("Ollama unavailable — falling back to Anthropic")
-                return await _extract_with_anthropic(titre, description, key, full_text)
             logger.info("Ollama unavailable — falling back to rule-based extraction")
             result = await _rule_based_extract(titre, description)
-    elif settings.ANTHROPIC_API_KEY:
-        return await _extract_with_anthropic(titre, description, key, full_text)
     else:
         result = await _rule_based_extract(titre, description)
 
@@ -480,14 +418,10 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
     description = item.get("description", "") or item.get("raw", {}).get("summary", "")
 
     # Pour la presse généraliste, beaucoup d'articles concernent l'étranger.
-    # Si le titre+description ne contient aucun indice français ET qu'on utilise
-    # Ollama (coûteux en CPU), on bascule directement sur le fallback règles.
-    # On laisse toujours passer si Anthropic est disponible (pas de coût CPU).
-    use_ai = settings.OLLAMA_BASE_URL or settings.ANTHROPIC_API_KEY
+    # Si le titre+description ne contient aucun indice français ET qu'Ollama est
+    # configuré (coûteux en CPU), on bascule directement sur le fallback règles.
     if (
-        use_ai
-        and settings.OLLAMA_BASE_URL
-        and not settings.ANTHROPIC_API_KEY
+        settings.OLLAMA_BASE_URL
         and item.get("source") == "presse_rss"
         and not _looks_french(titre, description)
     ):
@@ -496,7 +430,7 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
         # Fetch full article content when an AI backend is available — richer context
         # greatly improves location extraction and tag quality.
         full_text: str | None = None
-        if settings.FETCH_FULL_ARTICLES and use_ai:
+        if settings.FETCH_FULL_ARTICLES and settings.OLLAMA_BASE_URL:
             source_url = item.get("source_url", "")
             if source_url:
                 from app.pipeline.fetcher import fetch_article_text

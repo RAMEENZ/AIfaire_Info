@@ -21,6 +21,9 @@ KNOWN_CONNECTORS = [
     "renass",
     "enedis",
     "presse_rss",
+    "sncf",
+    "bison_fute",
+    "incendies",
 ]
 
 WARNING_THRESHOLD_HOURS = 25

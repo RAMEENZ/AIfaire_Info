@@ -12,6 +12,7 @@ export const CATEGORY_CONFIG: Record<
   transport: { label: "Transport", color: "#6B7280", icon: "🚆", letter: "T" },
   ordre_public: { label: "Ordre public", color: "#EF4444", icon: "🚨", letter: "O" },
   actualite: { label: "Actualité", color: "#1F2937", icon: "📰", letter: "A" },
+  incendie: { label: "Incendie", color: "#DC2626", icon: "🔥", letter: "I" },
 };
 
 export const GRAVITE_CONFIG: Record<
@@ -30,6 +31,9 @@ export const SOURCE_LABELS: Record<string, string> = {
   renass: "RéNaSS",
   enedis: "Enedis",
   presse_rss: "Presse",
+  sncf: "SNCF",
+  bison_fute: "Bison Futé",
+  incendies: "Incendies",
 };
 
 export const ALL_CATEGORIES: Categorie[] = [
@@ -41,6 +45,7 @@ export const ALL_CATEGORIES: Categorie[] = [
   "transport",
   "ordre_public",
   "actualite",
+  "incendie",
 ];
 
 export const FRANCE_CENTER: [number, number] = [46.5, 2.5];

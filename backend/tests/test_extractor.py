@@ -22,8 +22,8 @@ def _no_network_geocode(monkeypatch):
         return {"lat": None, "lon": None, "code_insee": None,
                 "niveau": "national", "confiance_geo": 0.0}
     monkeypatch.setattr(extractor, "geocode", fake_geocode)
-    # Also disable the Claude path so maybe_extract uses the rule-based fallback
-    monkeypatch.setattr(extractor.settings, "ANTHROPIC_API_KEY", "")
+    # Disable the Ollama path so maybe_extract uses the rule-based fallback
+    monkeypatch.setattr(extractor.settings, "OLLAMA_BASE_URL", "")
     extractor._extract_cache.clear()
     yield
     extractor._extract_cache.clear()
