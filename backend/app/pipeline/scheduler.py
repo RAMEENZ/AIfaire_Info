@@ -6,6 +6,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from app.config import settings
+from app.pipeline.brief import generate_daily_brief
 from app.pipeline.ingestor import ingest_all
 from app.pipeline.purge import purge_old_events
 
@@ -21,6 +22,18 @@ async def _run_ingestion_job() -> None:
         logger.info("Scheduled ingestion done: %s", summary)
     except Exception as exc:
         logger.error("Scheduled ingestion failed: %s", exc, exc_info=True)
+
+
+async def _run_brief_job() -> None:
+    logger.info("Scheduled brief generation triggered at %s", datetime.now(timezone.utc).isoformat())
+    try:
+        content = await generate_daily_brief()
+        if content:
+            logger.info("Brief generated: %d chars", len(content))
+        else:
+            logger.info("Brief generation skipped (no events or no AI key)")
+    except Exception as exc:
+        logger.error("Brief generation failed: %s", exc, exc_info=True)
 
 
 async def _run_purge_job() -> None:
@@ -57,6 +70,16 @@ def get_scheduler() -> AsyncIOScheduler:
             trigger=CronTrigger(hour=3, minute=0, timezone=settings.SCHEDULER_TIMEZONE),
             id="purge_daily",
             name="Daily purge (03h00)",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
+        _scheduler.add_job(
+            _run_brief_job,
+            trigger=CronTrigger(hour=9, minute=0, timezone=settings.SCHEDULER_TIMEZONE),
+            id="brief_morning",
+            name="Daily brief (09h00)",
             replace_existing=True,
             max_instances=1,
             coalesce=True,

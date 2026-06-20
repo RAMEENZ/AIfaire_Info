@@ -7,6 +7,7 @@ interface FetchEventsParams {
   gravite_min?: number;
   niveau?: string;
   depuis?: string;
+  avant?: string;
   limit?: number;
   national_only?: boolean;
 }
@@ -23,7 +24,7 @@ function buildQuery(params: Record<string, string | number | boolean | undefined
 }
 
 export async function fetchEvents(params: FetchEventsParams = {}): Promise<EventsResponse> {
-  const { bbox, categories, gravite_min, niveau, depuis, limit, national_only } = params;
+  const { bbox, categories, gravite_min, niveau, depuis, avant, limit, national_only } = params;
 
   // FastAPI list params must be repeated (?categories=a&categories=b), not comma-joined
   const search = new URLSearchParams();
@@ -34,6 +35,7 @@ export async function fetchEvents(params: FetchEventsParams = {}): Promise<Event
   if (gravite_min !== undefined) search.set("gravite_min", String(gravite_min));
   if (niveau) search.set("niveau", niveau);
   if (depuis) search.set("depuis", depuis);
+  if (avant) search.set("avant", avant);
   if (limit !== undefined) search.set("limit", String(limit));
   if (national_only !== undefined) search.set("national_only", String(national_only));
   const query = search.toString() ? `?${search.toString()}` : "";

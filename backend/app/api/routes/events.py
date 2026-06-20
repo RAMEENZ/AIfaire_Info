@@ -27,6 +27,7 @@ async def list_events(
     gravite_min: Optional[int] = Query(None, ge=0, le=3),
     niveau: Optional[str] = Query(None),
     depuis: Optional[datetime] = Query(None),
+    avant: Optional[datetime] = Query(None, description="Filtrer les événements antérieurs à cette date"),
     q: Optional[str] = Query(None, max_length=200, description="Recherche textuelle (titre, résumé, lieu)"),
     limit: int = Query(default=settings.DEFAULT_EVENTS_LIMIT, ge=1, le=settings.MAX_EVENTS_LIMIT),
     national_only: bool = Query(False),
@@ -45,6 +46,11 @@ async def list_events(
         since_dt = since_dt.replace(tzinfo=timezone.utc)
 
     stmt = select(Event).where(Event.date_publication >= since_dt)
+
+    if avant:
+        if avant.tzinfo is None:
+            avant = avant.replace(tzinfo=timezone.utc)
+        stmt = stmt.where(Event.date_publication <= avant)
 
     if categories:
         stmt = stmt.where(Event.categorie.in_(categories))

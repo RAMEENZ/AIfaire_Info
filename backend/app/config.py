@@ -48,6 +48,16 @@ class Settings(BaseSettings):
     # sature le CPU pendant plus d'une heure avant le moindre commit. 120 ≈ 12 min.
     MAX_PRESSE_ARTICLES: int = 120
 
+    # Email alerts
+    EMAIL_ENABLED: bool = False
+    EMAIL_SMTP_HOST: str = "smtp.gmail.com"
+    EMAIL_SMTP_PORT: int = 587
+    EMAIL_USER: str = ""
+    EMAIL_PASSWORD: str = ""
+    EMAIL_FROM: str = ""
+    EMAIL_TO: str = ""
+    EMAIL_GRAVITE_MIN: int = 3
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]

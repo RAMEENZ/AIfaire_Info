@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import dynamic from "next/dynamic";
 
+import DailyBrief from "@/components/DailyBrief";
 import EventFeed from "@/components/EventFeed";
 import FilterBar from "@/components/FilterBar";
 import StatusBar from "@/components/StatusBar";
@@ -336,6 +337,7 @@ export default function HomePage() {
             activeCategoryFilter={activeCategoryFilter}
             onCategorySelect={handleStatsBarCategorySelect}
           />
+          <DailyBrief />
           <EventFeed
             events={allEvents}
             isLoading={eventsLoading}
