@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, useMap, useMapEvents } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import type { Map as LeafletMap } from "leaflet";
 import type { GeoJsonObject, Feature, Geometry } from "geojson";
@@ -62,6 +62,18 @@ function graviteColor(gravite: number): { color: string; opacity: number } | nul
   return null;
 }
 
+function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function MapLegend() {
   const [open, setOpen] = useState(false);
   return (
@@ -110,10 +122,118 @@ function MapLegend() {
   );
 }
 
+// ── Feature 2: Heatmap layer ────────────────────────────────────────────────
+
+function HeatmapLayer({ events, active }: { events: Event[]; active: boolean }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const L = require("leaflet") as typeof import("leaflet");
+
+    // Load leaflet.heat from CDN if not available
+    const loadHeat = (): Promise<void> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((L as any).heatLayer) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        const existing = document.querySelector(
+          'script[src*="leaflet-heat"]'
+        );
+        if (existing) {
+          existing.addEventListener("load", () => resolve());
+          return;
+        }
+        const script = document.createElement("script");
+        script.src = "https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js";
+        script.onload = () => resolve();
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let heatLayer: any = null;
+
+    if (active) {
+      loadHeat()
+        .then(() => {
+          const points = events
+            .filter((e) => e.lieu_lat != null && e.lieu_lon != null)
+            .map((e) => [e.lieu_lat!, e.lieu_lon!, Math.min(1, (e.gravite + 1) / 4)]);
+
+          if (points.length === 0) return;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          heatLayer = (L as any).heatLayer(points, {
+            radius: 25,
+            blur: 20,
+            maxZoom: 10,
+            gradient: { 0.4: "#3B82F6", 0.65: "#F59E0B", 1: "#EF4444" },
+          }).addTo(map);
+        })
+        .catch(console.error);
+    }
+
+    return () => {
+      if (heatLayer) map.removeLayer(heatLayer);
+    };
+  }, [active, events, map]);
+
+  return null;
+}
+
+// ── Feature 4: Watch zone helpers ───────────────────────────────────────────
+
+function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lon: number) => void }) {
+  useMapEvents({
+    click(e) {
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+}
+
+interface WatchZone {
+  lat: number;
+  lon: number;
+  radius: number; // km
+}
+
+function WatchCircle({ zone }: { zone: WatchZone }) {
+  const map = useMap();
+
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const L = require("leaflet") as typeof import("leaflet");
+    const circle = L.circle([zone.lat, zone.lon], {
+      radius: zone.radius * 1000, // m
+      color: "#6366F1",
+      weight: 2,
+      fillColor: "#6366F1",
+      fillOpacity: 0.08,
+      dashArray: "6 4",
+    }).addTo(map);
+
+    return () => {
+      map.removeLayer(circle);
+    };
+  }, [map, zone.lat, zone.lon, zone.radius]);
+
+  return null;
+}
+
 export default function FranceMap({ events, selectedEvent, onSelectEvent }: FranceMapProps) {
   const mapRef = useRef<LeafletMap | null>(null);
   const [deptGeoJSON, setDeptGeoJSON] = useState<GeoJsonObject | null>(null);
   const [showRiskLayer, setShowRiskLayer] = useState(false);
+
+  // Feature 2: heatmap toggle
+  const [showHeatmap, setShowHeatmap] = useState(false);
+
+  // Feature 4: watch zone
+  const [watchMode, setWatchMode] = useState(false);
+  const [watchZone, setWatchZone] = useState<WatchZone | null>(null);
 
   const deptMaxGravite = new Map<string, number>();
   for (const event of events) {
@@ -187,6 +307,21 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
     };
   };
 
+  const handleMapClick = (lat: number, lon: number) => {
+    if (!watchMode) return;
+    setWatchZone((prev) => ({ lat, lon, radius: prev?.radius ?? 50 }));
+  };
+
+  // Feature 4: filter visible markers when watch zone is active
+  const visibleEvents = watchZone
+    ? events.filter(
+        (e) =>
+          e.lieu_lat != null &&
+          e.lieu_lon != null &&
+          distanceKm(watchZone.lat, watchZone.lon, e.lieu_lat!, e.lieu_lon!) <= watchZone.radius
+      )
+    : events;
+
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
       <MapContainer
@@ -194,7 +329,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
         zoom={FRANCE_DEFAULT_ZOOM}
         minZoom={3}
         maxZoom={18}
-        style={{ width: "100%", height: "100%" }}
+        style={{ width: "100%", height: "100%", cursor: watchMode ? "crosshair" : undefined }}
         ref={mapRef}
       >
         <TileLayer
@@ -216,7 +351,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
           maxClusterRadius={50}
           disableClusteringAtZoom={12}
         >
-          {events.map((event) => (
+          {visibleEvents.map((event) => (
             <EventMarker
               key={event.id}
               event={event}
@@ -225,6 +360,15 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
             />
           ))}
         </MarkerClusterGroup>
+
+        {/* Feature 2: Heatmap layer */}
+        <HeatmapLayer events={events} active={showHeatmap} />
+
+        {/* Feature 4: Map click handler for watch zone */}
+        <MapClickHandler onMapClick={handleMapClick} />
+
+        {/* Feature 4: Watch zone circle */}
+        {watchZone && <WatchCircle zone={watchZone} />}
       </MapContainer>
 
       {/* Bouton toggle couche risque départements */}
@@ -240,6 +384,77 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
         >
           Risque depts
         </button>
+      </div>
+
+      {/* Feature 2: Heatmap toggle button */}
+      <div className="absolute bottom-16 right-2 z-[1000]">
+        <button
+          onClick={() => setShowHeatmap((v) => !v)}
+          className={`px-2 py-1 rounded text-xs font-medium border shadow-md transition-colors ${
+            showHeatmap
+              ? "bg-orange-500 text-white border-orange-600"
+              : "bg-white text-gray-600 border-gray-200 hover:text-orange-500"
+          }`}
+          title="Basculer la heatmap"
+        >
+          🔥 Heatmap
+        </button>
+      </div>
+
+      {/* Feature 4: Zone watch toggle + controls */}
+      <div className="absolute bottom-24 right-2 z-[1000] flex flex-col items-end gap-1">
+        <button
+          onClick={() => {
+            setWatchMode((v) => {
+              if (v) {
+                // deactivating watch mode clears zone too
+                setWatchZone(null);
+              }
+              return !v;
+            });
+          }}
+          className={`px-2 py-1 rounded text-xs font-medium border shadow-md transition-colors ${
+            watchMode
+              ? "bg-indigo-600 text-white border-indigo-700"
+              : "bg-white text-gray-600 border-gray-200 hover:text-indigo-600"
+          }`}
+          title="Activer la zone de surveillance (cliquez sur la carte pour définir le centre)"
+        >
+          📍 Zone
+        </button>
+        {watchZone && (
+          <div className="bg-white border border-indigo-200 rounded shadow-md px-2 py-1.5 flex flex-col gap-1 text-[10px] text-gray-700 w-36">
+            <div className="flex justify-between items-center">
+              <span className="font-medium text-indigo-700">Rayon : {watchZone.radius} km</span>
+              <button
+                onClick={() => { setWatchZone(null); setWatchMode(false); }}
+                className="text-gray-400 hover:text-red-500 transition-colors"
+                title="Effacer la zone"
+              >
+                ✕
+              </button>
+            </div>
+            <input
+              type="range"
+              min={10}
+              max={500}
+              step={10}
+              value={watchZone.radius}
+              onChange={(e) =>
+                setWatchZone((prev) => prev ? { ...prev, radius: Number(e.target.value) } : prev)
+              }
+              className="w-full accent-indigo-600"
+            />
+            <p className="text-[9px] text-gray-400">
+              {visibleEvents.length} événement{visibleEvents.length !== 1 ? "s" : ""} dans la zone
+            </p>
+          </div>
+        )}
+        {watchMode && !watchZone && (
+          <p className="bg-white/90 border border-indigo-200 rounded shadow-md px-2 py-1 text-[10px] text-indigo-700 w-36 text-center">
+            Cliquez sur la carte pour définir le centre
+          </p>
+        )}
       </div>
 
       {/* Panneau de navigation DOM-TOM */}
@@ -290,6 +505,18 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
             </p>
             <p className="text-xs text-gray-500 leading-snug">
               Les actualités nationales sont affichées dans le feed →
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Feature 4: zone active but all events filtered out note */}
+      {watchZone && visibleEvents.length === 0 && events.length > 0 && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
+          <div className="bg-white/90 backdrop-blur-sm rounded-xl px-5 py-4 text-center shadow-md max-w-xs">
+            <p className="text-sm font-semibold text-gray-700 mb-1">Aucun événement dans la zone</p>
+            <p className="text-xs text-gray-500">
+              Augmentez le rayon ou déplacez le centre
             </p>
           </div>
         </div>
