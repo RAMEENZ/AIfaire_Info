@@ -67,6 +67,8 @@ function readFiltersFromURL(): EventFilters {
 
 export default function HomePage() {
   const [filters, setFilters] = useState<EventFilters>(readFiltersFromURL);
+  const [darkMode, setDarkMode] = useState(false);
+  const [selectedDept, setSelectedDept] = useState<string | null>(null);
 
   useEffect(() => {
     const p = new URLSearchParams();
@@ -111,6 +113,29 @@ export default function HomePage() {
   const [mobileView, setMobileView] = useState<"map" | "feed">("map");
   const ingestTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
+  // Dark mode: sync with localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("theme");
+    const isDark =
+      stored === "dark" ||
+      (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    setDarkMode(isDark);
+  }, []);
+
+  const toggleDark = useCallback(() => {
+    setDarkMode((prev) => {
+      const next = !prev;
+      if (next) {
+        document.documentElement.classList.add("dark");
+        localStorage.setItem("theme", "dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+        localStorage.setItem("theme", "light");
+      }
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     return () => { ingestTimersRef.current.forEach(clearTimeout); };
   }, []);
@@ -132,6 +157,21 @@ export default function HomePage() {
   }, [refreshEvents]);
 
   const allEvents: Event[] = useMemo(() => eventsData?.events ?? [], [eventsData]);
+
+  // Auto-select event from ?event=<id> URL param on first load
+  useEffect(() => {
+    if (allEvents.length === 0) return;
+    const p = new URLSearchParams(window.location.search);
+    const eventId = p.get("event");
+    if (!eventId) return;
+    const found = allEvents.find((e) => e.id === eventId);
+    if (found) {
+      setSelectedEvent(found);
+      setMobileView("feed");
+    }
+  // Run only once when events first arrive
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allEvents.length > 0]);
 
   const localEvents = useMemo(
     () => allEvents.filter((e) => e.lieu_lat !== null && e.lieu_lon !== null),
@@ -218,13 +258,24 @@ export default function HomePage() {
     });
   }, []);
 
+  const handleSelectDept = useCallback((deptCode: string) => {
+    setSelectedDept((prev) => (prev === deptCode ? null : deptCode));
+    setMobileView("feed");
+  }, []);
+
+  // Events filtered by selected dept (for the sidebar banner)
+  const deptEvents = useMemo(() => {
+    if (!selectedDept) return [];
+    return allEvents.filter((e) => e.lieu_code_insee?.startsWith(selectedDept) ?? false);
+  }, [allEvents, selectedDept]);
+
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <header className="flex flex-wrap items-center gap-2 px-3 py-2 bg-white border-b border-gray-200 shadow-sm z-10 flex-shrink-0">
+      <header className="flex flex-wrap items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm z-10 flex-shrink-0">
         <div className="flex items-center gap-2 mr-4">
           <span className="text-blue-700 font-black text-xl tracking-tight">FAIRE</span>
-          <span className="text-gray-500 text-sm font-medium hidden sm:inline">Info</span>
+          <span className="text-gray-500 dark:text-gray-400 text-sm font-medium hidden sm:inline">Info</span>
         </div>
         <FilterBar
           filters={filters}
@@ -264,7 +315,7 @@ export default function HomePage() {
         {allEvents.length > 0 && (
           <button
             onClick={() => exportToCSV(allEvents)}
-            className="hidden lg:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+            className="hidden lg:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             title={`Télécharger ${allEvents.length} événements en CSV`}
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -273,6 +324,31 @@ export default function HomePage() {
             CSV
           </button>
         )}
+        <a
+          href="/stats"
+          className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          title="Statistiques"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <span className="hidden lg:inline">Stats</span>
+        </a>
+        <button
+          onClick={toggleDark}
+          className="flex items-center justify-center w-7 h-7 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          title={darkMode ? "Passer en mode clair" : "Passer en mode sombre"}
+        >
+          {darkMode ? (
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+            </svg>
+          ) : (
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+            </svg>
+          )}
+        </button>
         <div className="ml-auto flex items-center gap-2 hidden md:flex">
           {eventsError && allEvents.length > 0 && (
             <span className="text-xs text-amber-600 flex items-center gap-1" title="Données potentiellement périmées — la dernière mise à jour a échoué">
@@ -324,11 +400,28 @@ export default function HomePage() {
       <main className="flex flex-col md:flex-row flex-1 overflow-hidden">
         {/* Map — full width on mobile (toggleable), 70% on desktop */}
         <div className={`${mobileView === "map" ? "flex" : "hidden"} md:flex flex-1 min-w-0 relative`}>
-          <MapWrapper events={localEvents} selectedEvent={selectedEvent} onSelectEvent={handleSelectEvent} />
+          <MapWrapper events={localEvents} selectedEvent={selectedEvent} onSelectEvent={handleSelectEvent} onSelectDept={handleSelectDept} />
         </div>
 
         {/* Sidebar — full width on mobile (toggleable), 30% on desktop */}
-        <aside className={`${mobileView === "feed" ? "flex" : "hidden"} md:flex flex-col flex-1 md:flex-none md:w-[30%] md:min-w-[260px] md:max-w-sm border-t md:border-t-0 md:border-l border-gray-200 bg-white overflow-hidden`}>
+        <aside className={`${mobileView === "feed" ? "flex" : "hidden"} md:flex flex-col flex-1 md:flex-none md:w-[30%] md:min-w-[260px] md:max-w-sm border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden`}>
+          {/* Dept banner */}
+          {selectedDept && (
+            <div className="flex items-center justify-between px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800 flex-shrink-0">
+              <span className="text-xs text-blue-700 dark:text-blue-300 font-medium">
+                Dép. {selectedDept} — {deptEvents.length} événement{deptEvents.length !== 1 ? "s" : ""}
+              </span>
+              <button
+                onClick={() => setSelectedDept(null)}
+                className="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 transition-colors"
+                title="Effacer le filtre département"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
           <StatsBar
             localCount={localEvents.length}
             nationalCount={nationalEvents.length}
