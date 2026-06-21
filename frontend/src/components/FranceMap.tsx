@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { MapContainer, TileLayer, GeoJSON, useMap, useMapEvents } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
-import type { Map as LeafletMap } from "leaflet";
+import type { Map as LeafletMap, Layer } from "leaflet";
 import type { GeoJsonObject, Feature, Geometry } from "geojson";
 
 import EventMarker from "./EventMarker";
@@ -14,6 +14,7 @@ interface FranceMapProps {
   events: Event[];
   selectedEvent?: Event | null;
   onSelectEvent?: (event: Event) => void;
+  onSelectDept?: (deptCode: string) => void;
 }
 
 const DOM_TOM = [
@@ -223,7 +224,64 @@ function WatchCircle({ zone }: { zone: WatchZone }) {
   return null;
 }
 
-export default function FranceMap({ events, selectedEvent, onSelectEvent }: FranceMapProps) {
+// ── Géorecherche (Nominatim) ────────────────────────────────────────────────
+
+function GeoSearch() {
+  const map = useMap();
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+
+  const handleSearch = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = query.trim();
+    if (!q) return;
+    setLoading(true);
+    setNotFound(false);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=fr&limit=1`,
+        { headers: { "Accept-Language": "fr" } }
+      );
+      const data = await res.json();
+      if (data[0]) {
+        map.flyTo([parseFloat(data[0].lat), parseFloat(data[0].lon)], 12, { duration: 1 });
+        setQuery("");
+      } else {
+        setNotFound(true);
+        setTimeout(() => setNotFound(false), 2000);
+      }
+    } catch {
+      // ignore network errors
+    } finally {
+      setLoading(false);
+    }
+  }, [map, query]);
+
+  return (
+    <form onSubmit={handleSearch} className="absolute top-2 left-2 z-[1000] flex gap-1">
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setNotFound(false); }}
+        placeholder="Rechercher une ville…"
+        className={`px-2 py-1 text-xs rounded border shadow-md bg-white w-36 focus:outline-none transition-colors ${
+          notFound ? "border-red-400 placeholder-red-400" : "border-gray-200 focus:border-blue-400"
+        }`}
+      />
+      <button
+        type="submit"
+        disabled={loading || !query.trim()}
+        className="px-2 py-1 text-xs rounded border border-gray-200 shadow-md bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-40 transition-colors"
+        title="Rechercher"
+      >
+        {loading ? "…" : "🔍"}
+      </button>
+    </form>
+  );
+}
+
+export default function FranceMap({ events, selectedEvent, onSelectEvent, onSelectDept }: FranceMapProps) {
   const mapRef = useRef<LeafletMap | null>(null);
   const [deptGeoJSON, setDeptGeoJSON] = useState<GeoJsonObject | null>(null);
   const [showRiskLayer, setShowRiskLayer] = useState(false);
@@ -288,7 +346,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
     if (!feature) return {};
     const code = feature.properties?.code ?? "";
     const gravite = deptMaxGravite.get(code) ?? 0;
-    const fill = graviteColor(gravite);
+    const fill = showRiskLayer ? graviteColor(gravite) : null;
     if (!fill) {
       return {
         fillColor: "transparent",
@@ -306,6 +364,22 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
       opacity: 0.5,
     };
   };
+
+  const onEachDept = useCallback((feature: Feature<Geometry, { code: string; nom: string }>, layer: Layer) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (layer as any).on({
+      click: () => {
+        if (onSelectDept) onSelectDept(feature.properties?.code ?? "");
+      },
+      mouseover: (e: { target: { setStyle: (s: object) => void } }) => {
+        e.target.setStyle({ weight: 2, color: "#3B82F6", opacity: 0.7 });
+      },
+      mouseout: (e: { target: { setStyle: (s: object) => void } }) => {
+        e.target.setStyle(styleFeature(feature));
+      },
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onSelectDept, deptMaxGravite, showRiskLayer]);
 
   const handleMapClick = (lat: number, lon: number) => {
     if (!watchMode) return;
@@ -336,12 +410,14 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {showRiskLayer && deptGeoJSON && (
+        {deptGeoJSON && (
           <GeoJSON
-            key={JSON.stringify(Array.from(deptMaxGravite.entries()))}
+            key={JSON.stringify([Array.from(deptMaxGravite.entries()), showRiskLayer])}
             data={deptGeoJSON}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             style={(feature) => styleFeature(feature as Feature<Geometry, { code: string }>)}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            onEachFeature={onEachDept as any}
             pane="tilePane"
           />
         )}
@@ -360,6 +436,9 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent }: Fran
             />
           ))}
         </MarkerClusterGroup>
+
+        {/* Géorecherche */}
+        <GeoSearch />
 
         {/* Feature 2: Heatmap layer */}
         <HeatmapLayer events={events} active={showHeatmap} />

@@ -33,6 +33,33 @@ function formatRelative(iso: string): string {
   }
 }
 
+function ShareButton({ eventId }: { eventId: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleShare = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}${window.location.pathname}?event=${eventId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {});
+  };
+  return (
+    <button
+      onClick={handleShare}
+      title="Copier le lien vers cet événement"
+      className="text-gray-300 hover:text-blue-500 transition-colors flex-shrink-0"
+    >
+      {copied ? (
+        <span className="text-green-500 text-[10px] font-semibold">✓</span>
+      ) : (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 function EventCard({
   event,
   selected,
@@ -136,16 +163,19 @@ function EventCard({
         <span className="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-medium shrink-0 truncate max-w-[120px]">
           {sourceLabel}
         </span>
-        <time
-          dateTime={event.date_publication}
-          className="text-right shrink-0"
-          title={(() => {
-            try { return format(parseISO(event.date_publication), "d MMM yyyy HH:mm", { locale: fr }); }
-            catch { return event.date_publication; }
-          })()}
-        >
-          {formatRelative(event.date_publication)}
-        </time>
+        <div className="flex items-center gap-2 shrink-0">
+          <time
+            dateTime={event.date_publication}
+            className="text-right"
+            title={(() => {
+              try { return format(parseISO(event.date_publication), "d MMM yyyy HH:mm", { locale: fr }); }
+              catch { return event.date_publication; }
+            })()}
+          >
+            {formatRelative(event.date_publication)}
+          </time>
+          <ShareButton eventId={event.id} />
+        </div>
       </div>
     </article>
   );

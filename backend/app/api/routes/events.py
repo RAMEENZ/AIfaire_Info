@@ -31,6 +31,7 @@ async def list_events(
     q: Optional[str] = Query(None, max_length=200, description="Recherche textuelle (titre, résumé, lieu)"),
     limit: int = Query(default=settings.DEFAULT_EVENTS_LIMIT, ge=1, le=settings.MAX_EVENTS_LIMIT),
     national_only: bool = Query(False),
+    dept: Optional[str] = Query(None, max_length=3, description="Filtrer par code département (ex: 75, 13, 2A)"),
     db: AsyncSession = Depends(get_db),
 ) -> EventList:
     if categories:
@@ -63,6 +64,9 @@ async def list_events(
 
     if national_only:
         stmt = stmt.where(Event.geom.is_(None))
+
+    if dept:
+        stmt = stmt.where(Event.lieu_code_insee.like(f"{dept}%"))
 
     if q:
         q_safe = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -203,6 +207,43 @@ async def get_event(
         raise HTTPException(status_code=404, detail="Event not found")
 
     return event
+
+
+@router.get("/trends")
+async def get_trends(db: AsyncSession = Depends(get_db)) -> dict:
+    """Catégories en tendance : pic d'activité dans les 2 dernières heures vs les 24h."""
+    now = datetime.now(timezone.utc)
+    h2_ago = now - timedelta(hours=2)
+    h24_ago = now - timedelta(hours=24)
+
+    r2h = await db.execute(
+        select(Event.categorie, func.count().label("cnt"))
+        .where(Event.date_publication >= h2_ago)
+        .group_by(Event.categorie)
+    )
+    counts_2h = {row.categorie: row.cnt for row in r2h}
+
+    r24h = await db.execute(
+        select(Event.categorie, func.count().label("cnt"))
+        .where(Event.date_publication >= h24_ago)
+        .group_by(Event.categorie)
+    )
+    counts_24h = {row.categorie: row.cnt for row in r24h}
+
+    trends = []
+    for cat, cnt_2h in counts_2h.items():
+        cnt_24h = counts_24h.get(cat, 0)
+        avg_per_2h = cnt_24h / 12
+        if cnt_2h >= 3 and avg_per_2h > 0 and cnt_2h >= avg_per_2h * 2:
+            trends.append({
+                "categorie": cat,
+                "recent_count": cnt_2h,
+                "daily_avg_per_2h": round(avg_per_2h, 1),
+                "ratio": round(cnt_2h / max(avg_per_2h, 0.1), 1),
+            })
+
+    trends.sort(key=lambda x: -x["ratio"])
+    return {"trends": trends, "generated_at": now.isoformat()}
 
 
 @router.get("/brief")

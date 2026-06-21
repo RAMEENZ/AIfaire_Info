@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ALL_CATEGORIES, CATEGORY_CONFIG } from "@/lib/constants";
+import useSWR from "swr";
+import { ALL_CATEGORIES, API_BASE_URL, CATEGORY_CONFIG } from "@/lib/constants";
 import { Categorie, EventFilters } from "@/lib/types";
+import type { TrendItem } from "@/lib/api";
 
 const DEFAULT_FILTERS: EventFilters = {
   categories: ALL_CATEGORIES,
@@ -48,6 +50,13 @@ export default function FilterBar({
   // Feature 3: custom date range
   const [showDateRange, setShowDateRange] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
+
+  const { data: trendsData } = useSWR(
+    "trends",
+    () => fetch(`${API_BASE_URL}/trends`).then((r) => r.json() as Promise<{ trends: TrendItem[] }>),
+    { refreshInterval: 5 * 60 * 1000, revalidateOnFocus: false }
+  );
+  const trendingCats = new Set<string>((trendsData?.trends ?? []).map((t) => t.categorie));
 
   function toggleCategory(cat: Categorie) {
     if (filters.categories.includes(cat)) {
@@ -103,8 +112,8 @@ export default function FilterBar({
             <button
               key={cat}
               onClick={() => toggleCategory(cat)}
-              title={config.label}
-              className={`text-xs px-2 py-1 rounded border transition-colors flex items-center gap-1 ${
+              title={trendingCats.has(cat) ? `${config.label} — En tendance 🔥` : config.label}
+              className={`relative text-xs px-2 py-1 rounded border transition-colors flex items-center gap-1 ${
                 active
                   ? "text-white border-transparent"
                   : "bg-white text-gray-400 border-gray-200 hover:border-gray-400"
@@ -120,6 +129,14 @@ export default function FilterBar({
               {eventCounts?.[cat] !== undefined && eventCounts[cat]! > 0 && (
                 <span className={`text-[10px] font-semibold ${active ? "opacity-80" : "text-gray-500"}`}>
                   {eventCounts[cat]}
+                </span>
+              )}
+              {trendingCats.has(cat) && (
+                <span
+                  className="absolute -top-1 -right-1 text-[8px] leading-none"
+                  aria-label="En tendance"
+                >
+                  🔥
                 </span>
               )}
             </button>

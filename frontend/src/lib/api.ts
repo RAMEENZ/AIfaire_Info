@@ -71,6 +71,35 @@ export async function triggerIngest(): Promise<{ status: string; message: string
   return response.json();
 }
 
+export interface TrendItem {
+  categorie: string;
+  recent_count: number;
+  daily_avg_per_2h: number;
+  ratio: number;
+}
+
+export interface StatsData {
+  total_events: number;
+  by_source: Record<string, number>;
+  by_categorie: Record<string, number>;
+  localized: number;
+  national: number;
+  oldest_event: string | null;
+  newest_event: string | null;
+}
+
+export async function fetchTrends(): Promise<{ trends: TrendItem[]; generated_at: string }> {
+  const response = await fetch(`${API_BASE_URL}/trends`, { next: { revalidate: 0 } });
+  if (!response.ok) throw new Error(`Erreur API /trends : ${response.status}`);
+  return response.json();
+}
+
+export async function fetchStats(): Promise<StatsData> {
+  const response = await fetch(`${API_BASE_URL}/stats`, { next: { revalidate: 0 } });
+  if (!response.ok) throw new Error(`Erreur API /stats : ${response.status}`);
+  return response.json();
+}
+
 export const eventsKey = (params: FetchEventsParams) =>
   ["events", params] as const;
 
