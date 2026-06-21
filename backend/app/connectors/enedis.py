@@ -7,15 +7,12 @@ from typing import Any
 from app.connectors.base import BaseConnector
 from app.geo_data import DEPT_CODE_TO_NAME
 
-COUPURES_URL = (
-    "https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets"
-    "/coupures-delectricite/records?limit=100&order_by=date_debut_perturbation%20desc"
-)
-
-FALLBACK_URL = (
-    "https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets"
-    "/bilan-electrique-demi-heure/records?limit=1"
-)
+_ENDPOINTS = [
+    "https://data.enedis.fr/api/explore/v2.1/catalog/datasets/liste-des-coupures-d-electricite-en-cours/records?limit=100&order_by=date_debut_perturbation%20desc",
+    "https://opendata.reseaux-energies.fr/api/explore/v2.1/catalog/datasets/coupures-electricite/records?limit=100",
+    "https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets/coupures-delectricite/records?limit=100&order_by=date_debut_perturbation%20desc",
+    "https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets/coupure-electricite/records?limit=100",
+]
 
 
 def _count_clients(record: dict) -> int:
@@ -46,19 +43,18 @@ class EnedisConnector(BaseConnector):
 
     async def fetch(self) -> list[dict[str, Any]]:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            try:
-                response = await client.get(COUPURES_URL)
-                response.raise_for_status()
-                data = response.json()
-            except (httpx.HTTPError, httpx.HTTPStatusError) as exc:
-                self._logger.warning("Primary endpoint failed (%s), trying fallback", exc)
+            data = None
+            for url in _ENDPOINTS:
                 try:
-                    fallback_resp = await client.get(FALLBACK_URL)
-                    fallback_resp.raise_for_status()
-                except Exception as fallback_exc:
-                    self._logger.error("Fallback also failed: %s", fallback_exc)
-                    return []
-                self._logger.info("Fallback endpoint is reachable but contains no coupure data.")
+                    response = await client.get(url)
+                    response.raise_for_status()
+                    data = response.json()
+                    self._logger.info("Enedis: using endpoint %s", url)
+                    break
+                except Exception as exc:
+                    self._logger.warning("Enedis endpoint failed (%s): %s", url, exc)
+            if data is None:
+                self._logger.error("All Enedis endpoints failed, returning empty list")
                 return []
 
         results: list[dict[str, Any]] = []

@@ -36,6 +36,19 @@ async def _run_brief_job() -> None:
         logger.error("Brief generation failed: %s", exc, exc_info=True)
 
 
+async def _run_weekly_brief_job() -> None:
+    logger.info("Scheduled weekly brief triggered at %s", datetime.now(timezone.utc).isoformat())
+    try:
+        from app.pipeline.brief import generate_weekly_brief
+        content = await generate_weekly_brief()
+        if content:
+            logger.info("Weekly brief generated: %d chars", len(content))
+        else:
+            logger.info("Weekly brief skipped")
+    except Exception as exc:
+        logger.error("Weekly brief failed: %s", exc, exc_info=True)
+
+
 async def _run_purge_job() -> None:
     logger.info("Scheduled purge triggered at %s", datetime.now(timezone.utc).isoformat())
     try:
