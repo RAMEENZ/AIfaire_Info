@@ -1,0 +1,63 @@
+@import "leaflet/dist/leaflet.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#__next,
+main {
+  height: 100%;
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font-family: inherit;
+}
+
+.faire-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 700;
+  font-size: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.faire-marker:hover {
+  transform: scale(1.15);
+}
+
+.faire-marker--selected {
+  transform: scale(1.25);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.9), 0 0 0 5px var(--m, #1d4ed8), 0 3px 8px rgba(0,0,0,0.4);
+  z-index: 1000 !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 0;
+  overflow: hidden;
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  width: 280px !important;
+}
+
+.leaflet-popup-tip-container {
+  margin-top: -1px;
+}

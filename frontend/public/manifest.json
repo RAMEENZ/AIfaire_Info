@@ -1,0 +1,20 @@
+{
+  "name": "FAIRE Info — Alertes géolocalisées",
+  "short_name": "FAIRE Info",
+  "description": "Visualisez en temps réel les événements météo, crues, séismes, transports et actualités en France.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1d4ed8",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["news", "weather"],
+  "lang": "fr"
+}

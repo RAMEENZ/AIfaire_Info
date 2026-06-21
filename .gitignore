@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.env
+*.egg-info/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+out/
+.env.local
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+frontend/tsconfig.tsbuildinfo
