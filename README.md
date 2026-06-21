@@ -7,7 +7,7 @@ Vue cartographique unifiée de l'actualité publique française en quasi temps r
 - **Backend** : Python 3.13 + FastAPI + GeoAlchemy2 + APScheduler
 - **Frontend** : Next.js 14 + Leaflet + Tailwind CSS
 - **BDD** : PostgreSQL 16 + PostGIS 3.4
-- **IA** : Claude Haiku (`claude-haiku-4-5-20251001`) — extraction lieu + catégorie + teaser
+- **IA** : Mistral — extraction lieu + catégorie + teaser
 - **Géocodage** : BAN (api-adresse.data.gouv.fr) + geo.api.gouv.fr + tables locales
 
 ## Sources
