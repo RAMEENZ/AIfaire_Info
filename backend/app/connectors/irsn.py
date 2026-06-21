@@ -16,11 +16,11 @@ from app.connectors.base import BaseConnector
 logger = logging.getLogger(__name__)
 
 _FEEDS = [
-    {"url": "https://www.irsn.fr/fr/actualites-agenda/actualites/pages/rss.aspx", "name": "IRSN Actualités"},
-    {"url": "https://www.irsn.fr/FR/Larecherche/actualites-agenda/Actualites/Pages/RSS.aspx", "name": "IRSN Recherche"},
-    {"url": "https://www.asn.fr/rss/actualites.xml",  "name": "ASN Actualités"},
-    {"url": "https://www.asn.fr/rss/incidents.xml",   "name": "ASN Incidents"},
-    {"url": "https://www.asn.fr/rss/avis.xml",        "name": "ASN Avis"},
+    {"name": "ASN Événements", "url": "https://www.asn.fr/feeds/actualites.atom", "gravite": 2},
+    {"name": "ASN Incidents", "url": "https://www.asn.fr/feeds/incidents.atom", "gravite": 3},
+    {"name": "ASNR Actualités", "url": "https://www.asnr.fr/rss.xml", "gravite": 1},
+    {"name": "IRSN Actualités", "url": "https://www.irsn.fr/publications/rss.xml", "gravite": 1},
+    {"name": "ASN Actualités", "url": "https://www.asn.fr/rss/actualites.xml", "gravite": 1},
 ]
 
 _MAX_AGE = timedelta(hours=72)

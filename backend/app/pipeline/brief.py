@@ -13,10 +13,10 @@ from app.models import DailyBrief, Event
 logger = logging.getLogger(__name__)
 
 
-async def generate_daily_brief() -> Optional[str]:
+async def generate_daily_brief(hours: int = 24) -> Optional[str]:
     """Génère et sauvegarde le brief du jour. Retourne le texte ou None si échec."""
     now = datetime.now(timezone.utc)
-    since = now - timedelta(hours=24)
+    since = now - timedelta(hours=hours)
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     async with AsyncSessionLocal() as session:
@@ -29,7 +29,7 @@ async def generate_daily_brief() -> Optional[str]:
         events = result.scalars().all()
 
     if not events:
-        logger.info("Brief: no events in last 24h, skipping")
+        logger.info("Brief: no events in last %dh, skipping", hours)
         return None
 
     lines = []
@@ -43,13 +43,13 @@ async def generate_daily_brief() -> Optional[str]:
 
     system_prompt = (
         "Tu es un rédacteur d'information pour un service d'alerte géolocalisé couvrant la France. "
-        "Rédige un brief matinal concis (8-12 phrases) résumant les événements significatifs des dernières 24h. "
+        f"Rédige un brief matinal concis (8-12 phrases) résumant les événements significatifs des dernières {hours}h. "
         "Structure : 1 phrase d'accroche globale, puis les points saillants par ordre d'importance, puis une phrase de conclusion. "
         "Ton : neutre, factuel, professionnel. Langue : français."
     )
 
     user_prompt = (
-        f"Voici les {event_count} événements des dernières 24h "
+        f"Voici les {event_count} événements des dernières {hours}h "
         f"(format: [CATÉGORIE gravitéN] (lieu) résumé) :\n\n{events_text}\n\nRédige le brief matinal synthétique."
     )
 
@@ -105,6 +105,24 @@ async def generate_daily_brief() -> Optional[str]:
     return content
 
 
+async def generate_weekly_brief() -> Optional[str]:
+    """Génère le brief de la semaine (lundi matin)."""
+    now = datetime.now(timezone.utc)
+    monday = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    async with AsyncSessionLocal() as session:
+        existing = await session.execute(
+            select(DailyBrief).where(DailyBrief.date >= monday).limit(1)
+        )
+        # Don't regenerate if already done today
+        existing_brief = existing.scalar_one_or_none()
+        if existing_brief and "semaine" in existing_brief.content.lower():
+            logger.info("Weekly brief already generated today")
+            return existing_brief.content
+
+    return await generate_daily_brief(hours=168)
+
+
 async def get_latest_brief() -> Optional[dict]:
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -118,4 +136,5 @@ async def get_latest_brief() -> Optional[dict]:
             "content": brief.content,
             "event_count": brief.event_count,
             "generated_at": brief.generated_at.isoformat(),
+            "is_weekly": brief.event_count > 100,  # Weekly briefs cover more events
         }
