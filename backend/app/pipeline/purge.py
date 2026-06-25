@@ -10,11 +10,13 @@ logger = logging.getLogger(__name__)
 
 # TTL en heures par source
 TTL_HOURS: dict[str, int] = {
-    "meteo_france": 36,   # alertes météo : remplacées à chaque ingestion
-    "vigicrues":    36,   # vigilances crues : idem
-    "enedis":       48,   # coupures réseau : courte durée de vie
+    "meteo_france": 36,   # remplacé à chaque ingestion
+    "vigicrues":    36,
+    "renass":       720,  # 30 jours — données sismiques historiquement utiles
+    "enedis":       48,
+    "presse_rss":   72,   # 3 jours pour la presse
 }
-DEFAULT_TTL_HOURS = 720  # 30 jours — conserver l'historique pour la timeline
+DEFAULT_TTL_HOURS = 72
 
 
 async def purge_old_events() -> int:
