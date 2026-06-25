@@ -11,7 +11,7 @@ import StatusBar from "@/components/StatusBar";
 import StatsBar from "@/components/StatsBar";
 import AlertSettings from "@/components/AlertSettings";
 import { fetchEvents, fetchHealth, triggerIngest } from "@/lib/api";
-import { ALL_CATEGORIES, GRAVITE_CONFIG, REFRESH_INTERVAL } from "@/lib/constants";
+import { API_BASE_URL, ALL_CATEGORIES, GRAVITE_CONFIG, REFRESH_INTERVAL } from "@/lib/constants";
 import {
   AlertSettings as AlertSettingsType,
   loadAlertSettings,
@@ -19,6 +19,46 @@ import {
   sendEventNotification,
 } from "@/lib/notifications";
 import { Categorie, Event, EventFilters } from "@/lib/types";
+
+function useEventStream(categories: Categorie[], graviteMin: number) {
+  const [liveEvents, setLiveEvents] = useState<Event[]>([]);
+  const [isLive, setIsLive] = useState(false);
+  const seenRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    categories.forEach((c) => params.append("categories", c));
+    if (graviteMin > 0) params.set("gravite_min", String(graviteMin));
+
+    const es = new EventSource(`${API_BASE_URL}/events/stream?${params}`);
+
+    es.addEventListener("connected", () => setIsLive(true));
+
+    es.addEventListener("events", (e: MessageEvent) => {
+      try {
+        const incoming: Event[] = JSON.parse(e.data);
+        const fresh = incoming.filter((ev) => !seenRef.current.has(ev.id));
+        if (fresh.length > 0) {
+          fresh.forEach((ev) => seenRef.current.add(ev.id));
+          setLiveEvents((prev) => [...fresh, ...prev].slice(0, 200));
+        }
+      } catch {
+        // ignore parse errors
+      }
+    });
+
+    es.onerror = () => setIsLive(false);
+
+    return () => {
+      es.close();
+      setIsLive(false);
+    };
+  // Reconnect only when filters change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories.join(","), graviteMin]);
+
+  return { liveEvents, isLive };
+}
 
 function exportToCSV(events: Event[]) {
   const headers = ["id", "titre", "source", "auteur", "categorie", "gravite", "lieu_nom", "lieu_niveau", "lieu_lat", "lieu_lon", "date_publication", "source_url", "resume_ia"];
@@ -156,7 +196,15 @@ export default function HomePage() {
     ingestTimersRef.current.push(t1, t2);
   }, [refreshEvents]);
 
-  const allEvents: Event[] = useMemo(() => eventsData?.events ?? [], [eventsData]);
+  const { liveEvents, isLive } = useEventStream(filters.categories, filters.gravite_min);
+
+  const allEvents: Event[] = useMemo(() => {
+    const base = eventsData?.events ?? [];
+    if (liveEvents.length === 0) return base;
+    const existingIds = new Set(base.map((e) => e.id));
+    const fresh = liveEvents.filter((e) => !existingIds.has(e.id));
+    return fresh.length > 0 ? [...fresh, ...base] : base;
+  }, [eventsData?.events, liveEvents]);
 
   // Auto-select event from ?event=<id> URL param on first load
   useEffect(() => {
@@ -364,6 +412,12 @@ export default function HomePage() {
           )}
         </button>
         <div className="ml-auto flex items-center gap-2 hidden md:flex">
+          {isLive && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold uppercase tracking-wide">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              En direct
+            </span>
+          )}
           {eventsError && allEvents.length > 0 && (
             <span className="text-xs text-amber-600 flex items-center gap-1" title="Données potentiellement périmées — la dernière mise à jour a échoué">
               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -452,6 +506,7 @@ export default function HomePage() {
             selectedEventId={selectedEvent?.id ?? null}
             onSelectEvent={setSelectedEvent}
             onRetry={refreshEvents}
+            liveEventIds={new Set(liveEvents.map((e) => e.id))}
           />
         </aside>
       </main>

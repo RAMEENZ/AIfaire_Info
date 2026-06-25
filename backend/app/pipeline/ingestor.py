@@ -23,6 +23,7 @@ from app.connectors.cert_fr import CertFrConnector
 from app.connectors.irsn import IRSNConnector
 from app.connectors.air_quality import AirQualityConnector
 from app.connectors.opensky import OpenSkyConnector
+from app.connectors.bluesky import BlueSkyConnector
 from app.pipeline.extractor import maybe_extract
 from app.pipeline.geocoder import geocode
 from app.pipeline.dedup import title_fingerprint
@@ -42,6 +43,7 @@ CONNECTORS = [
     IRSNConnector(),
     AirQualityConnector(),
     OpenSkyConnector(),
+    BlueSkyConnector(),
 ]
 
 
