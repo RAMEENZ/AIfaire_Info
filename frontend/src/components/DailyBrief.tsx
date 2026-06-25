@@ -14,6 +14,37 @@ interface BriefData {
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
+const SECTION_TITLES = ["Alertes & vigilances", "Actualité générale", "En régions"];
+
+function BriefContent({ content }: { content: string }) {
+  const lines = content.split("\n");
+  const elements: React.ReactNode[] = [];
+  let key = 0;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      elements.push(<div key={key++} className="h-2" />);
+      continue;
+    }
+    if (SECTION_TITLES.includes(trimmed)) {
+      elements.push(
+        <p key={key++} className="font-semibold text-blue-800 mt-3 mb-1 first:mt-0">
+          {trimmed}
+        </p>
+      );
+    } else {
+      elements.push(
+        <p key={key++} className="text-gray-700 leading-relaxed">
+          {trimmed}
+        </p>
+      );
+    }
+  }
+
+  return <div className="space-y-0.5">{elements}</div>;
+}
+
 export default function DailyBrief() {
   const [open, setOpen] = useState(false);
   const { data, isLoading } = useSWR<BriefData>(`${API_BASE_URL}/brief`, fetcher, {
@@ -41,9 +72,11 @@ export default function DailyBrief() {
         {hasBrief && <span className="text-gray-400">{open ? "▲" : "▼"}</span>}
       </button>
       {open && hasBrief && (
-        <div className="px-3 pb-3 text-xs text-gray-700 leading-relaxed whitespace-pre-line bg-blue-50 border-t border-blue-100">
-          <p className="mt-2">{data.content}</p>
-          <p className="mt-2 text-[10px] text-gray-400">
+        <div className="px-3 pb-3 text-xs bg-blue-50 border-t border-blue-100">
+          <div className="mt-2">
+            <BriefContent content={data.content} />
+          </div>
+          <p className="mt-3 text-[10px] text-gray-400">
             Généré à {new Date(data.generated_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} · {data.event_count} événements analysés
           </p>
         </div>

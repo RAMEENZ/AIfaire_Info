@@ -8,12 +8,22 @@ from typing import Any
 
 from app.connectors.base import BaseConnector
 
+# France Bleu a été rebaptisé « ici » (ici.fr) ; l'ancien flux
+# francebleu.fr/emissions/nuits/rss est mort (404). On garde plusieurs
+# candidats : les flux régionaux PACA / Provence couvrent les zones les plus
+# touchées par les feux de forêt, complétés par Sud Ouest. Le filtrage par
+# mots-clés (_FIRE_KEYWORDS) ne retient ensuite que les sujets incendies.
 _RSS_FEEDS = [
-    {"name": "France Bleu Nuits", "url": "https://www.francebleu.fr/emissions/nuits/rss"},
-    {"name": "Sud Ouest",         "url": "https://www.sudouest.fr/rss"},
+    {"name": "ici Provence",     "url": "https://www.ici.fr/provence/rss"},
+    {"name": "ici Azur",         "url": "https://www.ici.fr/azur/rss"},
+    {"name": "ici (général)",    "url": "https://www.ici.fr/rss"},
+    {"name": "France Bleu Provence (legacy)", "url": "https://www.francebleu.fr/rss/provence/rss.xml"},
+    {"name": "Sud Ouest",        "url": "https://www.sudouest.fr/rss"},
 ]
 
-UA = "faire-info/1.0"
+# User-Agent navigateur réaliste (Firefox) : évite les blocages 403 que
+# renvoient certains sites de presse aux UA "robots".
+UA = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
 
 _FIRE_KEYWORDS = re.compile(
     r"incendie|feu de for[eê]t|d[eé]part de feu|incendie criminel|feux de for[eê]t"

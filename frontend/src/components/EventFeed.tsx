@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
-import { CATEGORY_CONFIG, GRAVITE_CONFIG, SOURCE_LABELS } from "@/lib/constants";
-import { Event } from "@/lib/types";
+import { ALL_CATEGORIES, CATEGORY_CONFIG, GRAVITE_CONFIG, SOURCE_LABELS } from "@/lib/constants";
+import { Categorie, Event } from "@/lib/types";
 
 type Tab = "all" | "local" | "national";
+
+const PAGE_SIZE = 50;
 
 const GRAVITE_BORDER: Record<number, string> = {
   0: "transparent",
@@ -31,6 +33,44 @@ function formatRelative(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function sourceLabelOf(event: Event): string {
+  return event.source === "presse_rss" && event.auteur
+    ? event.auteur
+    : SOURCE_LABELS[event.source] ?? event.source;
+}
+
+interface CollapsedEvent {
+  event: Event;
+  duplicates: Event[];
+}
+
+function collapseByCluster(events: Event[]): CollapsedEvent[] {
+  const result: CollapsedEvent[] = [];
+  const representativeIndex = new Map<string, number>();
+
+  for (const event of events) {
+    if (event.cluster_id === null) {
+      result.push({ event, duplicates: [] });
+      continue;
+    }
+    const existing = representativeIndex.get(event.cluster_id);
+    if (existing === undefined) {
+      representativeIndex.set(event.cluster_id, result.length);
+      result.push({ event, duplicates: [] });
+    } else {
+      const rep = result[existing];
+      const alreadyListed =
+        rep.event.source_url === event.source_url ||
+        rep.duplicates.some((d) => d.source_url === event.source_url);
+      if (!alreadyListed) {
+        rep.duplicates.push(event);
+      }
+    }
+  }
+
+  return result;
 }
 
 function ShareButton({ eventId }: { eventId: string }) {
@@ -66,20 +106,27 @@ function EventCard({
   onSelect,
   activeTag,
   onTagClick,
+  duplicates = [],
 }: {
   event: Event;
   selected?: boolean;
   onSelect?: (event: Event) => void;
   activeTag?: string | null;
   onTagClick?: (tag: string) => void;
+  duplicates?: Event[];
 }) {
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const catConfig = CATEGORY_CONFIG[event.categorie];
-  const sourceLabel =
-    event.source === "presse_rss" && event.auteur
-      ? event.auteur
-      : SOURCE_LABELS[event.source] ?? event.source;
+  const sourceLabel = sourceLabelOf(event);
+  const duplicateCount = duplicates.length;
   const isLocalized = event.lieu_lat !== null && event.lieu_lon !== null;
   const borderColor = GRAVITE_BORDER[event.gravite] ?? "transparent";
+
+  const toggleSources = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setSourcesOpen((open) => !open);
+  };
 
   return (
     <article
@@ -160,9 +207,21 @@ function EventCard({
       </div>
 
       <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-gray-400">
-        <span className="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-medium shrink-0 truncate max-w-[120px]">
-          {sourceLabel}
-        </span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-medium shrink-0 truncate max-w-[120px]">
+            {sourceLabel}
+          </span>
+          {duplicateCount > 0 && (
+            <button
+              onClick={toggleSources}
+              aria-expanded={sourcesOpen}
+              title={sourcesOpen ? "Masquer les autres sources" : "Afficher les autres sources"}
+              className="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors shrink-0"
+            >
+              +{duplicateCount} {duplicateCount > 1 ? "autres sources" : "autre source"}
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-2 shrink-0">
           <time
             dateTime={event.date_publication}
@@ -177,6 +236,28 @@ function EventCard({
           <ShareButton eventId={event.id} />
         </div>
       </div>
+
+      {duplicateCount > 0 && sourcesOpen && (
+        <ul className="mt-1.5 space-y-1 border-t border-gray-100 pt-1.5">
+          {duplicates.map((dup) => (
+            <li key={dup.id} className="flex items-center gap-1.5 text-xs text-gray-500">
+              <span className="truncate">{sourceLabelOf(dup)}</span>
+              <a
+                href={dup.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-shrink-0 text-gray-400 hover:text-gray-600"
+                title="Ouvrir l'article"
+                onClick={(ev) => ev.stopPropagation()}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
     </article>
   );
 }
@@ -236,18 +317,76 @@ function AlertBanner({ events, onSelect }: { events: Event[]; onSelect?: (e: Eve
   );
 }
 
+function CategoryFilterBar({
+  activeCategories,
+  onToggle,
+  onClear,
+  eventCounts,
+}: {
+  activeCategories: Set<Categorie>;
+  onToggle: (cat: Categorie) => void;
+  onClear: () => void;
+  eventCounts: Partial<Record<Categorie, number>>;
+}) {
+  return (
+    <div className="px-2 py-1.5 border-b border-gray-100 bg-gray-50">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Catégories</span>
+        {activeCategories.size > 0 && (
+          <button onClick={onClear} className="text-[10px] text-blue-500 hover:underline">
+            Effacer
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {ALL_CATEGORIES.map((cat) => {
+          const cfg = CATEGORY_CONFIG[cat];
+          const active = activeCategories.has(cat);
+          const count = eventCounts[cat] ?? 0;
+          if (count === 0 && !active) return null;
+          return (
+            <button
+              key={cat}
+              onClick={() => onToggle(cat)}
+              title={cfg.label}
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${
+                active
+                  ? "text-white"
+                  : "bg-white text-gray-500 border border-gray-200 hover:border-gray-300"
+              }`}
+              style={active ? { backgroundColor: cfg.color } : undefined}
+            >
+              <span>{cfg.icon}</span>
+              <span className="hidden sm:inline">{cfg.label}</span>
+              {count > 0 && <span className={active ? "opacity-80" : "opacity-60"}>{count}</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function EventFeed({ events, isLoading, error, selectedEventId, onSelectEvent, onRetry }: EventFeedProps) {
   const [tab, setTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [activeCategories, setActiveCategories] = useState<Set<Categorie>>(new Set());
+  const [showFilters, setShowFilters] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (activeTag && !events.some((e) => e.tags?.includes(activeTag))) {
       setActiveTag(null);
     }
   }, [events, activeTag]);
-  const listRef = useRef<HTMLDivElement>(null);
+
+  // Réinitialise la pagination quand les filtres changent.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [tab, search, activeTag, activeCategories]);
 
   useEffect(() => {
     if (selectedEventId == null) return;
@@ -266,11 +405,7 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
         searchInputRef.current?.blur();
       } else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !inInput && onSelectEvent) {
         e.preventDefault();
-        // Interroger le DOM directement pour avoir la liste triée/filtrée actuelle
-        // (évite les stale closures sur les events filtrés).
-        const cards = Array.from(
-          document.querySelectorAll<HTMLElement>("[id^='event-card-']")
-        );
+        const cards = Array.from(document.querySelectorAll<HTMLElement>("[id^='event-card-']"));
         if (cards.length === 0) return;
         const sortedIds = cards.map((el) => el.id.replace("event-card-", ""));
         const currentIdx = selectedEventId ? sortedIds.indexOf(selectedEventId) : -1;
@@ -301,9 +436,11 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
     );
   };
 
-  const searchFiltered = events.filter(matchesSearch).filter(
-    (e) => !activeTag || (e.tags?.includes(activeTag) ?? false)
-  );
+  const searchFiltered = events
+    .filter(matchesSearch)
+    .filter((e) => !activeTag || (e.tags?.includes(activeTag) ?? false))
+    .filter((e) => activeCategories.size === 0 || activeCategories.has(e.categorie));
+
   const localCount = searchFiltered.filter((e) => e.lieu_lat !== null && e.lieu_lon !== null).length;
   const nationalCount = searchFiltered.length - localCount;
 
@@ -319,12 +456,41 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
       new Date(b.date_publication).getTime() - new Date(a.date_publication).getTime()
   );
 
+  const collapsed = collapseByCluster(sorted);
+  const visible = collapsed.slice(0, visibleCount);
+  const hasMore = visibleCount < collapsed.length;
+
+  // Comptage par catégorie (avant filtre catégorie, après autres filtres).
+  const preCatFiltered = events
+    .filter(matchesSearch)
+    .filter((e) => !activeTag || (e.tags?.includes(activeTag) ?? false))
+    .filter((e) => {
+      if (tab === "local") return e.lieu_lat !== null && e.lieu_lon !== null;
+      if (tab === "national") return e.lieu_lat === null || e.lieu_lon === null;
+      return true;
+    });
+  const eventCounts: Partial<Record<Categorie, number>> = {};
+  for (const e of preCatFiltered) {
+    eventCounts[e.categorie] = (eventCounts[e.categorie] ?? 0) + 1;
+  }
+
+  const toggleCategory = (cat: Categorie) => {
+    setActiveCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  };
+
   const tabClass = (t: Tab) =>
     `px-2 py-0.5 text-xs rounded transition-colors ${
       tab === t
         ? "bg-blue-100 text-blue-700 font-medium"
         : "text-gray-500 hover:bg-gray-100"
     }`;
+
+  const hasActiveFilters = activeCategories.size > 0 || !!activeTag;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -347,8 +513,8 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
                 </svg>
               </button>
             )}
-            {sorted.length > 0 && (
-              <span className="text-xs text-gray-400">{sorted.length}</span>
+            {collapsed.length > 0 && (
+              <span className="text-xs text-gray-400">{collapsed.length}</span>
             )}
           </div>
         </div>
@@ -365,7 +531,7 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
             className="w-full pl-6 pr-3 py-1 text-xs rounded border border-gray-200 bg-gray-50 focus:outline-none focus:border-blue-400 focus:bg-white transition-colors"
           />
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-1 items-center">
           <button className={tabClass("all")} onClick={() => setTab("all")}>
             Tous ({searchFiltered.length})
           </button>
@@ -380,8 +546,32 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
           <button className={tabClass("national")} onClick={() => setTab("national")}>
             National ({nationalCount})
           </button>
+          <button
+            onClick={() => setShowFilters((v) => !v)}
+            className={`ml-auto px-2 py-0.5 text-xs rounded transition-colors flex items-center gap-1 ${
+              showFilters || hasActiveFilters
+                ? "bg-blue-100 text-blue-700 font-medium"
+                : "text-gray-500 hover:bg-gray-100"
+            }`}
+            title="Filtrer par catégorie"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+            </svg>
+            {hasActiveFilters ? `Filtres (${activeCategories.size + (activeTag ? 1 : 0)})` : "Filtrer"}
+          </button>
         </div>
       </div>
+
+      {/* Category filter bar (collapsible) */}
+      {showFilters && (
+        <CategoryFilterBar
+          activeCategories={activeCategories}
+          onToggle={toggleCategory}
+          onClear={() => setActiveCategories(new Set())}
+          eventCounts={eventCounts}
+        />
+      )}
 
       {/* List */}
       <div ref={listRef} className="flex-1 overflow-y-auto relative">
@@ -422,11 +612,14 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
 
         {!isLoading && !error && sorted.length === 0 && (
           <div className="flex flex-col items-center justify-center h-32 text-sm text-gray-400 gap-1">
-            {searchLower ? (
+            {searchLower || hasActiveFilters ? (
               <>
-                <span>Aucun résultat pour « {search} »</span>
-                <button onClick={() => setSearch("")} className="text-xs text-blue-500 hover:underline">
-                  Effacer la recherche
+                <span>Aucun résultat pour ces filtres</span>
+                <button
+                  onClick={() => { setSearch(""); setActiveCategories(new Set()); setActiveTag(null); }}
+                  className="text-xs text-blue-500 hover:underline"
+                >
+                  Effacer les filtres
                 </button>
               </>
             ) : (
@@ -435,7 +628,7 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
           </div>
         )}
 
-        {sorted.map((event) => (
+        {visible.map(({ event, duplicates }) => (
           <EventCard
             key={event.id}
             event={event}
@@ -443,10 +636,24 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
             onSelect={onSelectEvent}
             activeTag={activeTag}
             onTagClick={(tag) => setActiveTag(activeTag === tag ? null : tag)}
+            duplicates={duplicates}
           />
         ))}
 
-        {sorted.length > 8 && (
+        {/* Charger plus */}
+        {hasMore && (
+          <div className="px-4 py-3 border-t border-gray-100 text-center">
+            <button
+              onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
+              className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+            >
+              Charger {Math.min(PAGE_SIZE, collapsed.length - visibleCount)} de plus
+              <span className="text-gray-400 ml-1">({visibleCount} / {collapsed.length})</span>
+            </button>
+          </div>
+        )}
+
+        {collapsed.length > 8 && !hasMore && (
           <div className="sticky bottom-2 flex justify-center pb-2 pointer-events-none">
             <button
               onClick={() => listRef.current?.scrollTo({ top: 0, behavior: "smooth" })}

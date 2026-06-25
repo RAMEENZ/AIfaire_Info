@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models import DailyBrief, Event
+from app.pipeline.sanitize import sanitize_markdown as _sanitize_brief
 
 logger = logging.getLogger(__name__)
 
@@ -20,37 +21,112 @@ async def generate_daily_brief(hours: int = 24) -> Optional[str]:
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     async with AsyncSessionLocal() as session:
-        result = await session.execute(
+        # Alertes : événements à gravité élevée (vigilances, incidents…).
+        alerts_res = await session.execute(
             select(Event)
-            .where(Event.date_publication >= since)
+            .where(Event.date_publication >= since, Event.gravite >= 2)
             .order_by(Event.gravite.desc(), Event.date_publication.desc())
-            .limit(50)
+            .limit(20)
         )
-        events = result.scalars().all()
+        alerts = list(alerts_res.scalars().all())
 
+        # Actualité générale : les plus récents, EN EXCLUANT les catégories de
+        # bulletins d'alerte (météo/crue/séisme). Sans cette exclusion, les
+        # vigilances Météo-France — très nombreuses et horodatées en fin de
+        # journée — monopolisent aussi ce volet par récence, et l'« actualité »
+        # se résume encore à de la météo. On laisse ainsi remonter la presse
+        # (société, politique, faits divers, transport, santé, économie…).
+        recent_res = await session.execute(
+            select(Event)
+            .where(
+                Event.date_publication >= since,
+                Event.categorie.notin_(["meteo", "crue", "seisme"]),
+            )
+            .order_by(Event.date_publication.desc())
+            .limit(60)
+        )
+        recent = list(recent_res.scalars().all())
+
+        # Actualité régionale : événements localisés (hors national), pour donner
+        # au brief un ancrage géographique au lieu d'un tropisme parisien/national.
+        # On exclut là encore les bulletins d'alerte météo.
+        regional_res = await session.execute(
+            select(Event)
+            .where(
+                Event.date_publication >= since,
+                Event.categorie.notin_(["meteo", "crue", "seisme"]),
+                Event.lieu_niveau.in_(["commune", "departement", "region"]),
+                Event.lieu_nom.isnot(None),
+            )
+            .order_by(Event.date_publication.desc())
+            .limit(80)
+        )
+        regional_all = list(regional_res.scalars().all())
+
+    # Actualité = récents hors alertes déjà listées.
+    alert_ids = {e.id for e in alerts}
+    news = [e for e in recent if e.id not in alert_ids][:25]
+
+    # En régions = localisés, dédupliqués à un événement par lieu pour maximiser
+    # la diversité géographique, en excluant ce qui est déjà cité ailleurs.
+    cited_ids = alert_ids | {e.id for e in news}
+    regional: list[Event] = []
+    seen_lieux: set[str] = set()
+    for e in regional_all:
+        if e.id in cited_ids:
+            continue
+        lieu_key = (e.lieu_nom or "").strip().lower()
+        if not lieu_key or lieu_key in seen_lieux or lieu_key == "national":
+            continue
+        seen_lieux.add(lieu_key)
+        regional.append(e)
+        if len(regional) >= 8:
+            break
+
+    events = alerts + news + regional
     if not events:
         logger.info("Brief: no events in last %dh, skipping", hours)
         return None
 
-    lines = []
-    for e in events[:30]:
-        loc = f" ({e.lieu_nom})" if e.lieu_nom else ""
+    def _fmt(e: Event) -> str:
+        # Données fournies au modèle SANS code ni crochet, pour qu'il n'en
+        # reproduise pas dans le texte final (cf. règles de forme du prompt).
+        loc = f"({e.lieu_nom}) " if e.lieu_nom and e.lieu_nom != "national" else ""
         resume = e.resume_ia or e.titre
-        lines.append(f"- [{e.categorie.upper()} g{e.gravite}]{loc} {resume[:150]}")
+        return f"- {loc}{resume[:200]}"
 
-    events_text = "\n".join(lines)
+    alerts_text = "\n".join(_fmt(e) for e in alerts) or "(aucune alerte majeure)"
+    news_text = "\n".join(_fmt(e) for e in news) or "(rien de notable)"
+    regional_text = "\n".join(_fmt(e) for e in regional) or "(rien de notable en régions)"
     event_count = len(events)
 
     system_prompt = (
-        "Tu es un rédacteur d'information pour un service d'alerte géolocalisé couvrant la France. "
-        f"Rédige un brief matinal concis (8-12 phrases) résumant les événements significatifs des dernières {hours}h. "
-        "Structure : 1 phrase d'accroche globale, puis les points saillants par ordre d'importance, puis une phrase de conclusion. "
-        "Ton : neutre, factuel, professionnel. Langue : français."
+        "Tu es un rédacteur d'information pour un service d'information géolocalisé couvrant la France. "
+        f"Rédige un brief synthétique et fluide des dernières {hours}h, en trois sections.\n"
+        "RÈGLES DE FORME (impératives) :\n"
+        "- Texte simple uniquement. N'utilise AUCUN caractère de formatage Markdown : "
+        "ni dièse (#), ni astérisque (*), ni tiret bas (_), ni crochets [ ], ni lignes de séparation (---).\n"
+        "- N'emploie aucune étiquette ni code technique (pas de « [METEO g3] », pas de niveau de gravité chiffré).\n"
+        "- Chaque section commence par son titre seul sur sa propre ligne, écrit exactement ainsi : "
+        "Alertes & vigilances — puis Actualité générale — puis En régions. "
+        "Fais suivre chaque titre d'un ou plusieurs paragraphes de prose, séparés par une ligne vide.\n"
+        "CONTENU :\n"
+        "1. Alertes & vigilances : les risques majeurs (météo, crues, séismes, incidents…), 2 à 4 phrases. "
+        "S'il n'y a pas d'alerte majeure, dis-le en une phrase.\n"
+        "2. Actualité générale : les faits marquants du jour au-delà des alertes "
+        "(société, politique, faits divers, économie, culture, sport…), 3 à 5 phrases.\n"
+        "3. En régions : 2 à 4 faits notables ancrés dans différents territoires, "
+        "en citant explicitement le lieu. Varie les régions ; ne te limite pas à Paris. "
+        "Si rien de notable en régions, dis-le en une phrase.\n"
+        "Ton neutre, factuel, professionnel. Langue : français. "
+        "N'invente rien qui ne figure pas dans les données fournies."
     )
 
     user_prompt = (
-        f"Voici les {event_count} événements des dernières {hours}h "
-        f"(format: [CATÉGORIE gravitéN] (lieu) résumé) :\n\n{events_text}\n\nRédige le brief matinal synthétique."
+        f"ALERTES & VIGILANCES ({len(alerts)}) :\n{alerts_text}\n\n"
+        f"ACTUALITÉ GÉNÉRALE ({len(news)}) :\n{news_text}\n\n"
+        f"EN RÉGIONS ({len(regional)}) :\n{regional_text}\n\n"
+        "Rédige le brief en trois sections (titres en clair, prose simple, aucun symbole de formatage)."
     )
 
     if not settings.MISTRAL_API_KEY:
@@ -72,11 +148,11 @@ async def generate_daily_brief(hours: int = 24) -> Optional[str]:
                         {"role": "user", "content": user_prompt},
                     ],
                     "temperature": 0.3,
-                    "max_tokens": 600,
+                    "max_tokens": 1000,
                 },
             )
             resp.raise_for_status()
-            content = resp.json()["choices"][0]["message"]["content"].strip()
+            content = _sanitize_brief(resp.json()["choices"][0]["message"]["content"])
     except Exception as exc:
         logger.error("Brief generation failed: %s", exc)
         return None

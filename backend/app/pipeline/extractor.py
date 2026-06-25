@@ -11,6 +11,7 @@ import httpx
 
 from app.config import settings
 from app.pipeline.geocoder import geocode
+from app.pipeline.sanitize import sanitize_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +169,9 @@ def _validate_extraction(raw: dict) -> dict[str, Any]:
         categorie = "actualite"
 
     _raw_resume = raw.get("resume_ia")
-    resume_ia = (str(_raw_resume).strip() if _raw_resume and _raw_resume != "null" else "")[:500]
+    resume_ia = sanitize_markdown(
+        str(_raw_resume).strip() if _raw_resume and _raw_resume != "null" else ""
+    )[:500]
 
     try:
         gravite = max(0, min(3, int(raw.get("gravite", 0))))

@@ -48,6 +48,26 @@ class Settings(BaseSettings):
     # sature le CPU pendant plus d'une heure avant le moindre commit. 120 ≈ 12 min.
     MAX_PRESSE_ARTICLES: int = 120
 
+    # Délai maximal accordé à la phase de collecte (fetch) d'un connecteur. Au-delà,
+    # on abandonne CE connecteur (0 événement, erreur enregistrée) sans bloquer les
+    # autres : une source qui répond au compte-gouttes ne doit pas figer toute
+    # l'ingestion. Généreux car presse_rss interroge ~114 flux. La phase
+    # d'enrichissement IA (postérieure au fetch) n'est pas concernée par ce délai.
+    CONNECTOR_FETCH_TIMEOUT_SECONDS: int = 120
+
+    # Cache Redis (optionnel). Si vide, le cache est désactivé.
+    # En production : redis://redis:6379
+    REDIS_URL: str = ""
+    # Durée de vie du cache API événements (secondes).
+    REDIS_EVENTS_TTL: int = 120
+
+    # Webhook de notification (optionnel) : URL appelée quand un connecteur dépasse
+    # le seuil d'échecs consécutifs. Compatible Discord, Slack, ntfy, etc.
+    # Exemple ntfy : https://ntfy.sh/mon-topic
+    WEBHOOK_URL: str = ""
+    # Nombre d'échecs consécutifs déclenchant le webhook.
+    WEBHOOK_THRESHOLD: int = 3
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]

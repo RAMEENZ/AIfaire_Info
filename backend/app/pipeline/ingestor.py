@@ -4,9 +4,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import delete
+import httpx
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models import Event, ConnectorStatus
 from app.connectors.meteo_france import MeteoFranceConnector
@@ -23,6 +25,7 @@ from app.connectors.air_quality import AirQualityConnector
 from app.connectors.opensky import OpenSkyConnector
 from app.pipeline.extractor import maybe_extract
 from app.pipeline.geocoder import geocode
+from app.pipeline.dedup import title_fingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +123,10 @@ def _build_event(item: dict[str, Any], geo: dict[str, Any]) -> dict[str, Any]:
         "geom": geom,
         "resume_ia": item.get("resume_ia"),
         "tags": item.get("tags", []),
-        "cluster_id": None,
+        # Empreinte de titre déterministe : les reprises d'une même dépêche
+        # (mêmes mots significatifs) partagent un cluster_id et seront regroupées
+        # à l'affichage. None si le titre est trop court pour clusteriser.
+        "cluster_id": title_fingerprint(item.get("titre")),
         "score_confiance": float(item.get("score_confiance", 1.0)),
     }
 
@@ -147,12 +153,40 @@ async def _process_item(item: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
 
+async def _send_webhook_alert(name: str, failures: int, error: str | None) -> None:
+    """Envoie une notification au WEBHOOK_URL configuré. Fire-and-forget."""
+    url = settings.WEBHOOK_URL
+    if not url:
+        return
+    text = (
+        f"⚠️ Connecteur **{name}** en erreur chronique "
+        f"({failures} échecs consécutifs)\nErreur : {error or 'inconnue'}"
+    )
+    payload: dict = {
+        "webhook_event": "connector_chronic_failure",
+        "connector": name,
+        "consecutive_failures": failures,
+        "last_error": error or "",
+    }
+    if "discord.com" in url or "discordapp.com" in url:
+        payload["content"] = text
+    elif "hooks.slack.com" in url:
+        payload["text"] = text
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(url, json=payload)
+    except Exception as exc:
+        logger.warning("Webhook notification failed for %s: %s", name, exc)
+
+
 async def _upsert_connector_status(
     name: str,
     last_run: datetime,
     last_error: str | None,
     count: int,
 ) -> None:
+    now = datetime.now(timezone.utc)
+    has_error = last_error is not None
     async with AsyncSessionLocal() as session:
         try:
             stmt = pg_insert(ConnectorStatus).values(
@@ -160,18 +194,41 @@ async def _upsert_connector_status(
                 last_run=last_run,
                 last_error=last_error,
                 last_count=count,
-                updated_at=datetime.now(timezone.utc),
+                # Première insertion : 1 échec si erreur, sinon 0 et succès = maintenant.
+                last_success=None if has_error else now,
+                consecutive_failures=1 if has_error else 0,
+                updated_at=now,
             ).on_conflict_do_update(
                 index_elements=["name"],
                 set_={
                     "last_run": last_run,
                     "last_error": last_error,
                     "last_count": count,
-                    "updated_at": datetime.now(timezone.utc),
+                    # has_error est connu à la construction de la requête : pas
+                    # besoin de CASE SQL. En erreur, on incrémente le compteur
+                    # (ConnectorStatus.consecutive_failures = valeur courante de la
+                    # ligne en base lors d'un ON CONFLICT) et on conserve l'ancien
+                    # last_success. En succès, compteur à 0 et last_success rafraîchi.
+                    "consecutive_failures": (
+                        ConnectorStatus.consecutive_failures + 1 if has_error else 0
+                    ),
+                    "last_success": ConnectorStatus.last_success if has_error else now,
+                    "updated_at": now,
                 },
             )
             await session.execute(stmt)
             await session.commit()
+
+            # Webhook : si le connecteur franchit le seuil d'échecs chroniques, notifie.
+            if has_error and settings.WEBHOOK_URL:
+                row = await session.execute(
+                    select(ConnectorStatus.consecutive_failures).where(
+                        ConnectorStatus.name == name
+                    )
+                )
+                failures = row.scalar_one_or_none() or 0
+                if failures >= settings.WEBHOOK_THRESHOLD:
+                    asyncio.create_task(_send_webhook_alert(name, failures, last_error))
         except Exception as exc:
             logger.error("Failed to update connector status for %s: %s", name, exc)
             await session.rollback()
@@ -248,7 +305,20 @@ async def _delete_source_events(source: str) -> int:
 
 
 async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
-    raw_items = await connector.run()
+    # Garde-fou wall-clock sur la collecte : un connecteur qui répond au
+    # compte-gouttes (au-delà des timeouts httpx par requête) ne doit pas figer
+    # toute l'ingestion. connector.run() avale déjà ses propres exceptions ; ici
+    # on borne sa durée totale. En cas de dépassement, on simule un échec de fetch
+    # (last_error renseigné) pour que la logique en aval saute la suppression
+    # destructive et incrémente le compteur d'échecs consécutifs.
+    timeout = settings.CONNECTOR_FETCH_TIMEOUT_SECONDS
+    try:
+        raw_items = await asyncio.wait_for(connector.run(), timeout=timeout)
+    except asyncio.TimeoutError:
+        connector.last_run = datetime.now(timezone.utc)
+        connector.last_error = f"timeout de collecte (> {timeout}s)"
+        logger.error("Connector %s: fetch timed out after %ds", connector.name, timeout)
+        raw_items = []
 
     # On ne supprime les anciens événements QUE si le fetch a réussi (last_error
     # est remis à None par run() en cas de succès). Sinon un échec transitoire

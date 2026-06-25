@@ -7,11 +7,21 @@ from typing import Any
 from app.connectors.base import BaseConnector
 from app.geo_data import DEPT_CODE_TO_NAME
 
+# État 2026 : Enedis a RETIRÉ son API open data des coupures. Vérifié sur le
+# terrain : data.enedis.fr redirige vers une URL malformée (404) et
+# opendata.enedis.fr/api/explore/v2.1 renvoie 410 Gone (ressource supprimée
+# définitivement) ; le dataset est également absent du portail national ODRE.
+# Aucune source publique de coupures n'existe donc actuellement. On conserve les
+# endpoints (au cas où Enedis republierait) mais le connecteur échoue en silence
+# (logs INFO, pas ERROR) pour ne pas polluer les journaux. follow_redirects=True
+# est conservé pour le jour où une redirection propre serait remise en place.
 _ENDPOINTS = [
     "https://data.enedis.fr/api/explore/v2.1/catalog/datasets/liste-des-coupures-d-electricite-en-cours/records?limit=100&order_by=date_debut_perturbation%20desc",
-    "https://opendata.reseaux-energies.fr/api/explore/v2.1/catalog/datasets/coupures-electricite/records?limit=100",
+    "https://data.enedis.fr/api/explore/v2.1/catalog/datasets/coupures-delectricite/records?limit=100&order_by=date_debut_perturbation%20desc",
+    "https://data.enedis.fr/api/explore/v2.1/catalog/datasets/coupures-electricite/records?limit=100",
+    "https://data.enedis.fr/api/explore/v2.1/catalog/datasets/coupure-electricite/records?limit=100",
+    "https://data.enedis.fr/api/explore/v2.1/catalog/datasets/liste-des-coupures-d-electricite/records?limit=100",
     "https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets/coupures-delectricite/records?limit=100&order_by=date_debut_perturbation%20desc",
-    "https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets/coupure-electricite/records?limit=100",
 ]
 
 
@@ -42,7 +52,9 @@ class EnedisConnector(BaseConnector):
         return "enedis"
 
     async def fetch(self) -> list[dict[str, Any]]:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        # follow_redirects=True : les datasets migrés renvoient des 301 vers le
+        # nouveau domaine ; sans suivi, raise_for_status() échouait sur le 3xx.
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             data = None
             for url in _ENDPOINTS:
                 try:
@@ -52,9 +64,10 @@ class EnedisConnector(BaseConnector):
                     self._logger.info("Enedis: using endpoint %s", url)
                     break
                 except Exception as exc:
-                    self._logger.warning("Enedis endpoint failed (%s): %s", url, exc)
+                    self._logger.debug("Enedis endpoint failed (%s): %s", url, exc)
             if data is None:
-                self._logger.error("All Enedis endpoints failed, returning empty list")
+                # Source retirée (410 Gone) — échec attendu, on n'alerte pas.
+                self._logger.info("Enedis: aucune source de coupures disponible (API open data retirée), 0 événement")
                 return []
 
         results: list[dict[str, Any]] = []

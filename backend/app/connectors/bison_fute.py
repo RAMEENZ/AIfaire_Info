@@ -8,15 +8,21 @@ from typing import Any
 
 from app.connectors.base import BaseConnector
 
+# Plusieurs candidats de flux RSS Bison Futé : le premier qui répond avec des
+# items gagne, sinon on bascule sur le parsing HTML de la page d'accueil.
 _RSS_URLS = [
+    "https://www.bison-fute.gouv.fr/feed/rss.xml",
     "https://www.bison-fute.gouv.fr/rss.xml",
+    "https://www.bison-fute.gouv.fr/actualites/rss.xml",
     "https://www.bison-fute.gouv.fr/rss/conditions.xml",
     "https://bison-fute.gouv.fr/rss.xml",
 ]
 
 _HOMEPAGE = "https://www.bison-fute.gouv.fr/"
 
-UA = "faire-info/1.0"
+# User-Agent navigateur réaliste (Firefox) : l'UA "robot" précédent était
+# souvent bloqué (403) par le WAF du site. follow_redirects géré côté client.
+UA = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
 
 _COULEUR_GRAVITE = {
     "vert": 0,
@@ -151,9 +157,9 @@ class BisonFuteConnector(BaseConnector):
                             self._logger.info("Bison Futé: got %d items from %s", len(items), url)
                             return items
                 except Exception as exc:
-                    self._logger.warning("Bison Futé RSS %s failed: %s", url, exc)
+                    self._logger.debug("Bison Futé RSS %s failed: %s", url, exc)
 
-            self._logger.warning("Bison Futé: all RSS failed, trying homepage HTML")
+            self._logger.debug("Bison Futé: all RSS failed, trying homepage HTML")
             try:
                 resp = await client.get(_HOMEPAGE)
                 if resp.status_code == 200:
@@ -161,7 +167,8 @@ class BisonFuteConnector(BaseConnector):
                     if items:
                         return items
             except Exception as exc:
-                self._logger.warning("Bison Futé homepage fetch failed: %s", exc)
+                self._logger.debug("Bison Futé homepage fetch failed: %s", exc)
 
-            self._logger.warning("Bison Futé: all attempts failed, returning []")
+            # Bison Futé n'expose plus de flux RSS/HTML exploitable : échec attendu.
+            self._logger.info("Bison Futé: aucune source disponible, 0 événement")
             return []

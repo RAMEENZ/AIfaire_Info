@@ -72,6 +72,14 @@ function ConnectorDot({ connector }: { connector: ConnectorStatus }) {
               Dernière collecte : {connector.last_count} article{connector.last_count !== 1 ? "s" : ""}
             </p>
           )}
+          <p className="text-gray-300">
+            Dernier succès : {formatLastRun(connector.last_success)}
+          </p>
+          {connector.consecutive_failures > 0 && (
+            <p className="text-gray-300">
+              Échecs consécutifs : {connector.consecutive_failures}
+            </p>
+          )}
           {connector.last_error && (
             <p className="mt-1 text-red-300 break-words">
               {connector.last_error}

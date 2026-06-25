@@ -325,6 +325,20 @@ export default function HomePage() {
           </button>
         )}
         <a
+          href={`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api"}/feed.rss${filters.categories.length < 12 ? "?categories=" + filters.categories.join(",") : ""}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          title="Flux RSS Atom (filtre catégories actuel)"
+        >
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 8.373 11.627 3 5 3z" />
+            <path d="M4 9a1 1 0 000 2 7 7 0 017 7 1 1 0 102 0A9 9 0 004 9z" />
+            <path d="M3 15a2 2 0 114 0 2 2 0 01-4 0z" />
+          </svg>
+          <span className="hidden lg:inline">RSS</span>
+        </a>
+        <a
           href="/stats"
           className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           title="Statistiques"

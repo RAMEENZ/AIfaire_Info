@@ -26,31 +26,23 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Le Monde",            "url": "https://www.lemonde.fr/rss/une.xml",                     "region": None},
     {"name": "Le Figaro",           "url": "https://plus.lefigaro.fr/page/flux-rss",                 "region": None},
     {"name": "Libération",          "url": "https://www.liberation.fr/arc/outboundfeeds/rss-all/",  "region": None},
-    {"name": "L'Humanité",          "url": "https://www.humanite.fr/rss/toute-l-actualite",          "region": None},
-    {"name": "La Croix",            "url": "https://www.la-croix.com/RSS/",                          "region": None},
+    {"name": "L'Humanité",          "url": "https://www.humanite.fr/feed/",                          "region": None},
     {"name": "Vie Publique",        "url": "https://www.vie-publique.fr/rss/tous",                   "region": None},
     {"name": "Google News France",  "url": "https://news.google.com/rss/search?q=france+actualit%C3%A9&hl=fr&gl=FR&ceid=FR:fr",         "region": None},
     {"name": "Google News Régions", "url": "https://news.google.com/rss/search?q=r%C3%A9gion+commune+france&hl=fr&gl=FR&ceid=FR:fr",    "region": None},
 
     # ── ACTUALITÉS NATIONALES — AUDIOVISUEL ──────────────────────────────────
     {"name": "BFM TV",              "url": "https://www.bfmtv.com/rss/news-24-7/",                  "region": None},
-    {"name": "RTL Info",            "url": "https://www.rtl.fr/feeds/rss/",                         "region": None},
-    {"name": "France Bleu",         "url": "https://www.francebleu.fr/rss/l-actu-de-la-matinale",   "region": None},
 
     # ── ACTUALITÉS ÉCONOMIQUES ET TECH ───────────────────────────────────────
-    {"name": "La Tribune",          "url": "https://www.latribune.fr/flux-rss.html",                "region": None},
     {"name": "Les Échos",           "url": "https://www.lesechos.fr/rss",                           "region": None},
-    {"name": "Boursorama",          "url": "https://www.boursorama.com/rss/actualites/",             "region": None},
     {"name": "Le Journal du Net",   "url": "https://www.journaldunet.com/rss/",                     "region": None},
     {"name": "L'Usine Nouvelle",    "url": "https://www.usinenouvelle.com/rss/",                    "region": None},
 
     # ── SOURCES GOUVERNEMENTALES ET OFFICIELLES ───────────────────────────────
     {"name": "Gouvernement.fr",       "url": "https://www.gouvernement.fr/rss",                     "region": None},
-    {"name": "Service-Public.fr",     "url": "https://www.service-public.fr/rss/actualites.rss",    "region": None},
     {"name": "Santé Publique France", "url": "https://www.santepubliquefrance.fr/rss.xml",           "region": None},
     {"name": "Ministère Intérieur",   "url": "https://www.interieur.gouv.fr/rss.xml",               "region": None},
-    {"name": "Sénat",                 "url": "https://www.senat.fr/rss/depots-projets-lois.rss",    "region": None},
-    {"name": "ANSM",                  "url": "https://ansm.sante.fr/rss/actualites.xml",             "region": None},
 
     # ── ACTUALITÉS RÉGIONALES — RÉSEAU ACTU.FR ──────────────────────────────
     {"name": "Actu Bretagne",                "url": "https://actu.fr/bretagne/rss.xml",                      "region": "Bretagne"},
@@ -75,31 +67,24 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "La 1ère Mayotte",           "url": "https://la1ere.francetvinfo.fr/mayotte/rss",                  "region": "Mayotte"},
     {"name": "La 1ère Nouvelle-Calédonie","url": "https://la1ere.francetvinfo.fr/nouvellecaledonie/rss",        "region": "Nouvelle-Calédonie"},
     {"name": "La 1ère Polynésie",         "url": "https://la1ere.francetvinfo.fr/polynesie/rss",                "region": "Polynésie française"},
-    {"name": "La 1ère St-Pierre",         "url": "https://la1ere.francetvinfo.fr/saint-pierre-et-miquelon/rss", "region": "Saint-Pierre-et-Miquelon"},
-    {"name": "La 1ère Wallis-Futuna",     "url": "https://la1ere.francetvinfo.fr/wallis-et-futuna/rss",         "region": "Wallis-et-Futuna"},
+    {"name": "La 1ère St-Pierre",         "url": "https://la1ere.franceinfo.fr/saintpierremiquelon/actu/rss",   "region": "Saint-Pierre-et-Miquelon"},
     {"name": "La 1ère St-Martin",         "url": "https://la1ere.francetvinfo.fr/saint-martin/rss",             "region": "Saint-Martin"},
 
     # ── GRANDS QUOTIDIENS RÉGIONAUX (PQR) ────────────────────────────────────
     {"name": "Ouest-France",                  "url": "https://www.ouest-france.fr/rss/une",                "region": None},
-    {"name": "Le Parisien",                   "url": "https://www.leparisien.fr/rss.xml",                  "region": "Île-de-France"},
-    {"name": "Sud Ouest",                     "url": "https://www.sudouest.fr/rss/toute-l-actualite",      "region": "Nouvelle-Aquitaine"},
-    {"name": "La Voix du Nord",               "url": "https://www.lavoixdunord.fr/rss/toute-l-actualite",  "region": "Hauts-de-France"},
-    {"name": "La Provence",                   "url": "https://www.laprovence.com/rss",                     "region": "Provence-Alpes-Côte d'Azur"},
+    {"name": "Le Parisien",                   "url": "https://feeds.leparisien.fr/leparisien/rss",         "region": "Île-de-France"},
+    {"name": "Sud Ouest",                     "url": "https://www.sudouest.fr/rss.xml",                    "region": "Nouvelle-Aquitaine"},
+    {"name": "La Provence",                   "url": "https://www.laprovence.com/rss/une.xml",             "region": "Provence-Alpes-Côte d'Azur"},
     {"name": "Nice-Matin",                    "url": "https://www.nicematin.com/rss",                      "region": "Provence-Alpes-Côte d'Azur"},
     {"name": "La Dépêche du Midi",            "url": "https://www.ladepeche.fr/rss.xml",                   "region": "Occitanie"},
-    {"name": "Midi Libre",                    "url": "https://www.midilibre.fr/rss/",                      "region": "Occitanie"},
-    {"name": "L'Indépendant",                 "url": "https://www.lindependant.fr/rss",                    "region": "Occitanie"},
+    {"name": "Midi Libre",                    "url": "https://www.midilibre.fr/rss.xml",                   "region": "Occitanie"},
+    {"name": "L'Indépendant",                 "url": "https://www.lindependant.fr/rss.xml",                "region": "Occitanie"},
     {"name": "Dernières Nouvelles d'Alsace",  "url": "https://www.dna.fr/rss",                             "region": "Grand Est"},
     {"name": "L'Alsace",                      "url": "https://www.lalsace.fr/rss",                         "region": "Grand Est"},
     {"name": "L'Est Républicain",             "url": "https://www.estrepublicain.fr/rss",                  "region": "Grand Est"},
     {"name": "Républicain Lorrain",           "url": "https://www.republicain-lorrain.fr/rss",             "region": "Grand Est"},
-    {"name": "Courrier Picard",               "url": "https://www.courrier-picard.fr/rss",                 "region": "Hauts-de-France"},
     {"name": "Le Progrès",                    "url": "https://www.leprogres.fr/rss",                       "region": "Auvergne-Rhône-Alpes"},
     {"name": "Le Dauphiné Libéré",            "url": "https://www.ledauphine.com/rss",                     "region": "Auvergne-Rhône-Alpes"},
-    {"name": "La Montagne",                   "url": "https://www.lamontagne.fr/rss",                      "region": "Auvergne-Rhône-Alpes"},
-    {"name": "La Nouvelle République",        "url": "https://www.lanouvellerepublique.fr/rss",             "region": "Centre-Val de Loire"},
-    {"name": "Paris Normandie",               "url": "https://www.paris-normandie.fr/rss",                 "region": "Normandie"},
-    {"name": "Presse Océan",                  "url": "https://www.presseocean.fr/rss",                     "region": "Pays de la Loire"},
     # ── 20MINUTES ─────────────────────────────────────────────────────────────────
     {"name": "20minutes : Alpes-Maritimes", "url": "https://www.20minutes.fr/feeds/rss-alpes-maritimes.xml", "region": "Provence-Alpes-Côte d'Azur"},
     {"name": "20minutes : Auvergne-Rhône-Alpes", "url": "https://www.20minutes.fr/feeds/rss-auvergne-rhone-alpes.xml", "region": "Auvergne-Rhône-Alpes"},
@@ -482,9 +467,6 @@ RSS_FEEDS: list[dict[str, Any]] = [
 
     # ── LA MARNE ─────────────────────────────────────────────────────────────────
     {"name": "La Marne", "url": "https://actu.fr/la-marne/rss.xml", "region": "Île-de-France"},
-
-    # ── LA MARSEILLAISE ─────────────────────────────────────────────────────────────────
-    {"name": "La Marseillaise : à la une", "url": "https://morss.it/:items=&#9601;&#9601;&#9607;[class=priority-content]/https://www.lamarseillaise.fr/", "region": "Provence-Alpes-Côte d'Azur"},
 
     # ── LA NOUVELLE RÉPUBLIQUE ─────────────────────────────────────────────────────────────────
     {"name": "La Nouvelle République", "url": "https://www.lanouvellerepublique.fr/api/v1/rss/592bf255489a4555008b4568", "region": "Centre-Val de Loire"},
@@ -1128,9 +1110,6 @@ RSS_FEEDS: list[dict[str, Any]] = [
     # ── TOUT LYON ─────────────────────────────────────────────────────────────────
     {"name": "Tout Lyon", "url": "https://mesinfos.fr/tout-lyon/rss.xml", "region": "Auvergne-Rhône-Alpes"},
 
-    # ── TÉBÉO ─────────────────────────────────────────────────────────────────
-    {"name": "Tébéo : l’invité", "url": "https://fetchrss.com/feed/1fMpqjGYg4cZ1g0qSjGYw4cZ.rss", "region": "Bretagne"},
-
     # ── TÉLÉPAESE ─────────────────────────────────────────────────────────────────
     {"name": "TéléPaese", "url": "https://stampa-paese.com/rss.xml", "region": "Corse"},
 
@@ -1279,7 +1258,7 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "mLyon", "url": "https://mlyon.fr/xml/news", "region": "Auvergne-Rhône-Alpes"},
 ]
 
-UA = "Mozilla/5.0 (compatible; FaireInfo/1.0; aggregator)"
+UA = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
 # Articles older than this are skipped — matches presse_rss TTL in purge.py
 _MAX_ARTICLE_AGE = timedelta(hours=72)
 
@@ -1354,18 +1333,68 @@ def _parse_rss_date(entry: Any) -> datetime:
     return datetime.now(timezone.utc)
 
 
-async def _fetch_feed(client: httpx.AsyncClient, feed_cfg: dict[str, Any]) -> list[dict[str, Any]]:
+async def _fetch_feed(
+    client: httpx.AsyncClient,
+    feed_cfg: dict[str, Any],
+    feed_cache: dict[str, dict[str, str]] | None = None,
+    logger: Any = None,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Récupère un flux RSS.
+
+    Renvoie ``(items, not_modified)`` où ``not_modified`` indique un 304
+    (flux inchangé) — dans ce cas ``items`` est vide. ``feed_cache`` conserve
+    les validateurs conditionnels (ETag / Last-Modified) par URL de flux.
+    """
     feed_name: str = feed_cfg["name"]
     feed_url: str = feed_cfg["url"]
     region: str | None = feed_cfg.get("region")
 
+    # Construit les en-têtes conditionnels à partir du cache (si disponible).
+    # Toute anomalie du cache est ignorée → GET inconditionnel (robustesse).
+    req_headers: dict[str, str] = {}
+    if feed_cache is not None:
+        try:
+            cached = feed_cache.get(feed_url)
+            if isinstance(cached, dict):
+                etag = cached.get("etag")
+                last_modified = cached.get("last_modified")
+                if etag:
+                    req_headers["If-None-Match"] = etag
+                if last_modified:
+                    req_headers["If-Modified-Since"] = last_modified
+        except Exception:
+            req_headers = {}
+
     async with _FETCH_SEMAPHORE:
         try:
-            resp = await client.get(feed_url, timeout=15.0)
+            resp = await client.get(feed_url, timeout=15.0, headers=req_headers or None)
+            if resp.status_code == 304:
+                # Flux inchangé : on conserve les validateurs et on ne parse rien.
+                if logger is not None:
+                    logger.debug("presse_rss: %s inchangé (304)", feed_url)
+                return [], True
             resp.raise_for_status()
             content = resp.content
         except Exception as exc:
             raise RuntimeError(f"{feed_name}: fetch failed: {exc}") from exc
+
+    # 200 OK : met à jour le cache avec les validateurs renvoyés (ou les efface
+    # s'ils sont absents, pour ne pas réémettre des validateurs périmés).
+    if feed_cache is not None:
+        try:
+            new_etag = resp.headers.get("ETag")
+            new_last_modified = resp.headers.get("Last-Modified")
+            if new_etag or new_last_modified:
+                validators: dict[str, str] = {}
+                if new_etag:
+                    validators["etag"] = new_etag
+                if new_last_modified:
+                    validators["last_modified"] = new_last_modified
+                feed_cache[feed_url] = validators
+            else:
+                feed_cache.pop(feed_url, None)
+        except Exception:
+            pass
 
     loop = asyncio.get_running_loop()
     parsed = await loop.run_in_executor(None, feedparser.parse, content)
@@ -1421,25 +1450,44 @@ async def _fetch_feed(client: httpx.AsyncClient, feed_cfg: dict[str, Any]) -> li
     # Ne garde que les plus récents de ce flux (les chaînes ISO-8601 en UTC se
     # trient lexicographiquement dans l'ordre chronologique).
     results.sort(key=lambda r: r["date_publication"], reverse=True)
-    return results[:_MAX_PER_FEED]
+    return results[:_MAX_PER_FEED], False
 
 
 class PresseRSSConnector(BaseConnector):
+    def __init__(self) -> None:
+        super().__init__()
+        # Cache des validateurs HTTP conditionnels par URL de flux (ETag /
+        # Last-Modified). Persiste entre les runs car ce connecteur est un
+        # singleton instancié une seule fois dans le pipeline → permet aux
+        # flux inchangés de répondre 304 (pas de corps) et d'économiser de la
+        # bande passante / réduire le risque de 429.
+        self._feed_cache: dict[str, dict[str, str]] = {}
+
     @property
     def name(self) -> str:
         return "presse_rss"
 
     async def fetch(self) -> list[dict[str, Any]]:
         async with httpx.AsyncClient(headers={"User-Agent": UA}, follow_redirects=True) as client:
-            tasks = [_fetch_feed(client, cfg) for cfg in RSS_FEEDS]
+            tasks = [
+                _fetch_feed(client, cfg, self._feed_cache, self._logger)
+                for cfg in RSS_FEEDS
+            ]
             feed_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         raw: list[dict[str, Any]] = []
+        n_not_modified = 0
+        n_fetched = 0
         for i, res in enumerate(feed_results):
             if isinstance(res, Exception):
                 self._logger.warning("Feed %s failed: %s", RSS_FEEDS[i]["name"], res)
             else:
-                raw.extend(res)
+                items, not_modified = res
+                if not_modified:
+                    n_not_modified += 1
+                else:
+                    n_fetched += 1
+                raw.extend(items)
 
         # Déduplication par titre normalisé : préférer les articles avec une région
         seen: dict[str, dict[str, Any]] = {}
@@ -1460,7 +1508,9 @@ class PresseRSSConnector(BaseConnector):
         items.sort(key=lambda it: it.get("date_publication") or "", reverse=True)
         capped = items[: settings.MAX_PRESSE_ARTICLES]
         self._logger.info(
-            "presse_rss: %d raw → %d after title dedup → %d after cap (max=%d)",
+            "presse_rss: %d flux récupérés, %d inchangés (304) | "
+            "%d raw → %d after title dedup → %d after cap (max=%d)",
+            n_fetched, n_not_modified,
             len(raw), len(seen), len(capped), settings.MAX_PRESSE_ARTICLES,
         )
         return capped
