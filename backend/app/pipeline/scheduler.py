@@ -89,15 +89,21 @@ def get_scheduler() -> AsyncIOScheduler:
             coalesce=True,
         )
 
-        _scheduler.add_job(
-            _run_brief_job,
-            trigger=CronTrigger(hour=9, minute=0, timezone=settings.SCHEDULER_TIMEZONE),
-            id="brief_morning",
-            name="Daily brief (09h00)",
-            replace_existing=True,
-            max_instances=1,
-            coalesce=True,
-        )
+        # Brief IA trois fois par jour, après chaque ingestion.
+        for hour, job_id, label in [
+            (9,  "brief_morning", "Morning brief (09h00)"),
+            (13, "brief_midday",  "Midday brief (13h00)"),
+            (20, "brief_evening", "Evening brief (20h00)"),
+        ]:
+            _scheduler.add_job(
+                _run_brief_job,
+                trigger=CronTrigger(hour=hour, minute=0, timezone=settings.SCHEDULER_TIMEZONE),
+                id=job_id,
+                name=label,
+                replace_existing=True,
+                max_instances=1,
+                coalesce=True,
+            )
 
     return _scheduler
 
