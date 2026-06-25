@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import dynamic from "next/dynamic";
 
+import TimelineBar from "@/components/TimelineBar";
 import DailyBrief from "@/components/DailyBrief";
 import EventFeed from "@/components/EventFeed";
 import FilterBar from "@/components/FilterBar";
@@ -109,6 +110,7 @@ export default function HomePage() {
   const [filters, setFilters] = useState<EventFilters>(readFiltersFromURL);
   const [darkMode, setDarkMode] = useState(false);
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
+  const [historyDate, setHistoryDate] = useState<Date | null>(null);
 
   useEffect(() => {
     const p = new URLSearchParams();
@@ -123,7 +125,7 @@ export default function HomePage() {
   }, [filters]);
 
   // SWR key uses stable primitive values (no datetime string that changes every render)
-  const swrKey = ["events", filters.categories, filters.gravite_min, filters.depuis_heures];
+  const swrKey = ["events", filters.categories, filters.gravite_min, filters.depuis_heures, historyDate?.toISOString() ?? null];
 
   const {
     data: eventsData,
@@ -132,14 +134,26 @@ export default function HomePage() {
     mutate: refreshEvents,
   } = useSWR(
     swrKey,
-    () =>
-      fetchEvents({
+    () => {
+      if (historyDate) {
+        const depuis = new Date(historyDate);
+        const avant = new Date(historyDate);
+        avant.setDate(avant.getDate() + 2);
+        return fetchEvents({
+          categories: filters.categories,
+          gravite_min: filters.gravite_min > 0 ? filters.gravite_min : undefined,
+          depuis: depuis.toISOString(),
+          avant: avant.toISOString(),
+        });
+      }
+      return fetchEvents({
         categories: filters.categories,
         gravite_min: filters.gravite_min > 0 ? filters.gravite_min : undefined,
         depuis: new Date(Date.now() - filters.depuis_heures * 3600 * 1000).toISOString(),
-      }),
+      });
+    },
     {
-      refreshInterval: REFRESH_INTERVAL,
+      refreshInterval: historyDate ? 0 : REFRESH_INTERVAL,
       revalidateOnFocus: false,
     }
   );
@@ -474,6 +488,22 @@ export default function HomePage() {
         {/* Sidebar — full width on mobile (toggleable), 30% on desktop */}
         <aside className={`${mobileView === "feed" ? "flex" : "hidden"} md:flex flex-col flex-1 md:flex-none md:w-[30%] md:min-w-[260px] md:max-w-sm border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden`}>
           {/* Dept banner */}
+          {historyDate && (
+            <div className="flex items-center justify-between px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800 flex-shrink-0">
+              <span className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+                ⏪ {historyDate.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} — {new Date(historyDate.getTime() + 2 * 86400000).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
+              </span>
+              <button
+                onClick={() => setHistoryDate(null)}
+                className="text-amber-400 hover:text-amber-600 dark:hover:text-amber-200 transition-colors"
+                title="Retour au live"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
           {selectedDept && (
             <div className="flex items-center justify-between px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800 flex-shrink-0">
               <span className="text-xs text-blue-700 dark:text-blue-300 font-medium">
@@ -490,6 +520,12 @@ export default function HomePage() {
               </button>
             </div>
           )}
+          <TimelineBar
+            categories={filters.categories}
+            graviteMin={filters.gravite_min}
+            historyDate={historyDate}
+            onHistoryDateChange={setHistoryDate}
+          />
           <StatsBar
             localCount={localEvents.length}
             nationalCount={nationalEvents.length}

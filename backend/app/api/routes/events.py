@@ -466,7 +466,56 @@ def _event_to_dict(e: Event) -> dict:
     }
 
 
-@router.get("/events/stream")
+@router.get("/events/timeline")
+async def get_timeline(
+    depuis: Optional[datetime] = Query(None, description="Date de début (défaut: 30 jours)"),
+    avant: Optional[datetime] = Query(None, description="Date de fin (défaut: maintenant)"),
+    categories: Optional[list[str]] = Query(None),
+    gravite_min: Optional[int] = Query(None, ge=0, le=3),
+    bucket: str = Query(default="day", description="Granularité : 'hour' ou 'day'"),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Compte d'événements agrégés par bucket temporel — pour le mini-histogramme."""
+    now = datetime.now(timezone.utc)
+    since_dt = depuis or (now - timedelta(days=30))
+    until_dt = avant or now
+    if since_dt.tzinfo is None:
+        since_dt = since_dt.replace(tzinfo=timezone.utc)
+    if until_dt.tzinfo is None:
+        until_dt = until_dt.replace(tzinfo=timezone.utc)
+
+    trunc_expr = func.date_trunc("hour" if bucket == "hour" else "day", Event.date_publication)
+    stmt = (
+        select(
+            trunc_expr.label("bucket"),
+            func.count().label("count"),
+            func.max(Event.gravite).label("max_gravite"),
+        )
+        .where(Event.date_publication >= since_dt, Event.date_publication <= until_dt)
+        .group_by("bucket")
+        .order_by("bucket")
+    )
+    if categories:
+        invalid = [c for c in categories if c not in VALID_CATEGORIES]
+        if invalid:
+            raise HTTPException(status_code=422, detail=f"Invalid categories: {invalid}")
+        stmt = stmt.where(Event.categorie.in_(categories))
+    if gravite_min is not None:
+        stmt = stmt.where(Event.gravite >= gravite_min)
+
+    rows = await db.execute(stmt)
+    buckets = [
+        {"time": row.bucket.isoformat(), "count": row.count, "max_gravite": row.max_gravite}
+        for row in rows
+    ]
+    return {
+        "since": since_dt.isoformat(),
+        "until": until_dt.isoformat(),
+        "bucket": bucket,
+        "buckets": buckets,
+    }
+
+
 async def stream_events(
     categories: Optional[list[str]] = Query(None),
     gravite_min: Optional[int] = Query(None, ge=0, le=3),

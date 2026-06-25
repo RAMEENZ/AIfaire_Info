@@ -24,6 +24,8 @@ from app.connectors.irsn import IRSNConnector
 from app.connectors.air_quality import AirQualityConnector
 from app.connectors.opensky import OpenSkyConnector
 from app.connectors.bluesky import BlueSkyConnector
+from app.connectors.wikipedia_fr import WikipediaFRConnector
+from app.connectors.spf import SPFConnector
 from app.pipeline.extractor import maybe_extract
 from app.pipeline.geocoder import geocode
 from app.pipeline.dedup import title_fingerprint
@@ -44,6 +46,8 @@ CONNECTORS = [
     AirQualityConnector(),
     OpenSkyConnector(),
     BlueSkyConnector(),
+    WikipediaFRConnector(),
+    SPFConnector(),
 ]
 
 
