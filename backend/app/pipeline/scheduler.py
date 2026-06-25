@@ -63,9 +63,10 @@ def get_scheduler() -> AsyncIOScheduler:
     if _scheduler is None:
         _scheduler = AsyncIOScheduler(timezone=settings.SCHEDULER_TIMEZONE)
 
-        # Deux ingestions par jour : 07h00 et 19h00 (cycle 12h)
+        # Trois ingestions par jour : 07h00, 12h00 et 19h00.
         for hour, job_id, label in [
             (7,  "ingest_morning", "Morning ingestion (07h00)"),
+            (12, "ingest_midday",  "Midday ingestion (12h00)"),
             (19, "ingest_evening", "Evening ingestion (19h00)"),
         ]:
             _scheduler.add_job(
@@ -119,7 +120,7 @@ def get_next_ingest_time() -> str | None:
     if _scheduler is None or not _scheduler.running:
         return None
     earliest = None
-    for jid in ("ingest_morning", "ingest_evening"):
+    for jid in ("ingest_morning", "ingest_midday", "ingest_evening"):
         j = _scheduler.get_job(jid)
         if j and j.next_run_time:
             if earliest is None or j.next_run_time < earliest:

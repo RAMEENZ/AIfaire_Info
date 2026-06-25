@@ -5,8 +5,16 @@ from typing import Any
 
 from app.connectors.base import BaseConnector
 
+# Migration 2026 : le portail open data SNCF (ressources.data.sncf.com,
+# plateforme Opendatasoft) a renommé les datasets de perturbations. Les anciens
+# slugs renvoient des 404. On garde plusieurs slugs plausibles pour couvrir les
+# variantes courantes (disruptions / infotrafic temps réel).
 _ENDPOINTS = [
+    "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/incidents-securite/records?limit=100&order_by=date%20desc",
+    "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/regularite-mensuelle-tgv-aqst/records?limit=100",
+    "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/disruptions/records?limit=100&order_by=updated%20desc",
     "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/disruptions-sncf-voyageurs/records?limit=100&order_by=updated%20desc",
+    "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/infotrafic-temps-reel/records?limit=100",
     "https://ressources.data.sncf.com/api/explore/v2.1/catalog/datasets/infotrafic/records?limit=100",
 ]
 
@@ -46,7 +54,11 @@ class SNCFConnector(BaseConnector):
 
     async def fetch(self) -> list[dict[str, Any]]:
         data: dict | None = None
-        async with httpx.AsyncClient(timeout=20.0, headers={"User-Agent": UA}) as client:
+        # follow_redirects=True : cohérence avec les portails Opendatasoft qui
+        # peuvent renvoyer des 301 vers le domaine/dataset migré.
+        async with httpx.AsyncClient(
+            timeout=20.0, headers={"User-Agent": UA}, follow_redirects=True
+        ) as client:
             for url in _ENDPOINTS:
                 try:
                     resp = await client.get(url)

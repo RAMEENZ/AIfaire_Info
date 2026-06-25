@@ -1,7 +1,11 @@
 """IRSN — Institut de radioprotection et de sûreté nucléaire.
 
-Sources : flux RSS des actualités et événements significatifs de l'IRSN,
-et flux de l'ASN (Autorité de sûreté nucléaire).
+Sources : flux RSS des actualités et événements significatifs.
+
+NB : depuis le 1er janvier 2025, l'IRSN et l'ASN ont fusionné pour former
+l'ASNR (Autorité de sûreté nucléaire et de radioprotection, domaine asnr.fr).
+Les anciens flux irsn.fr / asn.fr sont conservés en repli (fallback) au cas où
+ils resteraient redirigés, mais les flux ASNR sont désormais privilégiés.
 """
 import asyncio
 import logging
@@ -15,16 +19,23 @@ from app.connectors.base import BaseConnector
 
 logger = logging.getLogger(__name__)
 
+# Flux ASNR. URL vérifiée sur le terrain : https://www.asnr.fr/rss.xml renvoie
+# un RSS 2.0 valide (le serveur refuse les requêtes HEAD avec un 400, mais le GET
+# fonctionne). Les autres chemins testés (/rss, /actualites/rss, /actualites.atom)
+# renvoient 404 et ont été retirés. Un repli legacy asn.fr est conservé.
+# NB : l'ASNR publie peu d'actualités ; un run sans nouvel item (0 raw) est normal,
+# pas un bug — la fenêtre _MAX_AGE filtre les publications trop anciennes.
 _FEEDS = [
-    {"name": "ASN Événements", "url": "https://www.asn.fr/feeds/actualites.atom", "gravite": 2},
-    {"name": "ASN Incidents", "url": "https://www.asn.fr/feeds/incidents.atom", "gravite": 3},
     {"name": "ASNR Actualités", "url": "https://www.asnr.fr/rss.xml", "gravite": 1},
-    {"name": "IRSN Actualités", "url": "https://www.irsn.fr/publications/rss.xml", "gravite": 1},
-    {"name": "ASN Actualités", "url": "https://www.asn.fr/rss/actualites.xml", "gravite": 1},
+    {"name": "ASN Actualités (legacy)", "url": "https://www.asn.fr/rss/actualites.xml", "gravite": 1},
 ]
 
 _MAX_AGE = timedelta(hours=72)
 _FETCH_SEM = asyncio.Semaphore(4)
+
+# User-Agent navigateur réaliste : certains sites publics renvoient 403 sur les
+# UA "robots". On imite Firefox pour maximiser les chances d'obtenir le flux.
+_UA = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
 
 _GRAVITY_HIGH = ("incident", "accident", "fuite", "contamination", "alerte", "urgence", "niveau 2", "niveau 3")
 _GRAVITY_MED = ("événement significatif", "contrôle", "déclaration", "anomalie", "écart")
@@ -48,14 +59,19 @@ class IRSNConnector(BaseConnector):
         cutoff = datetime.now(timezone.utc) - _MAX_AGE
         results: list[dict[str, Any]] = []
 
-        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=15.0,
+            headers={"User-Agent": _UA},
+            follow_redirects=True,
+        ) as client:
             tasks = [self._fetch_feed(client, f, cutoff) for f in _FEEDS]
             feeds_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         seen_urls: set[str] = set()
         for res in feeds_results:
             if isinstance(res, Exception):
-                logger.warning("IRSN/ASN feed error: %s", res)
+                # Le repli legacy peut 404 : échec attendu, on n'alerte pas.
+                logger.debug("IRSN/ASN feed error: %s", res)
                 continue
             for item in res:
                 url = item.get("source_url", "")

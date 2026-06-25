@@ -13,6 +13,15 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build: ./backend
     ports:
@@ -28,8 +37,13 @@ services:
       MAX_PRESSE_ARTICLES: ${MAX_PRESSE_ARTICLES:-120}
       APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: INFO
+      REDIS_URL: redis://redis:6379
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+      WEBHOOK_THRESHOLD: ${WEBHOOK_THRESHOLD:-3}
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/').status==200 else 1)"]

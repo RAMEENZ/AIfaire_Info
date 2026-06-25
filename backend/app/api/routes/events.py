@@ -1,9 +1,13 @@
+import hashlib
+import json
 import re
 import uuid
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request
+from fastapi.responses import Response as HTTPResponse
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +16,31 @@ from app.database import get_db
 from app.models import Event
 from app.schemas import EventDetail, EventList
 from app.pipeline.ingestor import ingest_all, ingestion_in_progress
+
+# ── Cache Redis (optionnel) ──────────────────────────────────────────────────
+try:
+    import redis.asyncio as aioredis
+    _redis_client: "aioredis.Redis | None" = None
+
+    async def _get_redis() -> "aioredis.Redis | None":
+        global _redis_client
+        if not settings.REDIS_URL:
+            return None
+        if _redis_client is None:
+            try:
+                _redis_client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+                await _redis_client.ping()
+            except Exception:
+                _redis_client = None
+        return _redis_client
+except ImportError:
+    async def _get_redis():  # type: ignore[misc]
+        return None
+
+
+def _events_cache_key(**params) -> str:
+    raw = json.dumps(params, sort_keys=True, default=str)
+    return f"events:{hashlib.md5(raw.encode()).hexdigest()}"
 
 router = APIRouter()
 
@@ -41,6 +70,22 @@ async def list_events(
 
     if niveau and niveau not in VALID_NIVEAUX:
         raise HTTPException(status_code=422, detail=f"Invalid niveau: {niveau}. Must be one of {VALID_NIVEAUX}")
+
+    # ── Cache Redis ────────────────────────────────────────────────────────────
+    cache_key = _events_cache_key(
+        bbox=bbox, categories=categories, gravite_min=gravite_min, niveau=niveau,
+        depuis=depuis, avant=avant, q=q, limit=limit,
+        national_only=national_only, dept=dept,
+    )
+    redis = await _get_redis()
+    if redis:
+        try:
+            cached = await redis.get(cache_key)
+            if cached:
+                return EventList.model_validate_json(cached)
+        except Exception:
+            pass  # Cache miss ou erreur Redis : on continue normalement
+    # ──────────────────────────────────────────────────────────────────────────
 
     since_dt = depuis or (datetime.now(timezone.utc) - timedelta(hours=settings.DEFAULT_SINCE_HOURS))
     if since_dt.tzinfo is None:
@@ -110,11 +155,20 @@ async def list_events(
     events = [row[0] for row in rows]
     total = rows[0].total_count if rows else 0
 
-    return EventList(
+    response = EventList(
         events=events,
         total=total,
         generated_at=datetime.now(timezone.utc),
     )
+
+    # Écriture en cache Redis (TTL configurable, défaut 120s).
+    if redis:
+        try:
+            await redis.set(cache_key, response.model_dump_json(), ex=settings.REDIS_EVENTS_TTL)
+        except Exception:
+            pass
+
+    return response
 
 
 @router.get("/stats")
@@ -254,3 +308,128 @@ async def get_brief() -> dict:
     if brief is None:
         return {"brief": None, "message": "Aucun brief disponible. Le prochain sera généré à 09h00."}
     return brief
+
+
+# ── Flux Atom RSS ─────────────────────────────────────────────────────────────
+
+_ATOM_NS = "http://www.w3.org/2005/Atom"
+ET.register_namespace("", _ATOM_NS)
+
+
+def _build_atom(events: list[Event], self_url: str) -> str:
+    """Construit un flux Atom 1.0 à partir d'une liste d'événements."""
+    def _tag(name: str) -> str:
+        return f"{{{_ATOM_NS}}}{name}"
+
+    feed = ET.Element(_tag("feed"))
+    ET.SubElement(feed, _tag("title")).text = "FAIRE Info — Actualités"
+    self_link = ET.SubElement(feed, _tag("link"))
+    self_link.set("rel", "self")
+    self_link.set("href", self_url)
+    self_link.set("type", "application/atom+xml")
+    alt_link = ET.SubElement(feed, _tag("link"))
+    alt_link.set("rel", "alternate")
+    alt_link.set("href", self_url.split("/api/")[0] if "/api/" in self_url else self_url)
+
+    updated = events[0].date_publication.isoformat() if events else datetime.now(timezone.utc).isoformat()
+    ET.SubElement(feed, _tag("updated")).text = updated
+    ET.SubElement(feed, _tag("id")).text = self_url
+
+    for e in events:
+        entry = ET.SubElement(feed, _tag("entry"))
+        ET.SubElement(entry, _tag("id")).text = e.source_url
+        ET.SubElement(entry, _tag("title")).text = e.titre
+        ET.SubElement(entry, _tag("updated")).text = e.date_publication.isoformat()
+        link = ET.SubElement(entry, _tag("link"))
+        link.set("href", e.source_url)
+        link.set("rel", "alternate")
+        summary = ET.SubElement(entry, _tag("summary"))
+        summary.text = e.resume_ia or e.titre
+        cat_el = ET.SubElement(entry, _tag("category"))
+        cat_el.set("term", e.categorie)
+        if e.lieu_nom and e.lieu_nom != "national":
+            loc_el = ET.SubElement(entry, _tag("category"))
+            loc_el.set("term", e.lieu_nom)
+        if e.auteur:
+            author = ET.SubElement(entry, _tag("author"))
+            ET.SubElement(author, _tag("name")).text = e.auteur
+
+    return '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(feed, encoding="unicode")
+
+
+@router.get("/feed.rss")
+async def atom_feed(
+    request: Request,
+    categories: Optional[list[str]] = Query(None),
+    gravite_min: Optional[int] = Query(None, ge=0, le=3),
+    dept: Optional[str] = Query(None, max_length=3),
+    depuis_heures: int = Query(default=48, ge=1, le=720),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+) -> HTTPResponse:
+    """Flux Atom 1.0 des événements récents. Filtrable par catégorie, gravité, département."""
+    if categories:
+        invalid = [c for c in categories if c not in VALID_CATEGORIES]
+        if invalid:
+            raise HTTPException(status_code=422, detail=f"Invalid categories: {invalid}")
+
+    since_dt = datetime.now(timezone.utc) - timedelta(hours=depuis_heures)
+    stmt = select(Event).where(Event.date_publication >= since_dt)
+    if categories:
+        stmt = stmt.where(Event.categorie.in_(categories))
+    if gravite_min is not None:
+        stmt = stmt.where(Event.gravite >= gravite_min)
+    if dept:
+        stmt = stmt.where(Event.lieu_code_insee.like(f"{dept}%"))
+    stmt = stmt.order_by(Event.gravite.desc(), Event.date_publication.desc()).limit(limit)
+
+    rows = await db.execute(stmt)
+    events = list(rows.scalars().all())
+
+    xml_content = _build_atom(events, str(request.url))
+    return HTTPResponse(
+        content=xml_content,
+        media_type="application/atom+xml; charset=utf-8",
+    )
+
+
+# ── Stats géographiques ───────────────────────────────────────────────────────
+
+@router.get("/stats/geo")
+async def get_geo_stats(
+    since_hours: int = Query(default=24, ge=1, le=720),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Répartition des événements par département sur la période demandée.
+
+    Retourne les départements actifs triés par nombre d'événements décroissant,
+    avec le niveau de gravité maximal observé sur la période.
+    """
+    since_dt = datetime.now(timezone.utc) - timedelta(hours=since_hours)
+    dept_col = func.left(Event.lieu_code_insee, 2).label("dept")
+    stmt = (
+        select(
+            dept_col,
+            func.count().label("event_count"),
+            func.max(Event.gravite).label("gravite_max"),
+        )
+        .where(
+            Event.date_publication >= since_dt,
+            Event.lieu_code_insee.isnot(None),
+            Event.lieu_niveau.in_(["commune", "departement"]),
+        )
+        .group_by(dept_col)
+        .order_by(func.count().desc())
+        .limit(101)  # 96 depts + DOM-TOM
+    )
+    rows = await db.execute(stmt)
+    departments = [
+        {"code": row.dept, "event_count": row.event_count, "gravite_max": row.gravite_max}
+        for row in rows
+        if row.dept and len(row.dept) == 2
+    ]
+    return {
+        "since_hours": since_hours,
+        "departments": departments,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }

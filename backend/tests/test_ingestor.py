@@ -60,6 +60,71 @@ def test_no_coords_forces_national():
     assert event["lieu_confiance_geo"] == 0.0
 
 
+async def test_ingest_connector_times_out(monkeypatch):
+    """Un connecteur dont la collecte dépasse le délai est abandonné proprement :
+    0 événement, last_error renseigné, sans bloquer le reste de l'ingestion."""
+    monkeypatch.setattr(ingestor.settings, "CONNECTOR_FETCH_TIMEOUT_SECONDS", 0.05)
+
+    recorded = []
+
+    async def fake_upsert(name, last_run, last_error, count):
+        recorded.append((name, last_error, count))
+
+    monkeypatch.setattr(ingestor, "_upsert_connector_status", fake_upsert)
+
+    class SlowConnector:
+        name = "slowpoke"
+        replace_on_ingest = False
+        last_run = None
+        last_error = None
+
+        async def run(self):
+            await asyncio.sleep(5)  # bien au-delà du délai patché
+            return [{"never": "reached"}]
+
+    name, saved, error = await ingestor.ingest_connector(SlowConnector())
+
+    assert name == "slowpoke"
+    assert saved == 0
+    assert error is not None and "timeout" in error.lower()
+    # Le statut a bien été persisté avec l'erreur (→ compteur d'échecs incrémenté).
+    assert recorded and recorded[-1][1] is not None
+
+
+async def test_ingest_connector_succeeds_within_timeout(monkeypatch):
+    """Un connecteur rapide n'est pas affecté par le garde-fou de timeout."""
+    monkeypatch.setattr(ingestor.settings, "CONNECTOR_FETCH_TIMEOUT_SECONDS", 5)
+
+    async def fake_upsert(name, last_run, last_error, count):
+        pass
+
+    async def fake_save(events):
+        return len(events)
+
+    monkeypatch.setattr(ingestor, "_upsert_connector_status", fake_upsert)
+    monkeypatch.setattr(ingestor, "_save_events", fake_save)
+    # Le pipeline d'enrichissement n'est pas l'objet du test : on renvoie l'item tel quel.
+    monkeypatch.setattr(ingestor, "_process_item_limited", lambda item: _passthrough(item))
+
+    class FastConnector:
+        name = "speedy"
+        replace_on_ingest = False
+        last_run = None
+        last_error = None
+
+        async def run(self):
+            return [{"source_url": "https://example.com/a"}]
+
+    name, saved, error = await ingestor.ingest_connector(FastConnector())
+    assert name == "speedy"
+    assert error is None
+    assert saved == 1
+
+
+async def _passthrough(item):
+    return item
+
+
 async def test_ingest_all_skips_when_already_running(monkeypatch):
     """A second concurrent ingest_all must be a no-op (concurrency guard)."""
     started = asyncio.Event()

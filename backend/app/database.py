@@ -49,3 +49,11 @@ async def migrate_db() -> None:
         await conn.execute(text(
             "ALTER TABLE events ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}' NOT NULL"
         ))
+        # Suivi de santé des connecteurs (panne transitoire vs chronique).
+        await conn.execute(text(
+            "ALTER TABLE connector_status ADD COLUMN IF NOT EXISTS last_success TIMESTAMPTZ"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE connector_status ADD COLUMN IF NOT EXISTS "
+            "consecutive_failures INTEGER DEFAULT 0 NOT NULL"
+        ))

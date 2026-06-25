@@ -29,13 +29,30 @@ quotidiens régionaux (Ouest-France, La Voix du Nord, Sud-Ouest, DNA, Le Progrè
 ## Pipeline
 
 ```
-[Sources] → [Connectors] → [Extractor IA / règles] → [Geocoder BAN] → [PostgreSQL+PostGIS] → [API FastAPI] → [Next.js + Leaflet]
+[Sources] → [Connectors] → [Extractor IA / règles] → [Geocoder BAN] → [Dédup] → [PostgreSQL+PostGIS] → [API FastAPI] → [Next.js + Leaflet]
 ```
 
-Ingestions automatiques : **9h00, 13h00, 19h00, 23h00** (heure Paris).  
+Ingestions automatiques : **7h00, 12h00, 19h00** (heure Paris).  
 Purge quotidienne : **3h00** (TTL variable par source : 36h alertes, 72h presse, 30j séismes).
 
 Pour déclencher manuellement : `POST /api/ingest/run` ou bouton "Ingérer" dans la StatusBar.
+
+### Robustesse & qualité
+
+- **Requêtes HTTP conditionnelles** : les flux RSS de presse utilisent ETag / Last-Modified
+  (`If-None-Match` / `If-Modified-Since`). Un flux inchangé répond `304` (sans corps) :
+  bande passante économisée et risque de `429` réduit.
+- **Déduplication des dépêches** : une empreinte de titre déterministe (jeu de mots
+  significatifs, insensible aux accents/casse) regroupe les reprises d'une même dépêche
+  sous un `cluster_id`. L'interface n'affiche le fait qu'une fois, avec « +N sources ».
+- **Santé des connecteurs** : chaque run met à jour `last_success` et un compteur d'échecs
+  consécutifs. Un raté isolé est signalé « dégradé » (orange) ; une panne chronique
+  (≥ 3 runs d'affilée) passe « erreur » (rouge). État visible dans la StatusBar.
+
+### Brief quotidien
+
+Généré à **9h00** par Mistral, en trois volets distincts : **Alertes & vigilances**,
+**Actualité générale** et **En régions** (faits ancrés dans différents territoires).
 
 ## Démarrage local
 
