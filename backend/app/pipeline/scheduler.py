@@ -89,7 +89,6 @@ def get_scheduler() -> AsyncIOScheduler:
             coalesce=True,
         )
 
-        # Brief IA trois fois par jour, après chaque ingestion.
         for hour, job_id, label in [
             (9,  "brief_morning", "Morning brief (09h00)"),
             (13, "brief_midday",  "Midday brief (13h00)"),
