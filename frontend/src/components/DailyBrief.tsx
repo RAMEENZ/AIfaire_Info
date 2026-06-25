@@ -48,8 +48,8 @@ function BriefContent({ content }: { content: string }) {
 export default function DailyBrief() {
   const [open, setOpen] = useState(false);
   const { data, isLoading } = useSWR<BriefData>(`${API_BASE_URL}/brief`, fetcher, {
-    refreshInterval: 3600_000, // 1h
-    revalidateOnFocus: false,
+    refreshInterval: 3600_000,
+    revalidateOnFocus: true,
   });
 
   const hasBrief = data && !data.message && data.content;

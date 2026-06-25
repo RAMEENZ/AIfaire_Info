@@ -106,6 +106,7 @@ async def startup_ingestion() -> None:
     logger.info("Running startup ingestion")
     await _run_ingestion_job()
     await _run_purge_job()
+    await _run_brief_job()
 
 
 def start_scheduler() -> AsyncIOScheduler:

@@ -2,6 +2,9 @@
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
+
+_PARIS = ZoneInfo("Europe/Paris")
 
 import httpx
 from sqlalchemy import select
@@ -18,7 +21,8 @@ async def generate_daily_brief(hours: int = 24) -> Optional[str]:
     """Génère et sauvegarde le brief du jour. Retourne le texte ou None si échec."""
     now = datetime.now(timezone.utc)
     since = now - timedelta(hours=hours)
-    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    now_paris = now.astimezone(_PARIS)
+    today = now_paris.replace(hour=0, minute=0, second=0, microsecond=0)
 
     async with AsyncSessionLocal() as session:
         # Alertes : événements à gravité élevée (vigilances, incidents…).
