@@ -104,3 +104,28 @@ export const eventsKey = (params: FetchEventsParams) =>
   ["events", params] as const;
 
 export const healthKey = () => ["health"] as const;
+
+export interface TimelineBucket {
+  time: string;
+  count: number;
+  max_gravite: number;
+}
+
+export async function fetchTimeline(params: {
+  depuis?: string;
+  avant?: string;
+  categories?: Categorie[];
+  gravite_min?: number;
+  bucket?: "hour" | "day";
+}): Promise<{ since: string; until: string; bucket: string; buckets: TimelineBucket[] }> {
+  const search = new URLSearchParams();
+  if (params.depuis) search.set("depuis", params.depuis);
+  if (params.avant) search.set("avant", params.avant);
+  if (params.categories?.length) params.categories.forEach((c) => search.append("categories", c));
+  if (params.gravite_min !== undefined) search.set("gravite_min", String(params.gravite_min));
+  if (params.bucket) search.set("bucket", params.bucket);
+  const query = search.toString() ? `?${search}` : "";
+  const response = await fetch(`${API_BASE_URL}/events/timeline${query}`, { next: { revalidate: 0 } });
+  if (!response.ok) throw new Error(`Erreur API /events/timeline : ${response.status}`);
+  return response.json();
+}

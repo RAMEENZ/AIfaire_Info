@@ -41,6 +41,8 @@ export const SOURCE_LABELS: Record<string, string> = {
   irsn: "IRSN/ASN",
   air_quality: "Atmo France",
   bluesky: "BlueSky",
+  wikipedia_fr: "Wikinews FR",
+  spf: "Santé Publique France",
 };
 
 export const ALL_CATEGORIES: Categorie[] = [
