@@ -85,7 +85,9 @@ services:
     restart: unless-stopped
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
-    command: tunnel --no-autoupdate run
+    volumes:
+      - ./cloudflared/config.yml:/home/nonroot/.cloudflared/config.yml:ro
+    command: --config /home/nonroot/.cloudflared/config.yml tunnel --no-autoupdate run
     depends_on:
       - nginx
 
