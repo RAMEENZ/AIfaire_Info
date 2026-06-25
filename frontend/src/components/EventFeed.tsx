@@ -25,6 +25,7 @@ interface EventFeedProps {
   selectedEventId?: string | null;
   onSelectEvent?: (event: Event) => void;
   onRetry?: () => void;
+  liveEventIds?: Set<string>;
 }
 
 function formatRelative(iso: string): string {
@@ -102,6 +103,7 @@ function ShareButton({ eventId }: { eventId: string }) {
 
 function EventCard({
   event,
+  isLive,
   selected,
   onSelect,
   activeTag,
@@ -109,6 +111,7 @@ function EventCard({
   duplicates = [],
 }: {
   event: Event;
+  isLive?: boolean;
   selected?: boolean;
   onSelect?: (event: Event) => void;
   activeTag?: string | null;
@@ -149,6 +152,12 @@ function EventCard({
       </a>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {isLive && (
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700 uppercase tracking-wide">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            Nouveau
+          </span>
+        )}
         <span
           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-white text-xs font-medium"
           style={{ backgroundColor: catConfig?.color ?? "#6B7280" }}
@@ -367,7 +376,7 @@ function CategoryFilterBar({
   );
 }
 
-export default function EventFeed({ events, isLoading, error, selectedEventId, onSelectEvent, onRetry }: EventFeedProps) {
+export default function EventFeed({ events, isLoading, error, selectedEventId, onSelectEvent, onRetry, liveEventIds }: EventFeedProps) {
   const [tab, setTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -632,6 +641,7 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
           <EventCard
             key={event.id}
             event={event}
+            isLive={liveEventIds?.has(event.id) ?? false}
             selected={event.id === selectedEventId}
             onSelect={onSelectEvent}
             activeTag={activeTag}

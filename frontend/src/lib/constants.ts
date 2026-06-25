@@ -40,6 +40,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   cert_fr: "CERT-FR",
   irsn: "IRSN/ASN",
   air_quality: "Atmo France",
+  bluesky: "BlueSky",
 };
 
 export const ALL_CATEGORIES: Categorie[] = [
