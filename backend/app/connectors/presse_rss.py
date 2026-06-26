@@ -1256,6 +1256,65 @@ RSS_FEEDS: list[dict[str, Any]] = [
 
     # ── MLYON ─────────────────────────────────────────────────────────────────
     {"name": "mLyon", "url": "https://mlyon.fr/xml/news", "region": "Auvergne-Rhône-Alpes"},
+
+    # ── FORMULE 1 ─────────────────────────────────────────────────────────────
+    {"name": "Motorsport F1",      "url": "https://fr.motorsport.com/rss/f1/news/",            "region": None},
+    {"name": "F1 Only",            "url": "https://f1only.fr/feed/",                            "region": None},
+    {"name": "L'Équipe Auto/Moto", "url": "https://d3.lequipe.fr/rss/v2/rss_auto-moto.xml",    "region": None},
+
+    # ── JEUX VIDÉO ────────────────────────────────────────────────────────────
+    {"name": "Jeux Vidéo.com",     "url": "https://www.jeuxvideo.com/rss/rss.xml",              "region": None},
+    {"name": "Gamekult",           "url": "https://www.gamekult.com/feed.xml",                  "region": None},
+    {"name": "Dexerto Esport",     "url": "https://www.dexerto.fr/esport/feed/",                "region": None},
+
+    # ── INFO POSITIVE ─────────────────────────────────────────────────────────
+    {"name": "Positivr",           "url": "https://positivr.fr/feed/",                          "region": None},
+    {"name": "L'Optimisme",        "url": "https://www.loptimisme.com/feed/",                   "region": None},
+    {"name": "Good News Network",  "url": "https://www.goodnewsnetwork.org/feed/",              "region": None},
+
+    # ── TECHNOLOGIE ───────────────────────────────────────────────────────────
+    {"name": "Frandroid",          "url": "https://www.frandroid.com/feed",                     "region": None},
+    {"name": "01net",              "url": "https://www.01net.com/feed/",                        "region": None},
+    {"name": "Journal du Geek",    "url": "https://www.journaldugeek.com/feed/",                "region": None},
+
+    # ── STREAMING ─────────────────────────────────────────────────────────────
+    {"name": "Univers Freebox",    "url": "https://www.universfreebox.com/rss",                 "region": None},
+    {"name": "Netflix Blog FR",    "url": "https://about.netflix.com/fr/feed",                  "region": None},
+    {"name": "Dexerto Divertissement", "url": "https://www.dexerto.fr/divertissement/feed",     "region": None},
+
+    # ── YOUTUBE ───────────────────────────────────────────────────────────────
+    {"name": "YouTube : Journal du Geek", "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCofQxWvPrDk19gGMqZNM75A", "region": None},
+    {"name": "YouTube : Frandroid",       "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC_oY_e-4m-Dk_2t3zQ3qQ9w", "region": None},
+
+    # ── AUTOMOBILE ────────────────────────────────────────────────────────────
+    {"name": "Caradisiac",         "url": "https://www.caradisiac.com/rss/",                   "region": None},
+    {"name": "Automobile Propre",  "url": "https://www.automobile-propre.com/feed/",            "region": None},
+    {"name": "Auto-Moto",          "url": "https://www.auto-moto.com/feed",                     "region": None},
+
+    # ── ART ───────────────────────────────────────────────────────────────────
+    {"name": "Beaux Arts Magazine",    "url": "https://www.beauxarts.com/feed/",                "region": None},
+    {"name": "Connaissance des Arts",  "url": "https://www.connaissancedesarts.com/feed/",      "region": None},
+    {"name": "Daily Art Magazine",     "url": "https://www.dailyartmagazine.com/feed/",         "region": None},
+
+    # ── DESIGN ────────────────────────────────────────────────────────────────
+    {"name": "Grapheine",          "url": "https://www.grapheine.com/feed",                     "region": None},
+    {"name": "Étapes",             "url": "https://etapes.com/feed/",                           "region": None},
+    {"name": "Abduzeedo",          "url": "https://abduzeedo.com/feed",                         "region": None},
+
+    # ── INFORMATIQUE / IT ─────────────────────────────────────────────────────
+    {"name": "Le Monde Informatique", "url": "https://www.lemondeinformatique.fr/rss/rss.xml", "region": None},
+    {"name": "Developpez.com",        "url": "https://www.developpez.com/index/rss",            "region": None},
+    {"name": "Next INpact",           "url": "https://www.nextinpact.com/rss/news.xml",         "region": None},
+
+    # ── HARDWARE ──────────────────────────────────────────────────────────────
+    {"name": "Cowcotland",         "url": "https://www.cowcotland.com/rss",                     "region": None},
+    {"name": "Comptoir Hardware",  "url": "https://www.comptoir-hardware.com/home.xml",         "region": None},
+    {"name": "Tom's Hardware FR",  "url": "https://www.tomshardware.fr/feed/",                  "region": None},
+
+    # ── OPTIMISATION & TWEAKING ───────────────────────────────────────────────
+    {"name": "Overclocking.com",   "url": "https://overclocking.com/feed/",                     "region": None},
+    {"name": "Overclock.net News", "url": "https://www.overclock.net/forums/news.15/index.rss", "region": None},
+    {"name": "PC Tuning (GitHub)", "url": "https://github.com/valleyofdoom/PC-Tuning/releases.atom", "region": None},
 ]
 
 UA = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
