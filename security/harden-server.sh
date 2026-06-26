@@ -23,7 +23,7 @@ log() { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m[!] %s\033[0m\n' "$*"; }
 
 # ─────────────────────────────────────────────────────────────────────
-_log "1/6 — Mises à jour de sécurité automatiques (unattended-upgrades)"
+log "1/6 — Mises à jour de sécurité automatiques (unattended-upgrades)"
 apt-get update -qq
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq unattended-upgrades apt-listchanges
 dpkg-reconfigure -f noninteractive unattended-upgrades
