@@ -63,6 +63,11 @@ app = FastAPI(
     description="Agrégateur d'information géolocalisé pour la France",
     version="1.0.0",
     lifespan=lifespan,
+    # Docs interactives désactivées par défaut (ENABLE_DOCS=false) : on n'expose
+    # pas Swagger/ReDoc/openapi.json publiquement. Activable en local.
+    docs_url="/docs" if settings.ENABLE_DOCS else None,
+    redoc_url="/redoc" if settings.ENABLE_DOCS else None,
+    openapi_url="/openapi.json" if settings.ENABLE_DOCS else None,
 )
 
 # API publique en lecture seule : pas de cookies/credentials, donc on peut

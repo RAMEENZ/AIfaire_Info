@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     # Vide = pas d'auth (dev/local). En prod, définir une valeur aléatoire forte.
     INGEST_API_KEY: str = ""
 
+    # Documentation interactive (Swagger /docs, ReDoc /redoc, /openapi.json).
+    # Sécurisé par défaut : désactivée. Mettre ENABLE_DOCS=true en local pour
+    # explorer l'API. Laisser à false en production expose moins la surface API.
+    ENABLE_DOCS: bool = False
+
     # Mistral AI (prioritaire sur Ollama quand la clé est renseignée)
     MISTRAL_API_KEY: str = ""
     MISTRAL_MODEL: str = "mistral-small-latest"
