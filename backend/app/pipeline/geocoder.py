@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 
-from app.geo_data import DEPT_CODE_TO_NAME
+from app.geo_data import DEPT_CODE_TO_NAME, DEPT_CENTROIDS
 
 logger = logging.getLogger(__name__)
 
@@ -425,24 +425,41 @@ async def _geocode_departement(nom: str) -> GeoResult | None:
 
 async def _geocode_departement_by_code(code: str) -> GeoResult:
     empty: GeoResult = {"lat": None, "lon": None, "code_insee": None, "niveau": "national", "confiance_geo": 0.0}
+
+    # Centroïde statique : source unique de vérité. geo.api.gouv.fr a cessé de
+    # renvoyer le champ `centre` en réponse inline (tous les départements
+    # retombaient en "national", aucune pastille pour les vigilances météo). La
+    # table locale est déterministe, hors-ligne et instantanée.
+    centroid = DEPT_CENTROIDS.get(code)
+    if centroid is not None:
+        return {
+            "lat": centroid[0],
+            "lon": centroid[1],
+            "code_insee": code,
+            "niveau": "departement",
+            "confiance_geo": 0.9,
+        }
+
+    # Repli réseau pour un code hors table (ne devrait pas arriver : 101 codes).
     try:
         client = _get_geo_client()
         resp = await client.get(
             f"{GEO_DEPT_URL}/{code}",
-            params={"fields": "code,nom,centre"},
+            params={"fields": "code,nom,centre", "geometry": "centre", "format": "geojson"},
         )
         resp.raise_for_status()
         dept = resp.json()
 
-        centre = dept.get("centre", {})
-        coords = centre.get("coordinates", [])
+        # Réponse GeoJSON (Feature) ou objet brut selon la version de l'API.
+        geom = dept.get("geometry") or dept.get("centre") or {}
+        coords = geom.get("coordinates", [])
         if not coords or len(coords) < 2:
             return empty
 
         return {
             "lat": float(coords[1]),
             "lon": float(coords[0]),
-            "code_insee": dept.get("code", code),
+            "code_insee": code,
             "niveau": "departement",
             "confiance_geo": 0.9,
         }
