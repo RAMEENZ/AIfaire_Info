@@ -8,7 +8,7 @@ Vue cartographique unifiée de l'actualité publique française en quasi temps r
 - **Frontend** : Next.js 14 + Leaflet + Tailwind CSS
 - **BDD** : PostgreSQL 16 + PostGIS 3.4
 - **IA** : Mistral AI (extraction lieu + catégorie + teaser + briefs) — Ollama en fallback local
-- **Géocodage** : BAN (api-adresse.data.gouv.fr) + geo.api.gouv.fr + tables locales
+- **Géocodage** : BAN (api-adresse.data.gouv.fr) pour les communes + tables locales pour départements (101 centroïdes statiques), régions et DOM-TOM
 
 ## Sources
 
@@ -49,6 +49,7 @@ Pour déclencher manuellement : `POST /api/ingest/run` (clé `INGEST_API_KEY`) o
 - **Déduplication des dépêches** : empreinte de titre déterministe (mots significatifs, insensible accents/casse) — les reprises d'une même dépêche sont regroupées sous un `cluster_id`. L'interface n'affiche le fait qu'une fois avec « +N sources ».
 - **Plafond presse** : `MAX_PRESSE_ARTICLES` (défaut 120) — cap appliqué après dédup pour éviter de saturer le LLM sur un cycle.
 - **Santé des connecteurs** : chaque run met à jour `last_success` et un compteur d'échecs consécutifs. Un raté isolé → « dégradé » (orange) ; panne chronique (≥ 3 runs) → « erreur » (rouge). Visible dans la StatusBar. Webhook configurable (`WEBHOOK_URL`).
+- **Géocodage départemental hors-ligne** : les centroïdes des 101 départements sont une table statique (`geo_data.DEPT_CENTROIDS`), pas un appel réseau. `geo.api.gouv.fr` ayant cessé de renvoyer le champ `centre`, les vigilances Météo-France (par département) retombaient toutes en « national » et n'apparaissaient pas sur la carte ; la table locale rend cette donnée constante déterministe et instantanée.
 
 ### Brief quotidien
 
@@ -166,7 +167,7 @@ app/
 │   └── presse_rss.py  # 870+ flux RSS avec dédup et ETag
 ├── pipeline/
 │   ├── extractor.py # Mistral AI + fallback Ollama + fallback règles (cache SHA256)
-│   ├── geocoder.py  # BAN + geo.api.gouv.fr + tables locales (cache 1024)
+│   ├── geocoder.py  # BAN (communes) + centroïdes départementaux statiques + tables régions/DOM-TOM (cache 1024)
 │   ├── ingestor.py  # Orchestrateur — fetch → extract → geocode → upsert
 │   ├── brief.py     # Génération brief quotidien (Mistral)
 │   ├── purge.py     # TTL par source (36h–30j)
