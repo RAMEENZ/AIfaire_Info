@@ -34,7 +34,7 @@ rien d'exposé :
 
 ```bash
 cd /opt/aifaire
-git pull origin '(IA)faire.info'
+git pull origin main
 docker compose up -d --build backend nginx frontend
 # Vérifier que /docs est bien fermé (doit renvoyer 404) :
 curl -s -o /dev/null -w '%{http_code}\n' https://aifaire.ramenz.qzz.io/docs
