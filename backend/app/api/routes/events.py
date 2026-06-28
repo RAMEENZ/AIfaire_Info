@@ -303,6 +303,74 @@ async def get_timeline(
     }
 
 
+# IMPORTANT : cette route doit etre declaree AVANT /events/{event_id}.
+# Starlette resout les routes dans l'ordre de declaration : sinon
+# GET /api/events/stream est capture par /events/{event_id} qui tente de
+# parser "stream" comme un UUID -> 422, et le flux SSE temps reel ne se
+# connecte jamais.
+@router.get("/events/stream")
+async def stream_events(
+    categories: Optional[list[str]] = Query(None),
+    gravite_min: Optional[int] = Query(None, ge=0, le=3),
+    request: Request = None,
+) -> StreamingResponse:
+    """SSE : pousse les nouveaux événements en temps réel (polling DB toutes les 30s).
+
+    Le client reçoit immédiatement un event ``connected``, puis un event
+    ``events`` dès qu'au moins un événement nouveau apparaît, ou un ``ping``
+    pour maintenir la connexion ouverte.
+    """
+    from app.database import AsyncSessionLocal
+
+    if categories:
+        invalid = [c for c in categories if c not in VALID_CATEGORIES]
+        if invalid:
+            raise HTTPException(status_code=422, detail=f"Invalid categories: {invalid}")
+
+    async def generate():
+        last_seen = datetime.now(timezone.utc)
+        yield f"event: connected\ndata: {json.dumps({'ts': last_seen.isoformat()})}\n\n"
+
+        while True:
+            if request and await request.is_disconnected():
+                break
+            await asyncio.sleep(30)
+            try:
+                async with AsyncSessionLocal() as session:
+                    stmt = (
+                        select(Event)
+                        .where(Event.created_at > last_seen)
+                        .order_by(Event.created_at.asc())
+                        .limit(50)
+                    )
+                    if categories:
+                        stmt = stmt.where(Event.categorie.in_(categories))
+                    if gravite_min is not None:
+                        stmt = stmt.where(Event.gravite >= gravite_min)
+
+                    result = await session.execute(stmt)
+                    found = result.scalars().all()
+
+                    if found:
+                        last_seen = max(e.created_at for e in found)
+                        yield f"event: events\ndata: {json.dumps([_event_to_dict(e) for e in found])}\n\n"
+                    else:
+                        yield "event: ping\ndata: {}\n\n"
+            except Exception as exc:
+                logger.warning("SSE stream error: %s", exc)
+                yield "event: ping\ndata: {}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.get("/events/{event_id}", response_model=EventDetail)
 async def get_event(
     event_id: uuid.UUID,
@@ -514,65 +582,3 @@ def _event_to_dict(e: Event) -> dict:
         "score_confiance": float(e.score_confiance or 1.0),
         "created_at": e.created_at.isoformat(),
     }
-
-
-async def stream_events(
-    categories: Optional[list[str]] = Query(None),
-    gravite_min: Optional[int] = Query(None, ge=0, le=3),
-    request: Request = None,
-) -> StreamingResponse:
-    """SSE : pousse les nouveaux événements en temps réel (polling DB toutes les 30s).
-
-    Le client reçoit immédiatement un event ``connected``, puis un event
-    ``events`` dès qu'au moins un événement nouveau apparaît, ou un ``ping``
-    pour maintenir la connexion ouverte.
-    """
-    from app.database import AsyncSessionLocal
-
-    if categories:
-        invalid = [c for c in categories if c not in VALID_CATEGORIES]
-        if invalid:
-            raise HTTPException(status_code=422, detail=f"Invalid categories: {invalid}")
-
-    async def generate():
-        last_seen = datetime.now(timezone.utc)
-        yield f"event: connected\ndata: {json.dumps({'ts': last_seen.isoformat()})}\n\n"
-
-        while True:
-            if request and await request.is_disconnected():
-                break
-            await asyncio.sleep(30)
-            try:
-                async with AsyncSessionLocal() as session:
-                    stmt = (
-                        select(Event)
-                        .where(Event.created_at > last_seen)
-                        .order_by(Event.created_at.asc())
-                        .limit(50)
-                    )
-                    if categories:
-                        stmt = stmt.where(Event.categorie.in_(categories))
-                    if gravite_min is not None:
-                        stmt = stmt.where(Event.gravite >= gravite_min)
-
-                    result = await session.execute(stmt)
-                    found = result.scalars().all()
-
-                    if found:
-                        last_seen = max(e.created_at for e in found)
-                        yield f"event: events\ndata: {json.dumps([_event_to_dict(e) for e in found])}\n\n"
-                    else:
-                        yield "event: ping\ndata: {}\n\n"
-            except Exception as exc:
-                logger.warning("SSE stream error: %s", exc)
-                yield "event: ping\ndata: {}\n\n"
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
