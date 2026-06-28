@@ -23,12 +23,29 @@ async def test_transient_error_is_not_cached(monkeypatch):
     async def boom_dept(_):
         return None
 
+    # Place absente de la base communes locale : on force le miss pour exercer
+    # la cascade BAN externe (sinon la résolution hors-ligne court-circuite).
+    monkeypatch.setattr(geocoder, "lookup_commune", lambda _: None)
     monkeypatch.setattr(geocoder, "_geocode_commune", boom_commune)
     monkeypatch.setattr(geocoder, "_geocode_departement", boom_dept)
 
-    result = await geocode("Villeurbanne")  # a commune not in any hardcoded table
+    result = await geocode("Lieu-dit du Pont Cassé")  # pas une commune connue
     assert result["lat"] is None              # empty result returned to caller
-    assert "villeurbanne" not in _geo_cache   # but NOT cached (could be transient)
+    assert "lieu-dit du pont cassé" not in _geo_cache  # mais NON caché (transitoire)
+
+
+async def test_commune_resolved_offline_without_network(monkeypatch):
+    """Une commune connue est géolocalisée par la base locale, SANS appel BAN."""
+    async def boom(_):
+        raise AssertionError("BAN ne doit pas être appelée pour une commune locale")
+
+    monkeypatch.setattr(geocoder, "_geocode_commune", boom)
+
+    result = await geocode("Belley")
+    assert result["niveau"] == "commune"
+    assert result["lat"] is not None and result["lon"] is not None
+    assert result["confiance_geo"] >= 0.9
+    assert result["code_insee"] == "01034"
 
 
 async def test_definitive_no_match_is_cached(monkeypatch):
