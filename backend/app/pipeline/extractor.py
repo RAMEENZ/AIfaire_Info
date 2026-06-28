@@ -518,6 +518,12 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
         # flux régional (ex. « Guerre au Moyen-Orient » sur Actu Occitanie)
         # hériterait à tort de la région du flux et serait mal placé sur la carte.
         updated["lieu_nom"] = extraction["lieu_nom"]
+        # Repli : LLM = "national" mais le titre cite un lieu français clair.
+        if updated["lieu_nom"] == "national":
+            from app.pipeline.toponym import toponym_from_title
+            _topo = toponym_from_title(item.get("titre", ""))
+            if _topo:
+                updated["lieu_nom"] = _topo
     elif not updated.get("lieu_nom") and extraction["lieu_nom"] != "national":
         updated["lieu_nom"] = extraction["lieu_nom"]
 
