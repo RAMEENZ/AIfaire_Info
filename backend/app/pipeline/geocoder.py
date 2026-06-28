@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 
 from app.geo_data import DEPT_CODE_TO_NAME, DEPT_CENTROIDS
+from app.communes_db import lookup_commune
 
 logger = logging.getLogger(__name__)
 
@@ -321,6 +322,14 @@ async def geocode(lieu_nom: str | None) -> GeoResult:
             result = dict(REGION_COORDS[_lookup_key])
             _geo_cache_put(cache_key, result)
             return result
+
+    # Base communes locale (hors-ligne, ~35 000 communes avec coordonnées) :
+    # consultée AVANT l'API BAN externe. Résolution instantanée, sans réseau ni
+    # quota, et insensible aux pannes de api-adresse.data.gouv.fr.
+    local = lookup_commune(lieu_clean)
+    if local is not None:
+        _geo_cache_put(cache_key, local)
+        return local
 
     # Cascade : commune → département.
     # Les helpers renvoient None en cas d'erreur réseau transitoire (vs un dict
