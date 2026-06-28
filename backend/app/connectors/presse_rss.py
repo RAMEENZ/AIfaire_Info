@@ -15,6 +15,14 @@ from app.connectors.base import BaseConnector
 # Les PQR peuvent bloquer les IPs de datacenter (403) mais fonctionnent
 # généralement depuis une VM domestique ou un VPS résidentiel.
 RSS_FEEDS: list[dict[str, Any]] = [
+    # ── Flux ajoutes (presse nationale + Outre-mer) ──
+    {"name": "Le Journal du Dimanche", "url": "https://www.lejdd.fr/rss.xml", "region": None},
+    {"name": "L'Express", "url": "https://www.lexpress.fr/rss/alaune.xml", "region": None},
+    {"name": "Slate", "url": "https://www.slate.fr/rss.xml", "region": None},
+    {"name": "Mediapart", "url": "https://www.mediapart.fr/articles/feed", "region": None},
+    {"name": "Les Inrockuptibles", "url": "https://www.lesinrocks.com/feed/", "region": None},
+    {"name": "Télérama", "url": "https://www.telerama.fr/rss/une.xml", "region": None},
+    {"name": "France Guyane", "url": "https://www.franceguyane.fr/actualite/vielocale/rss.xml", "region": "Guyane"},
     # ── ACTUALITÉS NATIONALES — GÉNÉRALISTES ─────────────────────────────────
     {"name": "France Info",         "url": "https://www.francetvinfo.fr/titres.rss",               "region": None},
     {"name": "France 24",           "url": "https://www.france24.com/fr/rss",                       "region": None},
