@@ -1,5 +1,6 @@
 """Génère un brief quotidien synthétique à partir des événements des dernières 24h."""
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
@@ -17,6 +18,52 @@ _MOIS_FR = (
 def _date_fr(dt: datetime) -> str:
     """Ex. 'dimanche 28 juin 2026' à partir d'un datetime (déjà en heure Paris)."""
     return f"{_JOURS_FR[dt.weekday()]} {dt.day} {_MOIS_FR[dt.month - 1]} {dt.year}"
+
+
+_VIGILANCE_CATS = frozenset({"meteo", "crue", "seisme"})
+
+
+def _hazard_of(e: "Event") -> str | None:
+    """Aléa d'une vigilance depuis son titre « Vigilance orange – Canicule – Drôme »
+    → « Canicule ». None si l'événement n'est pas une vigilance regroupable."""
+    if e.categorie not in _VIGILANCE_CATS:
+        return None
+    parts = re.split(r"\s[–-]\s", e.titre)
+    if len(parts) >= 2 and parts[1].strip():
+        return parts[1].strip().capitalize()
+    return None
+
+
+def _aggregate_alerts(alerts: "list[Event]", fmt) -> str:
+    """Regroupe les vigilances par (aléa, niveau) en une ligne avec le compte et
+    quelques départements ; les autres alertes restent listées individuellement."""
+    groups: dict[tuple[str, str], list[str]] = {}
+    order: list[tuple[str, str]] = []
+    singles: list[str] = []
+    for e in alerts:
+        hazard = _hazard_of(e)
+        if hazard is None:
+            singles.append(fmt(e))
+            continue
+        niveau = {2: "orange", 3: "rouge"}.get(e.gravite, "jaune")
+        key = (hazard, niveau)
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        lieu = (e.lieu_nom or "").strip()
+        if lieu and lieu.lower() != "national":
+            groups[key].append(lieu)
+    lines: list[str] = []
+    for hazard, niveau in order:
+        lieux = groups[(hazard, niveau)]
+        n = len(lieux)
+        if n:
+            ex = ", ".join(lieux[:6]) + ("…" if n > 6 else "")
+            lines.append(f"- {hazard} — vigilance {niveau} : {n} département{'s' if n > 1 else ''} ({ex})")
+        else:
+            lines.append(f"- {hazard} — vigilance {niveau}")
+    lines.extend(singles)
+    return "\n".join(lines)
 
 import httpx
 from sqlalchemy import select
@@ -111,7 +158,12 @@ async def generate_daily_brief(hours: int = 24) -> Optional[str]:
         resume = e.resume_ia or e.titre
         return f"- {loc}{resume[:200]}"
 
-    alerts_text = "\n".join(_fmt(e) for e in alerts) or "(aucune alerte majeure)"
+    # Les vigilances météo/crue/séisme sont très nombreuses et quasi identiques
+    # d'un jour à l'autre (ex. canicule orange sur 30 départements). Listées une
+    # par une, elles saturent le contexte et donnent un brief « toujours pareil ».
+    # On les regroupe par aléa+niveau en une ligne synthétique, ce qui libère de
+    # la place pour l'actualité qui, elle, change.
+    alerts_text = _aggregate_alerts(alerts, _fmt) or "(aucune alerte majeure)"
     news_text = "\n".join(_fmt(e) for e in news) or "(rien de notable)"
     regional_text = "\n".join(_fmt(e) for e in regional) or "(rien de notable en régions)"
     event_count = len(events)

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -97,6 +97,19 @@ def _build_event(item: dict[str, Any], geo: dict[str, Any]) -> dict[str, Any]:
 
     if date_pub.tzinfo is None:
         date_pub = date_pub.replace(tzinfo=timezone.utc)
+
+    # Garde-fou anti-date-future : une date de publication aberrante (parsing RSS
+    # erroné, ex. +1 mois) squatte le haut du fil en permanence et pollue la
+    # fenêtre 24h du brief. On tolère une marge pour les sources qui datent à
+    # court terme dans le futur (vigilances météo <48h, coupures planifiées),
+    # mais au-delà de 7 jours on ramène à maintenant.
+    _now = datetime.now(timezone.utc)
+    if date_pub > _now + timedelta(days=7):
+        logger.warning(
+            "date_publication future aberrante (%s) ramenée à maintenant — source_url=%s",
+            date_pub.isoformat(), item.get("source_url", "?"),
+        )
+        date_pub = _now
 
     date_evt_raw = item.get("date_evenement")
     date_evt = None
