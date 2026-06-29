@@ -1338,6 +1338,41 @@ _FETCH_SEMAPHORE = asyncio.Semaphore(20)
 _MAX_PER_FEED = 25
 
 
+def _select_diverse(items: list[dict[str, Any]], max_n: int) -> list[dict[str, Any]]:
+    """Sélectionne jusqu'à max_n articles en RÉPARTISSANT le plafond entre flux,
+    au lieu de garder les N plus récents tous flux confondus.
+
+    Le tri global par récence laissait les gros publicateurs (Le Parisien poste
+    en continu) monopoliser le plafond et évinçait les ~870 flux régionaux. Ici,
+    round-robin : on prend l'article le plus récent de chaque flux, puis le 2e,
+    etc. — ce qui exploite la diversité géographique des sources (et capte plus
+    d'actu.fr/Ouest-France, qui encodent l'INSEE/CP → commune exacte sur la carte).
+    Les articles doivent porter une clé "_feed" identifiant leur flux d'origine.
+    """
+    by_feed: dict[Any, list[dict[str, Any]]] = {}
+    for it in items:
+        by_feed.setdefault(it.get("_feed"), []).append(it)
+    for group in by_feed.values():
+        group.sort(key=lambda it: it.get("date_publication") or "", reverse=True)
+    # Flux ordonnés par récence de leur tête : les sources fraîches passent d'abord.
+    ordered = sorted(by_feed.values(),
+                     key=lambda g: g[0].get("date_publication") or "", reverse=True)
+    selected: list[dict[str, Any]] = []
+    depth = 0
+    while len(selected) < max_n:
+        advanced = False
+        for group in ordered:
+            if depth < len(group):
+                selected.append(group[depth])
+                advanced = True
+                if len(selected) >= max_n:
+                    break
+        if not advanced:
+            break
+        depth += 1
+    return selected
+
+
 def _strip_html(text: str) -> str:
     """Supprime les balises HTML et décode les entités d'une chaîne RSS."""
     text = _re.sub(r'<[^>]+>', ' ', text)
@@ -1554,6 +1589,8 @@ class PresseRSSConnector(BaseConnector):
                     n_not_modified += 1
                 else:
                     n_fetched += 1
+                for it in items:
+                    it["_feed"] = i  # identité du flux, pour la sélection diversifiée
                 raw.extend(items)
 
         # Déduplication par titre normalisé : préférer les articles avec une région
@@ -1571,12 +1608,16 @@ class PresseRSSConnector(BaseConnector):
         # Plafond global : on ne traite que les N articles les plus récents
         # (chaque article coûte un appel LLM ~12 s sur CPU). Sans ce plafond, un
         # run de ~1000 articles sature le CPU plus d'une heure avant tout commit.
+        # Sélection diversifiée (round-robin par flux) au lieu des N plus récents :
+        # exploite la diversité régionale des ~870 sources au lieu de laisser les
+        # gros publicateurs monopoliser le plafond.
         items = list(seen.values())
-        items.sort(key=lambda it: it.get("date_publication") or "", reverse=True)
-        capped = items[: settings.MAX_PRESSE_ARTICLES]
+        capped = _select_diverse(items, settings.MAX_PRESSE_ARTICLES)
+        for it in capped:
+            it.pop("_feed", None)
         self._logger.info(
             "presse_rss: %d flux récupérés, %d inchangés (304) | "
-            "%d raw → %d after title dedup → %d after cap (max=%d)",
+            "%d raw → %d after title dedup → %d after cap (max=%d, round-robin par flux)",
             n_fetched, n_not_modified,
             len(raw), len(seen), len(capped), settings.MAX_PRESSE_ARTICLES,
         )
