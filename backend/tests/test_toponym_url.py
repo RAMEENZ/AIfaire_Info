@@ -54,8 +54,19 @@ def test_url_postal_gives_commune():
     assert r["niveau"] == "commune" and r["lieu_nom"] == "Rennes"
 
 
-def test_url_department_fallback():
-    r = location_from_url("https://www.leparisien.fr/essonne-91/morsang-x")
+def test_url_commune_from_slug_dept_disambiguated():
+    # Le slug après le segment département donne la commune exacte (dans CE dept).
+    r = location_from_url("https://www.leparisien.fr/essonne-91/morsang-sur-orge-le-cambriolage")
+    assert r["niveau"] == "commune" and r["code_insee"] == "91434"
+    assert r["lieu_nom"] == "Morsang-sur-Orge"
+    # Saint-Denis en 93 (et NON la Réunion) grâce à la désambiguïsation par dept.
+    r2 = location_from_url("https://www.leparisien.fr/seine-saint-denis-93/saint-denis-laffaire")
+    assert r2["code_insee"] == "93066" and 48 < r2["lat"] < 49
+
+
+def test_url_department_when_slug_not_a_commune():
+    # Slug = titre, pas une commune → on retombe sur le département.
+    r = location_from_url("https://www.leparisien.fr/essonne-91/ces-particuliers-qui-cultivent")
     assert r["niveau"] == "departement" and r["lieu_nom"] == "Essonne"
 
 

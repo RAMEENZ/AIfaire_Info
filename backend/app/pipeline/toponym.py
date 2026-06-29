@@ -65,16 +65,16 @@ _DEPT_CODES: frozenset[str] = frozenset(DEPT_CODE_TO_NAME)
 _DEPT_NAME_SLUG: dict[str, str] = {code: _slug_norm(name) for code, name in DEPT_CODE_TO_NAME.items()}
 
 
-def _dept_from_segments(segments: list[str]) -> str | None:
+def _dept_match(segments: list[str]) -> tuple[str, str, int] | None:
     """Département via corroboration code + nom dans un même segment
-    (évite « top-10 » → Aube). Renvoie le nom du département ou None."""
-    for seg in segments:
+    (évite « top-10 » → Aube). Renvoie (nom, code, index_du_segment) ou None."""
+    for i, seg in enumerate(segments):
         seg_slug = _slug_norm(seg)
         candidates = {t.upper() for t in seg_slug.split() if t.upper() in _DEPT_CODES}
         for code in candidates:
             name_slug = _DEPT_NAME_SLUG[code]
             if name_slug and name_slug in seg_slug:
-                return DEPT_CODE_TO_NAME[code]
+                return DEPT_CODE_TO_NAME[code], code, i
     return None
 
 
@@ -86,7 +86,8 @@ def toponym_from_url(url: str) -> str | None:
         segments = [s for s in urlparse(url).path.split("/") if s]
     except (ValueError, TypeError):
         return None
-    return _dept_from_segments(segments)
+    m = _dept_match(segments)
+    return m[0] if m else None
 
 
 # INSEE : 5 caractères (DD + 3 chiffres, ou 2A/2B + 3 chiffres). Code postal : 5 chiffres.
@@ -107,7 +108,7 @@ def location_from_url(url: str) -> dict | None:
     except (ValueError, TypeError):
         return None
 
-    from app.communes_db import lookup_by_insee, lookup_by_postal
+    from app.communes_db import lookup_by_insee, lookup_by_postal, lookup_in_dept
 
     for seg in segments:
         seg_slug = _slug_norm(seg)
@@ -123,8 +124,21 @@ def location_from_url(url: str) -> dict | None:
                 if rec:
                     return {**rec, "lieu_nom": rec["nom"]}
 
-    dept = _dept_from_segments(segments)
-    if dept:
-        return {"lieu_nom": dept, "lat": None, "lon": None, "code_insee": None,
-                "niveau": "departement", "dept": None}
-    return None
+    m = _dept_match(segments)
+    if not m:
+        return None
+    dept_name, dept_code, idx = m
+
+    # Commune depuis le slug qui suit le segment département (cas leparisien.fr
+    # « essonne-91/morsang-sur-orge-… ») : on prend le plus long préfixe de tokens
+    # qui est une commune DE CE département (désambiguïse les homonymes). Place
+    # ainsi l'article sur la bonne commune au lieu du centroïde départemental.
+    if idx + 1 < len(segments):
+        toks = _slug_norm(segments[idx + 1]).split()
+        for length in range(min(7, len(toks)), 0, -1):
+            rec = lookup_in_dept(" ".join(toks[:length]), dept_code)
+            if rec:
+                return {**rec, "lieu_nom": rec["nom"]}
+
+    return {"lieu_nom": dept_name, "lat": None, "lon": None, "code_insee": None,
+            "niveau": "departement", "dept": dept_code}
