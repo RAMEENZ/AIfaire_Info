@@ -557,10 +557,16 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
         # flux régional (ex. « Guerre au Moyen-Orient » sur Actu Occitanie)
         # hériterait à tort de la région du flux et serait mal placé sur la carte.
         updated["lieu_nom"] = extraction["lieu_nom"]
-        # Repli : LLM = "national" mais le titre cite un lieu français clair.
+        # Repli : LLM = "national" mais le lieu est récupérable. D'abord le titre
+        # (ville/département/région cités), puis l'URL (presse régionale qui
+        # encode le département dans le chemin, ex. /essonne-91/…). Beaucoup
+        # d'articles locaux étaient classés « national » faute d'extraction LLM
+        # alors que l'info est gratuite dans l'URL.
         if updated["lieu_nom"] == "national":
-            from app.pipeline.toponym import toponym_from_title
-            _topo = toponym_from_title(item.get("titre", ""))
+            from app.pipeline.toponym import toponym_from_title, toponym_from_url
+            _topo = toponym_from_title(item.get("titre", "")) or toponym_from_url(
+                item.get("source_url", "")
+            )
             if _topo:
                 updated["lieu_nom"] = _topo
     elif not updated.get("lieu_nom") and extraction["lieu_nom"] != "national":
