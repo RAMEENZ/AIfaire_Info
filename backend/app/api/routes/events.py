@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import hmac
 import json
 import logging
 import re
@@ -226,32 +227,64 @@ async def get_stats(db: AsyncSession = Depends(get_db)) -> dict:
     }
 
 
-@router.post("/ingest/run")
-async def trigger_ingest(
-    background_tasks: BackgroundTasks,
-    x_api_key: Optional[str] = Header(None),
-) -> dict:
-    """Déclenche manuellement l'ingestion de tous les connecteurs.
+def _require_ingest_key(x_api_key: Optional[str]) -> None:
+    """Auth partagée des déclencheurs de pipeline (ingestion, brief).
 
-    Idempotent : si une ingestion est déjà en cours, le déclenchement est
-    ignoré (ingest_all pose un verrou global) afin d'éviter tout empilement.
     Si INGEST_API_KEY est configuré, le header X-Api-Key est requis. En
     production, l'absence de clé verrouille l'endpoint (fail-closed) : on refuse
-    plutôt que d'exposer un déclencheur de pipeline non authentifié sur le net.
+    plutôt que d'exposer un déclencheur non authentifié sur le net.
     """
     if not settings.INGEST_API_KEY:
         if settings.APP_ENV == "production":
             raise HTTPException(
                 status_code=503,
-                detail="Ingestion désactivée : INGEST_API_KEY non configuré en production",
+                detail="Endpoint désactivé : INGEST_API_KEY non configuré en production",
             )
-        # dev/test : pas de clé requise, on laisse passer.
-    elif x_api_key != settings.INGEST_API_KEY:
+        return  # dev/test : pas de clé requise.
+    if not x_api_key or not hmac.compare_digest(x_api_key, settings.INGEST_API_KEY):
         raise HTTPException(status_code=401, detail="X-Api-Key manquant ou incorrect")
+
+
+async def _ingest_then_brief() -> None:
+    """Ingestion complète puis régénération du brief, pour que le brief reflète
+    immédiatement les nouveaux événements (sinon il n'est rafraîchi qu'aux
+    créneaux cron 9h/13h/20h ou au redémarrage)."""
+    from app.pipeline.brief import generate_daily_brief
+
+    await ingest_all()
+    try:
+        await generate_daily_brief()
+    except Exception as exc:  # le brief ne doit jamais faire échouer l'ingestion
+        logger.warning("Régénération du brief après ingestion échouée : %s", exc)
+
+
+@router.post("/ingest/run")
+async def trigger_ingest(
+    background_tasks: BackgroundTasks,
+    x_api_key: Optional[str] = Header(None),
+) -> dict:
+    """Déclenche manuellement l'ingestion de tous les connecteurs, puis régénère
+    le brief. Idempotent : si une ingestion est déjà en cours, le déclenchement
+    est ignoré (ingest_all pose un verrou global) afin d'éviter tout empilement.
+    """
+    _require_ingest_key(x_api_key)
     if ingestion_in_progress():
         return {"status": "already_running", "message": "Une ingestion est déjà en cours"}
-    background_tasks.add_task(ingest_all)
-    return {"status": "started", "message": "Ingestion déclenchée en arrière-plan"}
+    background_tasks.add_task(_ingest_then_brief)
+    return {"status": "started", "message": "Ingestion + brief déclenchés en arrière-plan"}
+
+
+@router.post("/brief/run")
+async def trigger_brief(
+    background_tasks: BackgroundTasks,
+    x_api_key: Optional[str] = Header(None),
+) -> dict:
+    """Régénère le brief à la demande (sans relancer l'ingestion)."""
+    from app.pipeline.brief import generate_daily_brief
+
+    _require_ingest_key(x_api_key)
+    background_tasks.add_task(generate_daily_brief)
+    return {"status": "started", "message": "Génération du brief déclenchée en arrière-plan"}
 
 
 @router.get("/events/timeline")
