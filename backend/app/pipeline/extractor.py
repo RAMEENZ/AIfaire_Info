@@ -574,9 +574,13 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
                 updated["lieu_confiance_geo"] = 0.9
                 updated["skip_geocoding"] = True  # coords exactes, pas de re-géocodage
             else:
-                _topo = toponym_from_title(item.get("titre", "")) or (
-                    loc["lieu_nom"] if loc else None
-                )
+                # Pas de devinette par le TITRE pour le sport : les noms de clubs
+                # contiennent des villes (« Paris FC », « AS Monaco », « OGC Nice »)
+                # → faux pins. Le département issu de l'URL reste fiable (sport local).
+                is_sport = extraction.get("categorie") == "sport"
+                _topo = None if is_sport else toponym_from_title(item.get("titre", ""))
+                if not _topo and loc:
+                    _topo = loc["lieu_nom"]
                 if _topo:
                     updated["lieu_nom"] = _topo
     elif not updated.get("lieu_nom") and extraction["lieu_nom"] != "national":
