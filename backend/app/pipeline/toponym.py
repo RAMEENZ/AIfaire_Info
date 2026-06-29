@@ -65,24 +65,66 @@ _DEPT_CODES: frozenset[str] = frozenset(DEPT_CODE_TO_NAME)
 _DEPT_NAME_SLUG: dict[str, str] = {code: _slug_norm(name) for code, name in DEPT_CODE_TO_NAME.items()}
 
 
+def _dept_from_segments(segments: list[str]) -> str | None:
+    """Département via corroboration code + nom dans un même segment
+    (évite « top-10 » → Aube). Renvoie le nom du département ou None."""
+    for seg in segments:
+        seg_slug = _slug_norm(seg)
+        candidates = {t.upper() for t in seg_slug.split() if t.upper() in _DEPT_CODES}
+        for code in candidates:
+            name_slug = _DEPT_NAME_SLUG[code]
+            if name_slug and name_slug in seg_slug:
+                return DEPT_CODE_TO_NAME[code]
+    return None
+
+
 def toponym_from_url(url: str) -> str | None:
-    """Extrait un département depuis le chemin de l'URL, par corroboration
-    code + nom dans un même segment (évite les faux positifs type « top-10 » où
-    « 10 » serait pris pour l'Aube). Renvoie le nom du département ou None."""
+    """Compat : renvoie seulement le nom du département trouvé dans l'URL."""
     if not url:
         return None
     try:
         segments = [s for s in urlparse(url).path.split("/") if s]
     except (ValueError, TypeError):
         return None
+    return _dept_from_segments(segments)
+
+
+# INSEE : 5 caractères (DD + 3 chiffres, ou 2A/2B + 3 chiffres). Code postal : 5 chiffres.
+_INSEE_RE = re.compile(r"^(?:\d{2}|2[ab])\d{3}$")
+_POSTAL_RE = re.compile(r"^\d{5}$")
+
+
+def location_from_url(url: str) -> dict | None:
+    """Localisation déterministe depuis l'URL, indépendante de la source.
+    Priorité : code INSEE (actu.fr « commune_93066 ») > code postal
+    (Ouest-France « rennes-35000 ») > département (leparisien.fr « essonne-91 »).
+    Renvoie {lieu_nom, lat, lon, code_insee, niveau, dept} ou None.
+    INSEE/CP donnent la COMMUNE exacte (sans ambiguïté d'homonyme)."""
+    if not url:
+        return None
+    try:
+        segments = [s for s in urlparse(url).path.split("/") if s]
+    except (ValueError, TypeError):
+        return None
+
+    from app.communes_db import lookup_by_insee, lookup_by_postal
+
     for seg in segments:
         seg_slug = _slug_norm(seg)
         tokens = seg_slug.split()
-        # Codes candidats présents comme jeton (« 91 », « 2a », « 971 »).
-        candidates = {t.upper() for t in tokens if t.upper() in _DEPT_CODES}
-        for code in candidates:
-            name_slug = _DEPT_NAME_SLUG[code]
-            # Corroboration : le NOM du département apparaît aussi dans le segment.
-            if name_slug and name_slug in seg_slug:
-                return DEPT_CODE_TO_NAME[code]
+        for tok in tokens:
+            if _INSEE_RE.match(tok):
+                rec = lookup_by_insee(tok)
+                if rec:
+                    return {**rec, "lieu_nom": rec["nom"]}
+        for tok in tokens:
+            if _POSTAL_RE.match(tok):
+                rec = lookup_by_postal(tok, name_hint=seg_slug)
+                if rec:
+                    return {**rec, "lieu_nom": rec["nom"]}
+
+    dept = _dept_from_segments(segments)
+    if dept:
+        return {"lieu_nom": dept, "lat": None, "lon": None, "code_insee": None,
+                "niveau": "departement", "dept": None}
     return None

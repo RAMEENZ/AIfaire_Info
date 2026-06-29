@@ -37,3 +37,28 @@ async def test_generic_fragments_not_geocoded():
 async def test_real_places_still_resolve():
     assert (await geocode("Essonne"))["niveau"] == "departement"
     assert (await geocode("Morsang-sur-Orge"))["niveau"] == "commune"
+
+
+from app.pipeline.toponym import location_from_url
+
+
+def test_url_insee_gives_exact_commune_homonym_safe():
+    # actu.fr encode l'INSEE : Saint-Denis 93066 (et NON la Réunion 97411).
+    r = location_from_url("https://actu.fr/ile-de-france/saint-denis_93066/x_1.html")
+    assert r["niveau"] == "commune" and r["code_insee"] == "93066"
+    assert r["lieu_nom"] == "Saint-Denis" and 48 < r["lat"] < 49
+
+
+def test_url_postal_gives_commune():
+    r = location_from_url("https://www.ouest-france.fr/bretagne/rennes-35000/x")
+    assert r["niveau"] == "commune" and r["lieu_nom"] == "Rennes"
+
+
+def test_url_department_fallback():
+    r = location_from_url("https://www.leparisien.fr/essonne-91/morsang-x")
+    assert r["niveau"] == "departement" and r["lieu_nom"] == "Essonne"
+
+
+def test_url_no_location():
+    assert location_from_url("https://www.lemonde.fr/politique/article/2026/x") is None
+    assert location_from_url("https://x.fr/article-12345-truc") is None  # 12345 = CP inexistant
