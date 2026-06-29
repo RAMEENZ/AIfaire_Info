@@ -23,15 +23,17 @@ async def backfill_url_locations(dry_run: bool = False) -> dict:
     ré-ingestion ne ré-extrait pas les URL déjà connues."""
     updated = communes = depts = 0
     async with AsyncSessionLocal() as session:
+        # On reprend aussi les 'departement' : un précédent backfill a pu les
+        # placer au centroïde départemental alors que le slug donne la commune.
         rows = (await session.execute(
             select(Event).where(
                 Event.source == "presse_rss",
-                Event.lieu_niveau == "national",
+                Event.lieu_niveau.in_(["national", "departement"]),
                 Event.source_url.like("http%"),
             )
         )).scalars().all()
 
-        print(f"{len(rows)} articles 'national' à examiner…")
+        print(f"{len(rows)} articles 'national'/'departement' à examiner…")
         for e in rows:
             loc = location_from_url(e.source_url)
             if not loc:
@@ -41,13 +43,15 @@ async def backfill_url_locations(dry_run: bool = False) -> dict:
                 lat, lon, insee, niveau, nom = (
                     loc["lat"], loc["lon"], loc["code_insee"], "commune", loc["lieu_nom"])
                 communes += 1
-            else:
-                geo = await geocode(loc["lieu_nom"])  # département → centroïde
+            elif e.lieu_niveau == "national":
+                geo = await geocode(loc["lieu_nom"])  # national → centroïde départemental
                 if geo["lat"] is None:
                     continue
                 lat, lon, insee, niveau, nom = (
                     geo["lat"], geo["lon"], geo.get("code_insee"), geo["niveau"], loc["lieu_nom"])
                 depts += 1
+            else:
+                continue  # déjà 'departement' et l'URL ne donne pas mieux : on n'y touche pas
 
             if not dry_run:
                 e.lieu_nom = nom

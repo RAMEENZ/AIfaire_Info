@@ -27,6 +27,10 @@ _INDEX: dict[str, dict[str, Any]] = {}
 _BY_INSEE: dict[str, dict[str, Any]] = {}
 # code postal -> liste d'enregistrements (un CP peut couvrir plusieurs communes).
 _BY_POSTAL: dict[str, list[dict[str, Any]]] = {}
+# (nom normalisé, département) -> enregistrement. Permet de résoudre une commune
+# par son nom SANS ambiguïté d'homonyme quand on connaît le département (ex.
+# extraction depuis le slug d'une URL leparisien.fr « essonne-91/morsang-… »).
+_BY_NAME_DEPT: dict[tuple[str, str], dict[str, Any]] = {}
 _loaded = False
 
 
@@ -71,6 +75,10 @@ def _load() -> None:
                 _INDEX[key] = rec
             _BY_INSEE[rec["code_insee"]] = rec
             _BY_POSTAL.setdefault(r["code_postal"], []).append(rec)
+            dk = (key, rec["dept"])
+            prevd = _BY_NAME_DEPT.get(dk)
+            if prevd is None or rec["population"] > prevd["population"]:
+                _BY_NAME_DEPT[dk] = rec
             n += 1
     logger.info(
         "Base communes locale chargee : %d lignes, %d noms, %d INSEE, %d CP",
@@ -88,6 +96,16 @@ def _as_result(rec: dict[str, Any]) -> dict[str, Any]:
         "niveau": "commune",
         "confiance_geo": 0.9,
     }
+
+
+def lookup_in_dept(name: Optional[str], dept: Optional[str]) -> Optional[dict[str, Any]]:
+    """Résout un nom de commune DANS un département donné (désambiguïse les
+    homonymes : « Saint-Denis » en 93 ≠ à la Réunion). None si absent."""
+    if not name or not dept:
+        return None
+    _load()
+    rec = _BY_NAME_DEPT.get((normalize(name), dept))
+    return _as_result(rec) if rec else None
 
 
 def lookup_by_insee(code: Optional[str]) -> Optional[dict[str, Any]]:
