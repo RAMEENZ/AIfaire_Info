@@ -10,7 +10,11 @@ export type Categorie =
   | "incendie"
   | "nucleaire"
   | "pollution"
-  | "cyber";
+  | "cyber"
+  | "sport"
+  | "economie"
+  | "politique"
+  | "culture";
 
 export type LieuNiveau = "commune" | "departement" | "region" | "national";
 

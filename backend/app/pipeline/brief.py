@@ -6,6 +6,18 @@ from zoneinfo import ZoneInfo
 
 _PARIS = ZoneInfo("Europe/Paris")
 
+# Noms FR sans dépendre d'une locale système (souvent absente en conteneur slim).
+_JOURS_FR = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
+_MOIS_FR = (
+    "janvier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+)
+
+
+def _date_fr(dt: datetime) -> str:
+    """Ex. 'dimanche 28 juin 2026' à partir d'un datetime (déjà en heure Paris)."""
+    return f"{_JOURS_FR[dt.weekday()]} {dt.day} {_MOIS_FR[dt.month - 1]} {dt.year}"
+
 import httpx
 from sqlalchemy import select
 
@@ -106,6 +118,9 @@ async def generate_daily_brief(hours: int = 24) -> Optional[str]:
 
     system_prompt = (
         "Tu es un rédacteur d'information pour un service d'information géolocalisé couvrant la France. "
+        f"Nous sommes le {_date_fr(now_paris)} (heure de Paris) ; les données ci-dessous "
+        f"couvrent les dernières {hours}h. Tu peux situer les faits dans le temps "
+        "(aujourd'hui, ce week-end, depuis hier…) mais n'invente aucune date précise absente des données.\n"
         f"Rédige un brief synthétique et fluide des dernières {hours}h, en trois sections.\n"
         "RÈGLES DE FORME (impératives) :\n"
         "- Texte simple uniquement. N'utilise AUCUN caractère de formatage Markdown : "

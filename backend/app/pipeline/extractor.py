@@ -6,9 +6,18 @@ import logging
 import re
 from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
+
+_PARIS = ZoneInfo("Europe/Paris")
 
 import httpx
 
+from app.categories import (
+    CATEGORIES_PLAIN,
+    CATEGORIES_QUOTED,
+    CATEGORY_SET,
+    DEFAULT_CATEGORY,
+)
 from app.config import settings
 from app.pipeline.geocoder import geocode
 from app.pipeline.sanitize import sanitize_markdown
@@ -43,7 +52,7 @@ Pour chaque article, extrais EXACTEMENT ces 5 champs :
 
 1. **lieu_nom** : commune, département ou région française précise (ex: "Lyon", "Gironde", "Bretagne"). Retourne "national" si l'événement n'est pas localisable en France. Ne retourne JAMAIS un pays étranger.
 
-2. **categorie** : valeur exacte parmi : "meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite", "incendie", "nucleaire", "pollution", "cyber"
+2. **categorie** : valeur exacte parmi : __CATEGORIES_QUOTED__
 
 3. **resume_ia** : 1-2 phrases factuelles résumant l'essentiel de l'article.
 
@@ -67,7 +76,7 @@ Extrait 5 champs d'un article d'actualité française. Réponds UNIQUEMENT en JS
 
 Champs :
 - lieu_nom : ville/département/région française (ex: "Lyon", "Gironde"). "national" si pas localisable en France. Jamais un pays étranger.
-- categorie : UN SEUL parmi : meteo, crue, seisme, energie, sante, transport, ordre_public, actualite, incendie, nucleaire, pollution, cyber
+- categorie : UN SEUL parmi : __CATEGORIES_PLAIN__
 - resume_ia : 1 phrase courte et factuelle résumant l'article.
 - gravite : entier 0-3 (0=info, 1=vigilance, 2=alerte officielle, 3=urgence nationale)
 - tags : liste de 3 à 5 mots-clés en minuscules
@@ -75,6 +84,11 @@ Champs :
 Exemple de réponse :
 {"lieu_nom": "Marseille", "categorie": "ordre_public", "resume_ia": "Un incendie s'est déclaré dans le 13e arrondissement, causant l'évacuation de 50 personnes.", "gravite": 2, "tags": ["incendie", "évacuation", "bouches-du-rhône"]}
 """
+
+# Injection de la liste canonique des catégories (source unique : app.categories)
+# dans les prompts — évite de re-dupliquer l'énumération.
+SYSTEM_PROMPT = SYSTEM_PROMPT.replace("__CATEGORIES_QUOTED__", CATEGORIES_QUOTED)
+SYSTEM_PROMPT_SMALL = SYSTEM_PROMPT_SMALL.replace("__CATEGORIES_PLAIN__", CATEGORIES_PLAIN)
 
 CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "crue":         ["crue", "inondation", "débordement", "vigicrues", "montée des eaux",
@@ -117,6 +131,25 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
                      "gastro-entérite", "dépistage", "vaccination", "variole du singe",
                      "ansm", "médicament", "dispositif médical", "alerte sanitaire",
                      "crise sanitaire", "canicule sanitaire", "surveillance épidémique"],
+    "sport":        ["football", "rugby", "tennis", "basket", "handball", "cyclisme",
+                     "ligue 1", "ligue des champions", "coupe de france", "roland-garros",
+                     "jeux olympiques", "tour de france", "formule 1", "grand prix",
+                     "championnat", "match", "compétition sportive", "athlétisme", "natation",
+                     "l'équipe", "mondial", "qualification", "finale", "podium"],
+    "economie":     ["bourse", "cac 40", "inflation", "récession", "chômage", "pib",
+                     "banque centrale", "taux d'intérêt", "licenciement", "plan social",
+                     "faillite", "résultats financiers", "pouvoir d'achat", "déficit",
+                     "dette publique", "budget de l'état", "croissance économique",
+                     "marché de l'emploi", "entreprise en difficulté"],
+    "politique":    ["gouvernement", "assemblée nationale", "sénat", "élection", "ministre",
+                     "président de la république", "réforme", "motion de censure", "remaniement",
+                     "député", "parti politique", "scrutin", "campagne électorale",
+                     "conseil des ministres", "premier ministre", "élysée", "matignon",
+                     "projet de loi", "référendum"],
+    "culture":      ["festival", "cinéma", "musée", "exposition", "concert", "théâtre",
+                     "spectacle", "littérature", "roman", "album", "patrimoine", "césars",
+                     "festival de cannes", "œuvre d'art", "vernissage", "biennale",
+                     "saison culturelle", "scène nationale"],
 }
 
 GRAVITY_KEYWORDS: dict[int, list[str]] = {
@@ -164,9 +197,13 @@ def _validate_extraction(raw: dict) -> dict[str, Any]:
     if lieu_nom.lower() in _NON_LIEU_VALUES:
         lieu_nom = "national"
 
-    categorie = str(raw.get("categorie", "actualite")).strip()
-    if categorie not in {"meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite", "incendie", "nucleaire", "pollution", "cyber"}:
-        categorie = "actualite"
+    categorie = str(raw.get("categorie", DEFAULT_CATEGORY)).strip()
+    if categorie not in CATEGORY_SET:
+        # Coercion silencieuse historique : on la trace désormais pour rendre un
+        # éventuel drift de taxonomie observable (catégorie inventée par le LLM).
+        if categorie and categorie != DEFAULT_CATEGORY:
+            logger.debug("Catégorie inconnue '%s' coercée en '%s'", categorie, DEFAULT_CATEGORY)
+        categorie = DEFAULT_CATEGORY
 
     _raw_resume = raw.get("resume_ia")
     resume_ia = sanitize_markdown(
@@ -195,7 +232,9 @@ def _validate_extraction(raw: dict) -> dict[str, Any]:
 
 def _build_user_content(titre: str, description: str, full_text: str | None = None) -> str:
     """Build the user message sent to any AI backend."""
-    today = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+    # Heure de Paris (et non UTC) : près de minuit, l'UTC donne la veille et
+    # fait dater les articles « d'hier » à tort.
+    today = datetime.now(_PARIS).strftime("%d/%m/%Y")
     parts = [f"Date: {today}", f"Titre: {titre}"]
     if full_text:
         # Full article text gives much better location and tag extraction

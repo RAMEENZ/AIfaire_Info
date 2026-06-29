@@ -16,6 +16,10 @@ export const CATEGORY_CONFIG: Record<
   nucleaire:   { label: "Nucléaire",  color: "#7C3AED", icon: "☢️", letter: "N"  },
   pollution:   { label: "Pollution",  color: "#65A30D", icon: "🌫", letter: "P"  },
   cyber:       { label: "Cyber",      color: "#0EA5E9", icon: "🔐", letter: "Cy" },
+  sport:       { label: "Sport",      color: "#DB2777", icon: "⚽", letter: "Sp" },
+  economie:    { label: "Économie",   color: "#0D9488", icon: "💶", letter: "Éc" },
+  politique:   { label: "Politique",  color: "#4338CA", icon: "🏛️", letter: "Po" },
+  culture:     { label: "Culture",    color: "#C026D3", icon: "🎭", letter: "Cu" },
 };
 
 export const GRAVITE_CONFIG: Record<
@@ -58,6 +62,10 @@ export const ALL_CATEGORIES: Categorie[] = [
   "nucleaire",
   "pollution",
   "cyber",
+  "sport",
+  "economie",
+  "politique",
+  "culture",
 ];
 
 export const FRANCE_CENTER: [number, number] = [46.5, 2.5];
