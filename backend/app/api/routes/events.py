@@ -15,6 +15,7 @@ from sqlalchemy import select, func
 logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.categories import CATEGORY_SET
 from app.config import settings
 from app.database import get_db
 from app.models import Event
@@ -48,7 +49,7 @@ def _events_cache_key(**params) -> str:
 
 router = APIRouter()
 
-VALID_CATEGORIES = {"meteo", "crue", "seisme", "energie", "sante", "transport", "ordre_public", "actualite", "incendie", "nucleaire", "pollution", "cyber"}
+VALID_CATEGORIES = CATEGORY_SET
 VALID_NIVEAUX = {"commune", "departement", "region", "national"}
 BBOX_RE = re.compile(r"^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$")
 
