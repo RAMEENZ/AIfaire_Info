@@ -22,6 +22,11 @@ _DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "communes_geo.csv")
 # nom normalise -> meilleur enregistrement (commune la plus peuplee en cas
 # d'homonymie, p.ex. plusieurs "Sainte-Croix").
 _INDEX: dict[str, dict[str, Any]] = {}
+# code INSEE -> enregistrement (clé UNIQUE : une commune = un INSEE). Permet une
+# résolution exacte sans ambiguïté d'homonyme (URL actu.fr « commune_INSEE »).
+_BY_INSEE: dict[str, dict[str, Any]] = {}
+# code postal -> liste d'enregistrements (un CP peut couvrir plusieurs communes).
+_BY_POSTAL: dict[str, list[dict[str, Any]]] = {}
 _loaded = False
 
 
@@ -55,6 +60,7 @@ def _load() -> None:
                     "code_insee": r["code_insee"],
                     "population": int(r["population"] or 0),
                     "dept": r["dept"],
+                    "nom": r.get("nom") or r["nom_norm"].title(),
                 }
             except (KeyError, ValueError):
                 continue
@@ -63,8 +69,53 @@ def _load() -> None:
             # En cas d'homonymie, on garde la commune la plus peuplee.
             if prev is None or rec["population"] > prev["population"]:
                 _INDEX[key] = rec
+            _BY_INSEE[rec["code_insee"]] = rec
+            _BY_POSTAL.setdefault(r["code_postal"], []).append(rec)
             n += 1
-    logger.info("Base communes locale chargee : %d lignes, %d noms distincts", n, len(_INDEX))
+    logger.info(
+        "Base communes locale chargee : %d lignes, %d noms, %d INSEE, %d CP",
+        n, len(_INDEX), len(_BY_INSEE), len(_BY_POSTAL),
+    )
+
+
+def _as_result(rec: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "lat": rec["lat"],
+        "lon": rec["lon"],
+        "code_insee": rec["code_insee"],
+        "nom": rec["nom"],
+        "dept": rec["dept"],
+        "niveau": "commune",
+        "confiance_geo": 0.9,
+    }
+
+
+def lookup_by_insee(code: Optional[str]) -> Optional[dict[str, Any]]:
+    """Résout un code INSEE exact en commune (sans ambiguïté). None si inconnu."""
+    if not code:
+        return None
+    _load()
+    rec = _BY_INSEE.get(code.upper())
+    return _as_result(rec) if rec else None
+
+
+def lookup_by_postal(cp: Optional[str], name_hint: Optional[str] = None) -> Optional[dict[str, Any]]:
+    """Résout un code postal en commune. Si plusieurs communes partagent le CP,
+    on privilégie celle dont le nom normalisé apparaît dans name_hint, sinon la
+    plus peuplée. None si CP inconnu."""
+    if not cp:
+        return None
+    _load()
+    recs = _BY_POSTAL.get(cp)
+    if not recs:
+        return None
+    if name_hint and len(recs) > 1:
+        hint = normalize(name_hint)
+        for rec in recs:
+            nn = normalize(rec["nom"])
+            if nn and nn in hint:
+                return _as_result(rec)
+    return _as_result(max(recs, key=lambda r: r["population"]))
 
 
 def lookup_commune(name: Optional[str]) -> Optional[dict[str, Any]]:
@@ -78,12 +129,4 @@ def lookup_commune(name: Optional[str]) -> Optional[dict[str, Any]]:
     if not _INDEX:
         return None
     rec = _INDEX.get(normalize(name))
-    if rec is None:
-        return None
-    return {
-        "lat": rec["lat"],
-        "lon": rec["lon"],
-        "code_insee": rec["code_insee"],
-        "niveau": "commune",
-        "confiance_geo": 0.9,
-    }
+    return _as_result(rec) if rec else None
