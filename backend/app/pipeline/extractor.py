@@ -557,18 +557,28 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
         # flux régional (ex. « Guerre au Moyen-Orient » sur Actu Occitanie)
         # hériterait à tort de la région du flux et serait mal placé sur la carte.
         updated["lieu_nom"] = extraction["lieu_nom"]
-        # Repli : LLM = "national" mais le lieu est récupérable. D'abord le titre
-        # (ville/département/région cités), puis l'URL (presse régionale qui
-        # encode le département dans le chemin, ex. /essonne-91/…). Beaucoup
+        # Repli : LLM = "national" mais le lieu est récupérable. Beaucoup
         # d'articles locaux étaient classés « national » faute d'extraction LLM
-        # alors que l'info est gratuite dans l'URL.
+        # alors que l'info est gratuite dans l'URL (code INSEE/postal/département).
+        # Priorité : commune exacte via INSEE/CP de l'URL (coords injectées
+        # directement) > ville/région citée dans le titre > département de l'URL.
         if updated["lieu_nom"] == "national":
-            from app.pipeline.toponym import toponym_from_title, toponym_from_url
-            _topo = toponym_from_title(item.get("titre", "")) or toponym_from_url(
-                item.get("source_url", "")
-            )
-            if _topo:
-                updated["lieu_nom"] = _topo
+            from app.pipeline.toponym import toponym_from_title, location_from_url
+            loc = location_from_url(item.get("source_url", ""))
+            if loc and loc["niveau"] == "commune":
+                updated["lieu_nom"] = loc["lieu_nom"]
+                updated["lieu_lat"] = loc["lat"]
+                updated["lieu_lon"] = loc["lon"]
+                updated["lieu_code_insee"] = loc["code_insee"]
+                updated["lieu_niveau"] = "commune"
+                updated["lieu_confiance_geo"] = 0.9
+                updated["skip_geocoding"] = True  # coords exactes, pas de re-géocodage
+            else:
+                _topo = toponym_from_title(item.get("titre", "")) or (
+                    loc["lieu_nom"] if loc else None
+                )
+                if _topo:
+                    updated["lieu_nom"] = _topo
     elif not updated.get("lieu_nom") and extraction["lieu_nom"] != "national":
         updated["lieu_nom"] = extraction["lieu_nom"]
 

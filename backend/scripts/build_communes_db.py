@@ -79,6 +79,7 @@ def main() -> int:
             "lon": coords[0],
             "pop": c.get("population") or 0,
             "dept": c.get("codeDepartement") or c["code"][:2],
+            "nom": c["nom"],  # nom propre (accents/casse) pour l'affichage
         }
         nom_norm = normalize(c["nom"])
         by_name.setdefault(nom_norm, []).append(rec)
@@ -109,7 +110,8 @@ def main() -> int:
                 # pour qu'une recherche "Paris"/"Lyon"/"Marseille" matche.
                 out_name = nom_norm.split()[0]
                 insee, lat, lon, dept = CITY_FALLBACK[out_name]
-                rec = {"insee": insee, "lat": lat, "lon": lon, "pop": 0, "dept": dept}
+                rec = {"insee": insee, "lat": lat, "lon": lon, "pop": 0,
+                       "dept": dept, "nom": out_name.title()}
                 matched_fb += 1
             else:
                 dept = cp[:3] if cp[:2] in ("97", "98") else cp[:2]
@@ -122,13 +124,14 @@ def main() -> int:
                     unmatched += 1
                     continue
             rows.append((out_name, cp, rec["insee"], f"{rec['lat']:.5f}",
-                         f"{rec['lon']:.5f}", rec["pop"], rec["dept"]))
+                         f"{rec['lon']:.5f}", rec["pop"], rec["dept"],
+                         rec.get("nom") or out_name.title()))
 
     rows.sort(key=lambda x: (x[0], x[1]))
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["nom_norm", "code_postal", "code_insee", "lat", "lon", "population", "dept"])
+        w.writerow(["nom_norm", "code_postal", "code_insee", "lat", "lon", "population", "dept", "nom"])
         w.writerows(rows)
 
     total = matched_cp + matched_fb + unmatched
