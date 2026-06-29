@@ -162,6 +162,12 @@ _AMBIGUOUS_TERMS: frozenset[str] = frozenset({
     "territoire", "région", "region", "ville", "communes",
     "intérieur", "interieur", "extérieur", "exterieur",
     "métropole", "metropole",
+    # Fragments de noms composés et mots génériques qui matchent à tort de
+    # minuscules communes (« Seine-Saint-Denis » tronqué en « Seine », « Val »
+    # pour « Val-de-Marne », « Mont »/« Bourg »/« Roche » = villages au hasard).
+    "seine", "val", "mont", "bourg", "roche", "saint", "sainte", "sainté",
+    "pont", "fontaine", "champ", "bois", "croix", "fort", "eaux", "rivière",
+    "riviere", "fleuve", "vallée", "vallee", "plaine", "plage",
 })
 
 # Pays étrangers et lieux hors-France : l'app couvre la France. Ces noms,
