@@ -9,8 +9,27 @@ aucun port web entrant), stack Docker, base PostgreSQL/PostGIS.
 | Fichier | Rôle | Où l'exécuter |
 |---------|------|---------------|
 | `harden-server.sh` | UFW, fail2ban, durcissement SSH, MAJ auto, arrêt Apache2 | Serveur (root, SSH) |
-| `backup-postgres.sh` | Sauvegarde chiffrée + rétention de la base | Serveur (cron) |
+| `backup-postgres.sh` | Sauvegarde chiffrée + **vérifiée** (intégrité avant publication) + rétention | Serveur (cron 02h30) |
+| `backup-verify.sh` | Contrôle quotidien : dernier backup récent + déchiffrable + valide (alerte webhook sinon) | Serveur (cron 08h00) |
 | `cloudflare-setup.md` | WAF, Rate Limiting, Access, HSTS via le dashboard CF | Dashboard Cloudflare |
+
+### Sauvegardes : fiabilité
+
+Le backup écrit d'abord un fichier **temporaire**, **vérifie l'intégrité**
+(déchiffrement + décompression + contrôle que c'est bien un dump pg_dump) puis
+**publie atomiquement** : un `.enc` présent est donc toujours restaurable (jamais
+de fichier final corrompu/partiel). `backup-verify.sh`, planifié après le backup,
+**alerte** (webhook `WEBHOOK_URL` : Discord/Slack/ntfy) si la dernière sauvegarde
+manque, est trop ancienne (`MAX_AGE_HOURS`, défaut 26 h) ou ne se déchiffre pas.
+
+Activation (en root) :
+```bash
+echo 'PHRASE_SECRETE_FORTE' > /etc/aifaire-backup.key && chmod 600 /etc/aifaire-backup.key
+crontab -e   # puis :
+#   30 2 * * *  WEBHOOK_URL=https://ntfy.sh/ton-topic /opt/aifaire/security/backup-postgres.sh >> /var/log/aifaire-backup.log 2>&1
+#   0  8 * * *  WEBHOOK_URL=https://ntfy.sh/ton-topic /opt/aifaire/security/backup-verify.sh   >> /var/log/aifaire-backup.log 2>&1
+```
+Restauration : voir l'en-tête de `backup-postgres.sh`.
 
 ## Déjà appliqué dans le code (Tier 1)
 
