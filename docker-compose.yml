@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: faire_info
       POSTGRES_USER: faire_info
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Definis POSTGRES_PASSWORD (mot de passe DB fort) dans .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -29,7 +29,7 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://faire_info:${POSTGRES_PASSWORD:-password}@db:5432/faire_info
+      DATABASE_URL: postgresql+asyncpg://faire_info:${POSTGRES_PASSWORD:?Definis POSTGRES_PASSWORD dans .env}@db:5432/faire_info
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
       MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-small-latest}

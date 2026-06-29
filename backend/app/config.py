@@ -1,6 +1,17 @@
+import logging
+import re
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Literal
+
+logger = logging.getLogger(__name__)
+
+# Mots de passe de base de données trop faibles : refusés en production.
+_WEAK_DB_PASSWORDS = frozenset({
+    "password", "passwd", "postgres", "admin", "root", "changeme", "change-me",
+    "123456", "12345678", "azerty", "qwerty", "secret", "test", "faire_info",
+})
 
 
 class Settings(BaseSettings):
@@ -75,17 +86,34 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        origins = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        # Fail-closed en production : le wildcard "*" (valeur par défaut) est
+        # neutralisé. Le front parle à l'API en same-origin via nginx, donc rien
+        # n'est cassé ; seules les requêtes XHR cross-origin de sites tiers sont
+        # bloquées. Pour exposer publiquement l'API en cross-origin, définir
+        # explicitement CORS_ORIGINS=https://exemple.fr,https://autre.fr .
+        if self.APP_ENV == "production" and origins == ["*"]:
+            logger.warning(
+                "CORS: '*' neutralisé en production (fail-closed). Le front "
+                "same-origin fonctionne ; définissez CORS_ORIGINS pour autoriser "
+                "des origines tierces."
+            )
+            return []
+        return origins
 
     @model_validator(mode="after")
     def _reject_insecure_defaults_in_prod(self) -> "Settings":
-        # Fail-closed : en production, refuser de démarrer avec le mot de passe
-        # de base de données par défaut (visible dans le code source).
-        if self.APP_ENV == "production" and ":password@" in self.DATABASE_URL:
-            raise ValueError(
-                "DATABASE_URL utilise le mot de passe par défaut 'password' en "
-                "production. Définissez un mot de passe fort via l'environnement."
-            )
+        # Fail-closed : en production, refuser de démarrer avec un mot de passe de
+        # base de données faible/par défaut (visible dans le code ou trivial).
+        if self.APP_ENV == "production":
+            m = re.search(r"://[^:/@]+:([^@]+)@", self.DATABASE_URL)
+            pwd = (m.group(1) if m else "").lower()
+            if pwd in _WEAK_DB_PASSWORDS:
+                raise ValueError(
+                    "DATABASE_URL utilise un mot de passe faible/par défaut en "
+                    "production. Définissez un mot de passe fort via l'environnement "
+                    "(POSTGRES_PASSWORD)."
+                )
         return self
 
 
