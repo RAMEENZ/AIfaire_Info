@@ -105,7 +105,7 @@ function formatNextIngest(iso: string | null | undefined): string {
 }
 
 export default function StatusBar({ connectors, nextIngestAt, onTriggerIngest }: StatusBarProps) {
-  const [ingestState, setIngestState] = useState<"idle" | "running" | "done">("idle");
+  const [ingestState, setIngestState] = useState<"idle" | "running" | "done" | "error">("idle");
 
   const hasError = connectors.some((c) => c.status === "error");
   const hasWarning = connectors.some((c) => c.status === "warning");
@@ -121,7 +121,10 @@ export default function StatusBar({ connectors, nextIngestAt, onTriggerIngest }:
       setIngestState("done");
       setTimeout(() => setIngestState("idle"), 3000);
     } catch {
-      setIngestState("idle");
+      // Échec visible (401/503/réseau) plutôt qu'un retour silencieux à l'état
+      // initial qui laissait croire que rien ne s'était passé.
+      setIngestState("error");
+      setTimeout(() => setIngestState("idle"), 4000);
     }
   }
 
@@ -149,8 +152,12 @@ export default function StatusBar({ connectors, nextIngestAt, onTriggerIngest }:
           <button
             onClick={handleTriggerIngest}
             disabled={ingestState === "running"}
-            className="hidden md:flex items-center gap-1 text-xs px-2 py-0.5 rounded border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-50 transition-colors"
-            title="Déclencher une ingestion manuelle"
+            className={`hidden md:flex items-center gap-1 text-xs px-2 py-0.5 rounded border transition-colors disabled:opacity-50 ${
+              ingestState === "error"
+                ? "border-red-300 text-red-600 hover:bg-red-50"
+                : "border-gray-300 text-gray-500 hover:bg-gray-100"
+            }`}
+            title={ingestState === "error" ? "L'ingestion manuelle a échoué (voir la console)" : "Déclencher une ingestion manuelle"}
           >
             <svg
               className={`w-3 h-3 ${ingestState === "running" ? "animate-spin" : ""}`}
@@ -158,7 +165,13 @@ export default function StatusBar({ connectors, nextIngestAt, onTriggerIngest }:
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            {ingestState === "done" ? "Lancée ✓" : ingestState === "running" ? "En cours…" : "Ingérer"}
+            {ingestState === "done"
+              ? "Lancée ✓"
+              : ingestState === "running"
+              ? "En cours…"
+              : ingestState === "error"
+              ? "Échec"
+              : "Ingérer"}
           </button>
         )}
         <div className="flex items-center gap-1.5">

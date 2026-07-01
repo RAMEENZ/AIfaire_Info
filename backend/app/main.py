@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -85,6 +86,17 @@ app.include_router(events_router, prefix="/api", tags=["events"])
 app.include_router(health_router, prefix="/api", tags=["health"])
 
 
+API_VERSION = "1.0.0"
+# Commit déployé, injecté à l'exécution (docker run -e GIT_SHA=$(git rev-parse …)).
+# Facilite le diagnostic : « quelle version tourne réellement ? »
+GIT_SHA = os.environ.get("GIT_SHA", "")
+
+
 @app.get("/")
 async def root() -> dict:
-    return {"service": "FAIRE INFO API", "status": "running", "version": "1.0.0"}
+    return {
+        "service": "FAIRE INFO API",
+        "status": "running",
+        "version": API_VERSION,
+        "commit": GIT_SHA or None,
+    }
