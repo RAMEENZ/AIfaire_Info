@@ -82,6 +82,13 @@ function exportToCSV(events: Event[]) {
   URL.revokeObjectURL(url);
 }
 
+// Le déclencheur d'ingestion manuelle (POST /api/ingest/run) est protégé côté
+// backend : en production il exige INGEST_API_KEY (401) ou est verrouillé sans
+// clé (503). Le front public ne peut pas transmettre cette clé, donc le bouton
+// n'a de sens qu'en dev/local. Masqué par défaut ; activer explicitement via
+// NEXT_PUBLIC_ENABLE_INGEST_BUTTON=true (cf. .env.local.example).
+const INGEST_BUTTON_ENABLED = process.env.NEXT_PUBLIC_ENABLE_INGEST_BUTTON === "true";
+
 const MapWrapper = dynamic(() => import("@/components/MapWrapper"), {
   ssr: false,
   loading: () => (
@@ -551,7 +558,7 @@ export default function HomePage() {
       <StatusBar
         connectors={healthData?.connectors ?? []}
         nextIngestAt={healthData?.next_ingest_at ?? null}
-        onTriggerIngest={handleTriggerIngest}
+        onTriggerIngest={INGEST_BUTTON_ENABLED ? handleTriggerIngest : undefined}
       />
     </div>
   );

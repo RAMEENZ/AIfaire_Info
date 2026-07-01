@@ -11,7 +11,7 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import Response as HTTPResponse, StreamingResponse
-from sqlalchemy import select, func
+from sqlalchemy import case, select, func
 
 logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,8 +50,32 @@ def _events_cache_key(**params) -> str:
 
 router = APIRouter()
 
+# ── Plafond de connexions SSE simultanées ─────────────────────────────────────
+# Chaque flux /events/stream garde une coroutine + sonde la base toutes les 30 s.
+# On borne le nombre de flux concurrents pour ne pas épuiser le pool de
+# connexions PostgreSQL. Compteur simple (pas de verrou) : l'event loop asyncio
+# est mono-thread, donc l'incrément/décrément est atomique entre deux points
+# d'await.
+_sse_active_connections = 0
+
+
+def _acquire_sse_slot() -> bool:
+    """Réserve un créneau SSE. Retourne False si le plafond est atteint."""
+    global _sse_active_connections
+    if _sse_active_connections >= settings.MAX_SSE_CONNECTIONS:
+        return False
+    _sse_active_connections += 1
+    return True
+
+
+def _release_sse_slot() -> None:
+    global _sse_active_connections
+    _sse_active_connections = max(0, _sse_active_connections - 1)
+
+
 VALID_CATEGORIES = CATEGORY_SET
 VALID_NIVEAUX = {"commune", "departement", "region", "national"}
+VALID_SORTS = {"gravite", "recent", "pertinence"}
 BBOX_RE = re.compile(r"^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$")
 
 
@@ -67,6 +91,11 @@ async def list_events(
     limit: int = Query(default=settings.DEFAULT_EVENTS_LIMIT, ge=1, le=settings.MAX_EVENTS_LIMIT),
     national_only: bool = Query(False),
     dept: Optional[str] = Query(None, max_length=3, description="Filtrer par code département (ex: 75, 13, 2A)"),
+    sort: str = Query(
+        "gravite",
+        description="Ordre de tri : 'gravite' (défaut : gravité puis récence), "
+        "'recent' (le plus récent d'abord), 'pertinence' (gravité pondérée par la récence)",
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> EventList:
     if categories:
@@ -77,11 +106,14 @@ async def list_events(
     if niveau and niveau not in VALID_NIVEAUX:
         raise HTTPException(status_code=422, detail=f"Invalid niveau: {niveau}. Must be one of {VALID_NIVEAUX}")
 
+    if sort not in VALID_SORTS:
+        raise HTTPException(status_code=422, detail=f"Invalid sort: {sort}. Must be one of {sorted(VALID_SORTS)}")
+
     # ── Cache Redis ────────────────────────────────────────────────────────────
     cache_key = _events_cache_key(
         bbox=bbox, categories=categories, gravite_min=gravite_min, niveau=niveau,
         depuis=depuis, avant=avant, q=q, limit=limit,
-        national_only=national_only, dept=dept,
+        national_only=national_only, dept=dept, sort=sort,
     )
     redis = await _get_redis()
     if redis:
@@ -148,12 +180,23 @@ async def list_events(
             )
         )
 
+    # Ordre de tri (défaut 'gravite' = comportement historique).
+    if sort == "recent":
+        order_by = (Event.date_publication.desc(),)
+    elif sort == "pertinence":
+        # Score de fraîcheur : la gravité perd ~1 point par jour écoulé, si bien
+        # qu'une alerte ancienne ne squatte plus le haut du fil indéfiniment.
+        age_days = func.extract("epoch", func.now() - Event.date_publication) / 86400.0
+        order_by = ((Event.gravite - age_days).desc(), Event.date_publication.desc())
+    else:  # "gravite"
+        order_by = (Event.gravite.desc(), Event.date_publication.desc())
+
     # Une seule requête : la fonction fenêtre count() OVER() renvoie le total
     # filtré sur chaque ligne, ce qui évite un second passage des prédicats WHERE
     # (un COUNT séparé doublait l'évaluation du filtre, bbox spatial compris).
     stmt = (
         stmt.add_columns(func.count().over().label("total_count"))
-        .order_by(Event.gravite.desc(), Event.date_publication.desc())
+        .order_by(*order_by)
         .limit(limit)
     )
     result = await db.execute(stmt)
@@ -361,38 +404,51 @@ async def stream_events(
         if invalid:
             raise HTTPException(status_code=422, detail=f"Invalid categories: {invalid}")
 
+    # Refuse d'ouvrir un flux de plus si le plafond est atteint : le client
+    # retombera sur le polling SWR. Évite d'épuiser le pool de connexions DB.
+    if not _acquire_sse_slot():
+        raise HTTPException(
+            status_code=503,
+            detail="Trop de connexions temps réel simultanées, réessayez plus tard",
+        )
+
     async def generate():
         last_seen = datetime.now(timezone.utc)
-        yield f"event: connected\ndata: {json.dumps({'ts': last_seen.isoformat()})}\n\n"
+        try:
+            yield f"event: connected\ndata: {json.dumps({'ts': last_seen.isoformat()})}\n\n"
 
-        while True:
-            if request and await request.is_disconnected():
-                break
-            await asyncio.sleep(30)
-            try:
-                async with AsyncSessionLocal() as session:
-                    stmt = (
-                        select(Event)
-                        .where(Event.created_at > last_seen)
-                        .order_by(Event.created_at.asc())
-                        .limit(50)
-                    )
-                    if categories:
-                        stmt = stmt.where(Event.categorie.in_(categories))
-                    if gravite_min is not None:
-                        stmt = stmt.where(Event.gravite >= gravite_min)
+            while True:
+                if request and await request.is_disconnected():
+                    break
+                await asyncio.sleep(30)
+                try:
+                    async with AsyncSessionLocal() as session:
+                        stmt = (
+                            select(Event)
+                            .where(Event.created_at > last_seen)
+                            .order_by(Event.created_at.asc())
+                            .limit(50)
+                        )
+                        if categories:
+                            stmt = stmt.where(Event.categorie.in_(categories))
+                        if gravite_min is not None:
+                            stmt = stmt.where(Event.gravite >= gravite_min)
 
-                    result = await session.execute(stmt)
-                    found = result.scalars().all()
+                        result = await session.execute(stmt)
+                        found = result.scalars().all()
 
-                    if found:
-                        last_seen = max(e.created_at for e in found)
-                        yield f"event: events\ndata: {json.dumps([_event_to_dict(e) for e in found])}\n\n"
-                    else:
-                        yield "event: ping\ndata: {}\n\n"
-            except Exception as exc:
-                logger.warning("SSE stream error: %s", exc)
-                yield "event: ping\ndata: {}\n\n"
+                        if found:
+                            last_seen = max(e.created_at for e in found)
+                            yield f"event: events\ndata: {json.dumps([_event_to_dict(e) for e in found])}\n\n"
+                        else:
+                            yield "event: ping\ndata: {}\n\n"
+                except Exception as exc:
+                    logger.warning("SSE stream error: %s", exc)
+                    yield "event: ping\ndata: {}\n\n"
+        finally:
+            # Libère le créneau quand le client se déconnecte ou que le flux se
+            # termine, quelle qu'en soit la raison.
+            _release_sse_slot()
 
     return StreamingResponse(
         generate(),
@@ -562,7 +618,15 @@ async def get_geo_stats(
     avec le niveau de gravité maximal observé sur la période.
     """
     since_dt = datetime.now(timezone.utc) - timedelta(hours=since_hours)
-    dept_col = func.left(Event.lieu_code_insee, 2).label("dept")
+    # Codes DOM-TOM sur 3 chiffres (971…988), départements métropolitains sur 2
+    # (dont Corse « 2A »/« 2B »). Un `left(insee, 2)` uniforme fusionnait tous les
+    # outre-mer sous « 97 » — la carte utilise déjà des codes à 3 chiffres pour
+    # ces territoires (cf. deptCodeFromInsee côté frontend).
+    dept_col = case(
+        (Event.lieu_code_insee.like("97%"), func.left(Event.lieu_code_insee, 3)),
+        (Event.lieu_code_insee.like("98%"), func.left(Event.lieu_code_insee, 3)),
+        else_=func.left(Event.lieu_code_insee, 2),
+    ).label("dept")
     stmt = (
         select(
             dept_col,
@@ -582,7 +646,7 @@ async def get_geo_stats(
     departments = [
         {"code": row.dept, "event_count": row.event_count, "gravite_max": row.gravite_max}
         for row in rows
-        if row.dept and len(row.dept) == 2
+        if row.dept and len(row.dept) in (2, 3)
     ]
     return {
         "since_hours": since_hours,

@@ -41,7 +41,7 @@ Vue cartographique unifiée de l'actualité publique française en quasi temps r
 Ingestions automatiques : **7h00, 12h00, 19h00** (heure Paris).  
 Purge quotidienne : **3h00** — TTL variable par source : 36h météo/vigicrues, 48h Enedis, 72h presse, 30j séismes.
 
-Pour déclencher manuellement : `POST /api/ingest/run` (clé `INGEST_API_KEY`) ou bouton "Ingérer" dans la StatusBar.
+Pour déclencher manuellement : `POST /api/ingest/run` (clé `INGEST_API_KEY`). Le bouton "Ingérer" de la StatusBar est réservé au dev/local (l'endpoint étant protégé par clé en production) : il est masqué par défaut et s'active via `NEXT_PUBLIC_ENABLE_INGEST_BUTTON=true`.
 
 ### Robustesse & qualité
 
@@ -121,6 +121,19 @@ Couvre le géocodeur (termes nationaux, articles, alias, régions, DOM-TOM),
 l'extracteur (catégorisation/gravité par règles, overrides de source) et
 le calcul de statut des connecteurs.
 
+### Tests (frontend)
+
+Tests unitaires des fonctions pures (Vitest, environnement jsdom) :
+
+```bash
+cd frontend
+npm test
+```
+
+Couvre la déduction du département depuis le code INSEE (métropole/Corse/DOM/COM),
+la logique d'alertes navigateur (`shouldAlert`, persistance localStorage) et la
+cohérence des tables de configuration (labels de connecteurs, catégories).
+
 ### Variables d'environnement backend
 
 | Variable | Défaut | Description |
@@ -143,7 +156,9 @@ le calcul de statut des connecteurs.
 | `WEBHOOK_THRESHOLD` | `3` | Nb d'échecs consécutifs déclenchant le webhook |
 | `REDIS_URL` | _(vide)_ | Cache Redis optionnel (`redis://redis:6379` en prod) |
 | `REDIS_EVENTS_TTL` | `120` | TTL cache API événements (secondes) |
+| `MAX_SSE_CONNECTIONS` | `100` | Plafond de flux SSE `/events/stream` simultanés (au-delà : 503, repli polling) |
 | `CORS_ORIGINS` | `*` | Origines CORS autorisées (séparées par virgule) |
+| `GIT_SHA` | _(vide)_ | Commit déployé, exposé par `GET /` (diagnostic « quelle version tourne ? ») |
 
 ## Production (Docker Compose)
 

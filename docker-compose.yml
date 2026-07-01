@@ -42,6 +42,8 @@ services:
       REDIS_URL: redis://redis:6379
       WEBHOOK_URL: ${WEBHOOK_URL:-}
       WEBHOOK_THRESHOLD: ${WEBHOOK_THRESHOLD:-3}
+      # Commit déployé (facultatif) : docker compose … avec GIT_SHA=$(git rev-parse --short HEAD)
+      GIT_SHA: ${GIT_SHA:-}
     depends_on:
       db:
         condition: service_healthy
