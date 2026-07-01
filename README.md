@@ -169,6 +169,22 @@ NEXT_PUBLIC_API_BASE_URL=https://api.faire.info/api \
 docker compose up -d
 ```
 
+### Redéploiement (`deploy.sh`)
+
+Pour mettre à jour un serveur existant, le script `deploy.sh` enchaîne
+`pull → build → recreate` et **refuse de valider** si `APP_ENV` n'est pas
+`production` (avant *et* après recréation) ou si un conteneur ne devient pas
+`healthy` — de quoi éviter un `.env` resté en `development`. Il exporte aussi
+`GIT_SHA` pour que `GET /` reflète le commit déployé.
+
+```bash
+cd /opt/aifaire
+./deploy.sh                 # pull + build/recreate backend & frontend
+./deploy.sh backend         # ne (re)construit que le backend
+SKIP_PULL=1 ./deploy.sh     # déploie l'état local sans git pull
+ALLOW_DEV=1  ./deploy.sh    # autorise un déploiement hors production (dev)
+```
+
 ## Architecture des composants backend
 
 ```
