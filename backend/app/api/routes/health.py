@@ -3,12 +3,12 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import ConnectorStatus
-from app.pipeline.ingestor import CONNECTORS
+from app.models import ConnectorStatus, Event
+from app.pipeline.ingestor import CONNECTORS, ingestion_in_progress
 from app.pipeline.scheduler import get_next_ingest_time
 from app.schemas import HealthResponse, ConnectorStatusSchema
 
@@ -18,7 +18,7 @@ router = APIRouter()
 
 # Liste canonique dérivée des connecteurs réellement enregistrés : évite la
 # dérive entre cette liste et CONNECTORS (auparavant figée à 8 noms, alors que
-# 12 connecteurs tournent — cert_fr, irsn, air_quality, opensky n'apparaissaient
+# 15 connecteurs tournent — cert_fr, irsn, air_quality, opensky n'apparaissaient
 # jamais dans la barre de statut).
 KNOWN_CONNECTORS = [c.name for c in CONNECTORS]
 
@@ -102,3 +102,48 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> HealthResponse:
         checked_at=datetime.now(timezone.utc),
         next_ingest_at=next_ingest_at,
     )
+
+
+def next_ingest_at_iso() -> Optional[str]:
+    raw = get_next_ingest_time()
+    return raw if raw else None
+
+
+@router.get("/metrics")
+async def metrics(db: AsyncSession = Depends(get_db)) -> dict:
+    """Métriques d'exploitation compactes (JSON), pour supervision/alerting.
+
+    Distinct de `/stats` (statistiques produit) : ici on expose l'état
+    opérationnel — santé des connecteurs, fraîcheur des données, ingestion en
+    cours — dans un format facile à scraper par un job de monitoring.
+    """
+    now = datetime.now(timezone.utc)
+    h24_ago = now - timedelta(hours=24)
+
+    total_events = (await db.execute(select(func.count()).select_from(Event))).scalar_one()
+    events_24h = (
+        await db.execute(
+            select(func.count()).select_from(Event).where(Event.date_publication >= h24_ago)
+        )
+    ).scalar_one()
+    newest = (await db.execute(select(func.max(Event.date_publication)))).scalar_one()
+
+    rows = {row.name: row for row in (await db.execute(select(ConnectorStatus))).scalars().all()}
+    status_counts = {"ok": 0, "warning": 0, "error": 0}
+    for name in KNOWN_CONNECTORS:
+        row = rows.get(name)
+        if row:
+            status = _compute_status(row.last_run, row.last_error, row.consecutive_failures)
+        else:
+            status = "warning"
+        status_counts[status] += 1
+
+    return {
+        "total_events": total_events,
+        "events_last_24h": events_24h,
+        "newest_event": newest.isoformat() if newest else None,
+        "connectors": {"total": len(KNOWN_CONNECTORS), **status_counts},
+        "ingestion_in_progress": ingestion_in_progress(),
+        "next_ingest_at": next_ingest_at_iso(),
+        "checked_at": now.isoformat(),
+    }

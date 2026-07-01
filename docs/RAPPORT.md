@@ -231,7 +231,7 @@ Endpoints publics (préfixe `/api`) :
 
 | Endpoint | Description |
 |---|---|
-| `GET /events` | Liste filtrée (bbox, catégories, gravité, période, dept, recherche texte…) |
+| `GET /events` | Liste filtrée (bbox, catégories, gravité, période, dept, recherche texte, tri `gravite`/`recent`/`pertinence`…) |
 | `GET /events/{id}` | Détail d'un événement |
 | `GET /events/stream` | **SSE** « En direct » (push des nouveaux événements toutes les 30 s) |
 | `GET /events/timeline` | Histogramme temporel |
@@ -241,6 +241,7 @@ Endpoints publics (préfixe `/api`) :
 | `POST /ingest/run` | Déclenche une ingestion (+ brief), protégé par clé |
 | `GET /feed.rss` | Flux Atom/RSS filtrable |
 | `GET /health` | Santé des connecteurs + prochaine ingestion |
+| `GET /metrics` | Métriques d'exploitation (JSON) : total/24h événements, connecteurs ok/dégradé/erreur, ingestion en cours |
 
 L'API est **en lecture seule** ; les deux endpoints mutants (`/ingest/run`,
 `/brief/run`) exigent une **clé `X-Api-Key`** (comparaison en temps constant),
@@ -294,7 +295,7 @@ Trois tables principales :
 | **Santé + webhook** | pastilles d'état + alerte configurable (≥ 3 échecs) |
 | **Scheduler robuste** | marge misfire 1 h + coalesce → plus de jobs cron sautés |
 | **Auto-restart** | `restart: unless-stopped` + healthchecks Docker |
-| **CI** | 161 tests + build à chaque PR → plus de régression silencieuse |
+| **CI** | 166 tests backend + tests frontend + build à chaque PR → plus de régression silencieuse |
 
 **Points de fragilité résiduels** (assumés) :
 - Le **fond de carte** (tuiles OpenStreetMap) vient d'un CDN externe : s'il
@@ -381,8 +382,10 @@ docker compose exec backend python -m app.maintenance check-feeds          # san
 | `FETCH_FULL_ARTICLES` | `true` | fetch du texte complet |
 | `CONNECTOR_FETCH_TIMEOUT_SECONDS` | `120` | timeout par connecteur |
 | `REDIS_URL` / `REDIS_EVENTS_TTL` | vide / `120` | cache API |
+| `MAX_SSE_CONNECTIONS` | `100` | plafond de flux temps réel simultanés |
 | `WEBHOOK_URL` / `WEBHOOK_THRESHOLD` | vide / `3` | alertes connecteurs |
 | `SCHEDULER_TIMEZONE` | `Europe/Paris` | fuseau des tâches |
+| `GIT_SHA` | vide | commit déployé, exposé par `GET /` |
 
 ---
 
@@ -426,7 +429,7 @@ docker-compose.yml
   d'ingest en temps constant.
 - 💾 **Backups** chiffrés, **intégrité vérifiée**, monitorés (alerte si stale).
 - ⏰ **Scheduler** fiabilisé (plus de jobs cron sautés).
-- ✅ **CI** GitHub Actions (161 tests + build) sur chaque PR.
+- ✅ **CI** GitHub Actions (166 tests backend + tests frontend Vitest + build) sur chaque PR.
 
 ---
 
@@ -437,7 +440,24 @@ docker-compose.yml
 - **Fond de carte offline** (tuiles + contours servis localement) pour supprimer
   la dernière dépendance CDN.
 - **Réplication / copie hors-site** des sauvegardes.
-- **Scaling** (workers multiples + diffusion SSE partagée) si le trafic grandit.
+- **Scaling** (workers multiples + diffusion SSE partagée type `LISTEN/NOTIFY` au
+  lieu du polling par connexion) si le trafic grandit.
+- **Métriques Prometheus** (format texte) en complément de `/metrics` (JSON).
+
+### Améliorations de la revue de code (juillet 2026)
+
+- 🔎 **Recherche indexée** : index trigramme `pg_trgm` (best-effort au démarrage)
+  sur titre/résumé/lieu/auteur — la recherche `q` ne fait plus de scan séquentiel.
+- 🔌 **SSE borné** : plafond `MAX_SSE_CONNECTIONS` (503 + repli polling) pour
+  protéger le pool de connexions PostgreSQL.
+- 📊 **Observabilité** : endpoint `/api/metrics` (JSON) + commit déployé exposé par
+  `GET /` (`GIT_SHA`).
+- 🗂️ **Tri du fil** paramétrable (`sort=gravite|recent|pertinence`, défaut inchangé).
+- 🌍 **DOM-TOM** : `/stats/geo` et le calcul de département frontend regroupent
+  correctement les codes à 3 chiffres (97x/98x).
+- 🧪 **Tests frontend** (Vitest) ajoutés à la CI ; nettoyage de nommage
+  (`extract_article`), dépendance `alembic` inutilisée retirée, label connecteur
+  `opensky` manquant corrigé, bouton d'ingestion masqué en prod.
 
 ---
 

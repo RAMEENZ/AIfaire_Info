@@ -77,6 +77,12 @@ class Settings(BaseSettings):
     # Durée de vie du cache API événements (secondes).
     REDIS_EVENTS_TTL: int = 120
 
+    # Plafond de connexions SSE (/events/stream) simultanées. Chaque flux ouvert
+    # sonde la base toutes les 30 s : sans borne, de nombreux onglets/clients
+    # peuvent épuiser le pool de connexions PostgreSQL. Au-delà du plafond, le
+    # serveur répond 503 et le front retombe sur le polling SWR (5 min).
+    MAX_SSE_CONNECTIONS: int = 100
+
     # Webhook de notification (optionnel) : URL appelée quand un connecteur dépasse
     # le seuil d'échecs consécutifs. Compatible Discord, Slack, ntfy, etc.
     # Exemple ntfy : https://ntfy.sh/mon-topic

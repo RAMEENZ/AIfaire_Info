@@ -44,6 +44,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   cert_fr: "CERT-FR",
   irsn: "IRSN/ASN",
   air_quality: "Atmo France",
+  opensky: "OpenSky",
   bluesky: "BlueSky",
   wikipedia_fr: "Wikinews FR",
   spf: "Santé Publique France",

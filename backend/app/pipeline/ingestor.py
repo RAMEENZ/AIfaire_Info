@@ -291,7 +291,7 @@ async def _save_events(events: list[dict[str, Any]]) -> int:
 
 
 # Plafond du nombre d'items traités simultanément. Le vrai back-pressure vient
-# des sémaphores internes (geocoder=8, Anthropic=4, Ollama=1, fetch=15) ; ce
+# des sémaphores internes (geocoder=8, Mistral=10, Ollama=2, fetch=15) ; ce
 # plafond se contente d'éviter une explosion du nombre de coroutines sur de gros
 # lots, sans étrangler les items qui ne font ni géocodage ni extraction.
 _PROCESS_SEMAPHORE = asyncio.Semaphore(32)
@@ -399,7 +399,7 @@ async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
 # Verrou global : empêche plusieurs ingestions de tourner en parallèle.
 # Protège à la fois le job planifié et l'endpoint manuel /ingest/run contre
 # l'empilement (déclenchements rapides / cross-origin) qui saturerait la base,
-# le pool de connexions et le budget API Anthropic.
+# le pool de connexions et le budget API Mistral.
 _INGEST_LOCK = asyncio.Lock()
 
 

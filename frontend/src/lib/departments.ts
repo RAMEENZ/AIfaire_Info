@@ -46,8 +46,8 @@ export function deptCodeFromInsee(insee: string | null): string | null {
   // Corse : codes commune 2A0xx / 2B0xx
   if (s.startsWith("2A")) return "2A";
   if (s.startsWith("2B")) return "2B";
-  // DOM : 3 chiffres (971–976)
-  if (/^97\d/.test(s)) return s.slice(0, 3);
+  // Outre-mer : 3 chiffres (971–976 DOM, 986–988 COM Pacifique)
+  if (/^97\d/.test(s) || /^98\d/.test(s)) return s.slice(0, 3);
   // Métropole : 2 premiers chiffres
   if (/^\d{2}/.test(s)) return s.slice(0, 2);
   return null;

@@ -416,8 +416,8 @@ async def _rule_based_extract(titre: str, description: str | None) -> dict[str, 
     }
 
 
-async def extract_with_claude(titre: str, description: str,
-                              full_text: str | None = None) -> dict[str, Any]:
+async def extract_article(titre: str, description: str,
+                          full_text: str | None = None) -> dict[str, Any]:
     """Extraction : Mistral API → Ollama local → fallback règles."""
     key = _cache_key(titre, description)
     if key in _extract_cache:
@@ -547,7 +547,7 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
                 from app.pipeline.fetcher import fetch_article_text
                 full_text = await fetch_article_text(source_url)
 
-        extraction = await extract_with_claude(titre, description, full_text)
+        extraction = await extract_article(titre, description, full_text)
 
     updated = dict(item)
 

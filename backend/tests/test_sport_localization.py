@@ -8,7 +8,7 @@ async def test_sport_not_pinned_to_club_city(monkeypatch):
     async def fake_extract(titre, description, full_text=None):
         return {"lieu_nom": "national", "categorie": "sport",
                 "resume_ia": "x", "gravite": 0, "tags": []}
-    monkeypatch.setattr(extractor, "extract_with_claude", fake_extract)
+    monkeypatch.setattr(extractor, "extract_article", fake_extract)
     item = {
         "source": "presse_rss",
         "source_url": "https://www.leparisien.fr/sports/football/paris-fc/mercato-x",
@@ -23,7 +23,7 @@ async def test_non_sport_title_still_localizes(monkeypatch):
     async def fake_extract(titre, description, full_text=None):
         return {"lieu_nom": "national", "categorie": "actualite",
                 "resume_ia": "x", "gravite": 0, "tags": []}
-    monkeypatch.setattr(extractor, "extract_with_claude", fake_extract)
+    monkeypatch.setattr(extractor, "extract_article", fake_extract)
     item = {
         "source": "presse_rss",
         "source_url": "https://example.fr/no-departement-ici",
@@ -38,7 +38,7 @@ async def test_sport_local_keeps_department_from_url(monkeypatch):
     async def fake_extract(titre, description, full_text=None):
         return {"lieu_nom": "national", "categorie": "sport",
                 "resume_ia": "x", "gravite": 0, "tags": []}
-    monkeypatch.setattr(extractor, "extract_with_claude", fake_extract)
+    monkeypatch.setattr(extractor, "extract_article", fake_extract)
     item = {
         "source": "presse_rss",
         "source_url": "https://www.leparisien.fr/essonne-91/tournoi-de-tennis-local-x",

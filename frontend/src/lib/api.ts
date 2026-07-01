@@ -66,7 +66,9 @@ export async function fetchHealth(): Promise<HealthResponse> {
 export async function triggerIngest(): Promise<{ status: string; message: string }> {
   const response = await fetch(`${API_BASE_URL}/ingest/run`, { method: "POST" });
   if (!response.ok) {
-    throw new Error(`Erreur ingestion : ${response.status}`);
+    // 401 = INGEST_API_KEY requis (non transmis par le front public),
+    // 503 = endpoint verrouillé en prod sans clé. Message explicite pour la console.
+    throw new Error(`Erreur ingestion : ${response.status} ${response.statusText}`);
   }
   return response.json();
 }
