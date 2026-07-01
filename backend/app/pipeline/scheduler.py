@@ -61,7 +61,20 @@ async def _run_purge_job() -> None:
 def get_scheduler() -> AsyncIOScheduler:
     global _scheduler
     if _scheduler is None:
-        _scheduler = AsyncIOScheduler(timezone=settings.SCHEDULER_TIMEZONE)
+        _scheduler = AsyncIOScheduler(
+            timezone=settings.SCHEDULER_TIMEZONE,
+            # misfire_grace_time par défaut d'APScheduler = 1 s : si la boucle
+            # asyncio est occupée ne serait-ce qu'une seconde à l'heure pile, le
+            # job cron est SILENCIEUSEMENT sauté (ingestion/brief manqués — d'où
+            # l'impression que « ça ne se fait plus »). On accorde 1h de marge,
+            # avec coalesce (un seul rattrapage même si plusieurs occurrences ont
+            # été ratées, ex. après une coupure).
+            job_defaults={
+                "misfire_grace_time": 3600,
+                "coalesce": True,
+                "max_instances": 1,
+            },
+        )
 
         # Trois ingestions par jour : 07h00, 12h00 et 19h00.
         for hour, job_id, label in [
