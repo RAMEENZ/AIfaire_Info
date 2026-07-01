@@ -418,8 +418,9 @@ backend/
 │   ├── pipeline/          # extractor, geocoder, ingestor, brief, scheduler…
 │   └── api/routes/        # events.py, health.py
 ├── scripts/               # build de la base communes (dev)
-└── tests/                 # 161 tests (hors-ligne)
-frontend/                  # Next.js 14 + Leaflet
+└── tests/                 # 166 tests backend (hors-ligne)
+frontend/                  # Next.js 14 + Leaflet (+ tests Vitest : *.test.ts)
+deploy.sh                  # déploiement idempotent (pull→build→recreate, garde-fous)
 nginx/ · cloudflared/ · security/ · .github/workflows/ci.yml
 docker-compose.yml
 ```
