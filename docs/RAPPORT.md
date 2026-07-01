@@ -331,6 +331,19 @@ Trois tables principales :
 
 ### 15.1 Déploiement
 
+Script idempotent recommandé (`deploy.sh` à la racine) : `pull → build →
+recreate`, avec **refus de valider** si `APP_ENV != production` (avant et après
+recréation) ou si un conteneur ne devient pas `healthy`. Exporte `GIT_SHA` pour
+exposer le commit déployé sur `GET /`.
+
+```bash
+cd /opt/aifaire
+./deploy.sh                 # backend + frontend
+./deploy.sh backend         # backend seul ; SKIP_PULL=1 / ALLOW_DEV=1 dispo
+```
+
+Équivalent manuel :
+
 ```bash
 cd /opt/aifaire
 git pull origin main
