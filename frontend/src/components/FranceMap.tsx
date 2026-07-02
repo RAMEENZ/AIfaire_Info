@@ -81,14 +81,15 @@ function MapLegend() {
     <div className="absolute bottom-7 right-2 z-[1000]">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-7 h-7 rounded-full bg-white border border-gray-200 shadow-md text-gray-600 hover:text-blue-700 text-xs font-bold flex items-center justify-center"
+        className="w-7 h-7 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md text-gray-600 dark:text-gray-300 hover:text-blue-700 text-xs font-bold flex items-center justify-center"
         title="Légende"
+        aria-label="Afficher la légende de la carte"
       >
         ?
       </button>
       {open && (
-        <div className="absolute bottom-9 right-0 bg-white/95 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg p-3 w-52 text-xs">
-          <p className="font-semibold text-gray-600 mb-2 uppercase tracking-wide text-[10px]">Catégories</p>
+        <div className="absolute bottom-9 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 w-52 text-xs">
+          <p className="font-semibold text-gray-600 dark:text-gray-300 mb-2 uppercase tracking-wide text-[10px]">Catégories</p>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1 mb-3">
             {(Object.entries(CATEGORY_CONFIG) as [string, typeof CATEGORY_CONFIG[keyof typeof CATEGORY_CONFIG]][]).map(([key, cfg]) => (
               <div key={key} className="flex items-center gap-1.5">
@@ -98,11 +99,11 @@ function MapLegend() {
                 >
                   {cfg.letter}
                 </span>
-                <span className="text-gray-600 truncate">{cfg.label}</span>
+                <span className="text-gray-600 dark:text-gray-300 truncate">{cfg.label}</span>
               </div>
             ))}
           </div>
-          <p className="font-semibold text-gray-600 mb-2 uppercase tracking-wide text-[10px]">Gravité</p>
+          <p className="font-semibold text-gray-600 dark:text-gray-300 mb-2 uppercase tracking-wide text-[10px]">Gravité</p>
           <div className="space-y-1">
             {([0, 1, 2, 3] as const).map((g) => (
               <div key={g} className="flex items-center gap-1.5">
@@ -110,11 +111,11 @@ function MapLegend() {
                   className="w-3 h-3 rounded-full flex-shrink-0"
                   style={{ backgroundColor: GRAVITE_CONFIG[g].color }}
                 />
-                <span className="text-gray-600">{GRAVITE_CONFIG[g].label}</span>
+                <span className="text-gray-600 dark:text-gray-300">{GRAVITE_CONFIG[g].label}</span>
               </div>
             ))}
           </div>
-          <p className="mt-2 text-gray-400 text-[10px]">
+          <p className="mt-2 text-gray-400 dark:text-gray-500 text-[10px]">
             Cercle bleu = cluster (cliquez pour dézoomer)
           </p>
         </div>
@@ -265,15 +266,16 @@ function GeoSearch() {
         value={query}
         onChange={(e) => { setQuery(e.target.value); setNotFound(false); }}
         placeholder="Rechercher une ville…"
-        className={`px-2 py-1 text-xs rounded border shadow-md bg-white w-36 focus:outline-none transition-colors ${
-          notFound ? "border-red-400 placeholder-red-400" : "border-gray-200 focus:border-blue-400"
+        className={`px-2 py-1 text-xs rounded border shadow-md bg-white dark:bg-gray-800 w-36 focus:outline-none transition-colors ${
+          notFound ? "border-red-400 placeholder-red-400" : "border-gray-200 dark:border-gray-700 focus:border-blue-400"
         }`}
       />
       <button
         type="submit"
         disabled={loading || !query.trim()}
-        className="px-2 py-1 text-xs rounded border border-gray-200 shadow-md bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-700 disabled:opacity-40 transition-colors"
+        className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 shadow-md bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 disabled:opacity-40 transition-colors"
         title="Rechercher"
+        aria-label="Rechercher une ville sur la carte"
       >
         {loading ? "…" : "🔍"}
       </button>
@@ -457,7 +459,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
           className={`px-2.5 py-1 text-[11px] font-medium rounded border shadow-md transition-colors ${
             showRiskLayer
               ? "bg-red-600 text-white border-red-700 hover:bg-red-700"
-              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-blue-700"
+              : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-blue-700"
           }`}
           title="Afficher/masquer la couche de risque par département"
         >
@@ -472,7 +474,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
           className={`px-2 py-1 rounded text-xs font-medium border shadow-md transition-colors ${
             showHeatmap
               ? "bg-orange-500 text-white border-orange-600"
-              : "bg-white text-gray-600 border-gray-200 hover:text-orange-500"
+              : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:text-orange-500"
           }`}
           title="Basculer la heatmap"
         >
@@ -495,19 +497,19 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
           className={`px-2 py-1 rounded text-xs font-medium border shadow-md transition-colors ${
             watchMode
               ? "bg-indigo-600 text-white border-indigo-700"
-              : "bg-white text-gray-600 border-gray-200 hover:text-indigo-600"
+              : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:text-indigo-600"
           }`}
           title="Activer la zone de surveillance (cliquez sur la carte pour définir le centre)"
         >
           📍 Zone
         </button>
         {watchZone && (
-          <div className="bg-white border border-indigo-200 rounded shadow-md px-2 py-1.5 flex flex-col gap-1 text-[10px] text-gray-700 w-36">
+          <div className="bg-white dark:bg-gray-800 border border-indigo-200 rounded shadow-md px-2 py-1.5 flex flex-col gap-1 text-[10px] text-gray-700 dark:text-gray-200 w-36">
             <div className="flex justify-between items-center">
               <span className="font-medium text-indigo-700">Rayon : {watchZone.radius} km</span>
               <button
                 onClick={() => { setWatchZone(null); setWatchMode(false); }}
-                className="text-gray-400 hover:text-red-500 transition-colors"
+                className="text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors"
                 title="Effacer la zone"
               >
                 ✕
@@ -524,7 +526,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
               }
               className="w-full accent-indigo-600"
             />
-            <p className="text-[9px] text-gray-400">
+            <p className="text-[9px] text-gray-400 dark:text-gray-500">
               {visibleEvents.length} événement{visibleEvents.length !== 1 ? "s" : ""} dans la zone
             </p>
           </div>
@@ -538,8 +540,8 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
 
       {/* Panneau de navigation DOM-TOM */}
       <div className="absolute bottom-7 left-2 z-[1000]">
-        <div className="bg-white/90 backdrop-blur-sm border border-gray-200 rounded-lg shadow-md px-2 py-1.5">
-          <p className="text-[9px] font-semibold text-gray-400 uppercase tracking-wide mb-1">DOM-TOM</p>
+        <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-lg shadow-md px-2 py-1.5">
+          <p className="text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">DOM-TOM</p>
           <div className="flex flex-wrap gap-1 max-w-[200px]">
             {DOM_TOM.map((t) => {
               const territoryEvents = events.filter((e) => e.lieu_code_insee?.startsWith(t.code) ?? false);
@@ -549,7 +551,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
                 <button
                   key={t.code}
                   onClick={() => flyTo(t.center, t.zoom)}
-                  className="relative px-1.5 py-0.5 text-[10px] font-medium bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded text-gray-600 hover:text-blue-700 transition-colors"
+                  className="relative px-1.5 py-0.5 text-[10px] font-medium bg-gray-50 dark:bg-gray-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-gray-200 dark:border-gray-700 rounded text-gray-600 dark:text-gray-300 hover:text-blue-700 transition-colors"
                   title={alertColor ? `${t.name} — ${territoryEvents.length} alerte(s)` : `Aller sur ${t.name}`}
                 >
                   {t.name}
@@ -579,10 +581,10 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
         <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
           <div className="bg-white/80 backdrop-blur-sm rounded-xl px-6 py-5 text-center shadow-md max-w-xs">
             <div className="text-3xl mb-2">📍</div>
-            <p className="text-sm font-semibold text-gray-700 mb-1">
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">
               Aucun événement localisé
             </p>
-            <p className="text-xs text-gray-500 leading-snug">
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug">
               Les actualités nationales sont affichées dans le feed →
             </p>
           </div>
@@ -592,9 +594,9 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
       {/* Feature 4: zone active but all events filtered out note */}
       {watchZone && visibleEvents.length === 0 && events.length > 0 && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
-          <div className="bg-white/90 backdrop-blur-sm rounded-xl px-5 py-4 text-center shadow-md max-w-xs">
-            <p className="text-sm font-semibold text-gray-700 mb-1">Aucun événement dans la zone</p>
-            <p className="text-xs text-gray-500">
+          <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl px-5 py-4 text-center shadow-md max-w-xs">
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">Aucun événement dans la zone</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               Augmentez le rayon ou déplacez le centre
             </p>
           </div>

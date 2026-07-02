@@ -61,3 +61,65 @@ main {
 .leaflet-popup-tip-container {
   margin-top: -1px;
 }
+
+/* ── Mode sombre ─────────────────────────────────────────────────────────── */
+
+/* Popups Leaflet : le wrapper est blanc par défaut, on l'aligne sur les
+   panneaux (gray-800) pour que le contenu (qui a ses variantes dark:) reste
+   lisible. */
+.dark .leaflet-popup-content-wrapper,
+.dark .leaflet-popup-tip {
+  background: #1f2937; /* gray-800 */
+  color: #e5e7eb;      /* gray-200 */
+}
+
+/* Fond de carte : les tuiles OSM claires éblouissent en mode sombre. Le combo
+   invert + hue-rotate les rend sombres en préservant les teintes (routes,
+   eau). Appliqué au seul volet des tuiles : les marqueurs (divIcons) et popups
+   ne sont pas affectés. */
+.dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9) saturate(0.7);
+}
+
+.dark .leaflet-container {
+  background: #111827; /* gray-900 — visible pendant le chargement des tuiles */
+}
+
+.dark .leaflet-control-zoom a {
+  background: #1f2937;
+  color: #e5e7eb;
+  border-color: #374151;
+}
+
+.dark .leaflet-control-attribution {
+  background: rgba(31, 41, 55, 0.8);
+  color: #9ca3af;
+}
+
+.dark .leaflet-control-attribution a {
+  color: #93c5fd;
+}
+
+/* ── Toasts ──────────────────────────────────────────────────────────────── */
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-toast-in {
+  animation: toast-in 0.18s ease-out;
+}
+
+/* ── Accessibilité : focus clavier visible et cohérent ───────────────────── */
+
+/* Anneau de focus uniquement à la navigation clavier (pas au clic souris). */
+:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+.dark :focus-visible {
+  outline-color: #60a5fa;
+}

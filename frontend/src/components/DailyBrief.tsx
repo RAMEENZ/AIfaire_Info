@@ -29,13 +29,13 @@ function BriefContent({ content }: { content: string }) {
     }
     if (SECTION_TITLES.includes(trimmed)) {
       elements.push(
-        <p key={key++} className="font-semibold text-blue-800 mt-3 mb-1 first:mt-0">
+        <p key={key++} className="font-semibold text-blue-800 dark:text-blue-200 mt-3 mb-1 first:mt-0">
           {trimmed}
         </p>
       );
     } else {
       elements.push(
-        <p key={key++} className="text-gray-700 leading-relaxed">
+        <p key={key++} className="text-gray-700 dark:text-gray-200 leading-relaxed">
           {trimmed}
         </p>
       );
@@ -55,10 +55,10 @@ export default function DailyBrief() {
   const hasBrief = data && !data.message && data.content;
 
   return (
-    <div className="border-b border-gray-100">
+    <div className="border-b border-gray-100 dark:border-gray-700">
       <button
         onClick={() => setOpen(v => !v)}
-        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs font-medium hover:bg-gray-50 transition-colors ${hasBrief ? "text-blue-700" : "text-gray-400"}`}
+        className={`w-full flex items-center gap-2 px-3 py-2 text-left text-xs font-medium hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${hasBrief ? "text-blue-700 dark:text-blue-300" : "text-gray-400 dark:text-gray-500"}`}
         disabled={!hasBrief && !isLoading}
       >
         <span className="text-base">📰</span>
@@ -69,14 +69,14 @@ export default function DailyBrief() {
             ? `Brief du ${new Date(data.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}`
             : "Aucun brief disponible"}
         </span>
-        {hasBrief && <span className="text-gray-400">{open ? "▲" : "▼"}</span>}
+        {hasBrief && <span className="text-gray-400 dark:text-gray-500">{open ? "▲" : "▼"}</span>}
       </button>
       {open && hasBrief && (
-        <div className="px-3 pb-3 text-xs bg-blue-50 border-t border-blue-100">
+        <div className="px-3 pb-3 text-xs bg-blue-50 dark:bg-blue-900/30 border-t border-blue-100 dark:border-blue-800">
           <div className="mt-2">
             <BriefContent content={data.content} />
           </div>
-          <p className="mt-3 text-[10px] text-gray-400">
+          <p className="mt-3 text-[10px] text-gray-400 dark:text-gray-500">
             Généré à {new Date(data.generated_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} · {data.event_count} événements analysés
           </p>
         </div>

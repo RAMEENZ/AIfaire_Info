@@ -39,26 +39,26 @@ export default function StatsBar({ localCount, nationalCount, newestEventDate, e
   const activeCats = (Object.entries(catCounts) as [Categorie, number][]).sort((a, b) => b[1] - a[1]);
 
   return (
-    <div className="px-4 py-1.5 bg-gray-50 border-b border-gray-200 flex-shrink-0">
+    <div className="px-4 py-1.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
       <div className="flex items-center gap-2 text-xs">
-        <span className="font-semibold text-gray-700">{total}</span>
-        <span className="text-gray-400">événements</span>
+        <span className="font-semibold text-gray-700 dark:text-gray-200">{total}</span>
+        <span className="text-gray-400 dark:text-gray-500">événements</span>
 
-        <span className="text-gray-200 mx-1">|</span>
+        <span className="text-gray-200 dark:text-gray-700 mx-1">|</span>
 
-        <span className="inline-flex items-center gap-1 text-blue-600 font-medium">
+        <span className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 font-medium">
           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
           </svg>
           {localCount} localisé{localCount !== 1 ? "s" : ""}
         </span>
 
-        <span className="text-gray-400">
+        <span className="text-gray-400 dark:text-gray-500">
           · {nationalCount} national{nationalCount !== 1 ? "aux" : ""}
         </span>
 
         {time && (
-          <span className="ml-auto text-gray-400" title="Date du dernier article reçu">
+          <span className="ml-auto text-gray-400 dark:text-gray-500" title="Date du dernier article reçu">
             Dernier article {time}
           </span>
         )}

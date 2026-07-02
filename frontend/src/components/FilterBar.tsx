@@ -50,6 +50,9 @@ export default function FilterBar({
   // Feature 3: custom date range
   const [showDateRange, setShowDateRange] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
+  // Sur mobile, les ~20 boutons de filtres dévorent l'écran : repliés par
+  // défaut derrière un bouton « Filtres » avec badge des filtres actifs.
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const { data: trendsData } = useSWR(
     "trends",
@@ -89,16 +92,43 @@ export default function FilterBar({
   // Check if current depuis_heures matches one of the presets
   const matchesPreset = DEPUIS_OPTIONS.some((o) => o.value === filters.depuis_heures);
 
+  // Nombre de familles de filtres écartées du défaut (badge du bouton mobile).
+  const activeFilterCount =
+    (allSelected ? 0 : 1) +
+    (filters.gravite_min > 0 ? 1 : 0) +
+    (filters.depuis_heures !== DEFAULT_FILTERS.depuis_heures ? 1 : 0);
+
   return (
     <div className="flex items-center gap-3 flex-wrap flex-1 min-w-0">
+      {/* Bouton mobile : déplie/replie les filtres */}
+      <button
+        onClick={() => setMobileOpen((v) => !v)}
+        aria-expanded={mobileOpen}
+        aria-label="Afficher ou masquer les filtres"
+        className="md:hidden flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+        </svg>
+        Filtres
+        {activeFilterCount > 0 && (
+          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-600 text-white text-[10px] font-bold">
+            {activeFilterCount}
+          </span>
+        )}
+        <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{mobileOpen ? "▲" : "▼"}</span>
+      </button>
+
+      {/* Contenu des filtres : toujours visible en desktop, repliable en mobile */}
+      <div className={`${mobileOpen ? "flex" : "hidden"} md:flex items-center gap-3 flex-wrap flex-1 min-w-0 w-full md:w-auto`}>
       {/* Categories */}
       <div className="flex items-center gap-1 flex-wrap">
         <button
           onClick={selectAllCategories}
           className={`text-xs px-2 py-1 rounded border transition-colors ${
             allSelected
-              ? "bg-gray-700 text-white border-gray-700"
-              : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
+              ? "bg-gray-700 dark:bg-gray-600 text-white border-gray-700 dark:border-gray-500"
+              : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500"
           }`}
           title="Toutes les catégories"
         >
@@ -116,7 +146,7 @@ export default function FilterBar({
               className={`relative text-xs px-2 py-1 rounded border transition-colors flex items-center gap-1 ${
                 active
                   ? "text-white border-transparent"
-                  : "bg-white text-gray-400 border-gray-200 hover:border-gray-400"
+                  : "bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700 hover:border-gray-400"
               }`}
               style={
                 active
@@ -127,7 +157,7 @@ export default function FilterBar({
               <span>{config.icon}</span>
               <span className="hidden lg:inline">{config.label}</span>
               {eventCounts?.[cat] !== undefined && eventCounts[cat]! > 0 && (
-                <span className={`text-[10px] font-semibold ${active ? "opacity-80" : "text-gray-500"}`}>
+                <span className={`text-[10px] font-semibold ${active ? "opacity-80" : "text-gray-500 dark:text-gray-400"}`}>
                   {eventCounts[cat]}
                 </span>
               )}
@@ -146,15 +176,15 @@ export default function FilterBar({
 
       {/* Gravite filter */}
       <div className="flex items-center gap-1">
-        <span className="text-xs text-gray-500 hidden sm:inline">Gravité :</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">Gravité :</span>
         {GRAVITE_OPTIONS.map((opt) => (
           <button
             key={opt.value}
             onClick={() => onGraviteChange(opt.value)}
             className={`text-xs px-2 py-1 rounded border transition-colors ${
               filters.gravite_min === opt.value
-                ? "bg-gray-700 text-white border-gray-700"
-                : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
+                ? "bg-gray-700 dark:bg-gray-600 text-white border-gray-700 dark:border-gray-500"
+                : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500"
             }`}
           >
             {opt.label}
@@ -164,7 +194,7 @@ export default function FilterBar({
 
       {/* Période */}
       <div className="flex items-center gap-1 flex-wrap">
-        <span className="text-xs text-gray-500 hidden md:inline">Période :</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400 hidden md:inline">Période :</span>
         {DEPUIS_OPTIONS.map((opt) => (
           <button
             key={opt.value}
@@ -175,8 +205,8 @@ export default function FilterBar({
             }}
             className={`text-xs px-2 py-1 rounded border transition-colors ${
               filters.depuis_heures === opt.value && !showDateRange
-                ? "bg-gray-700 text-white border-gray-700"
-                : "bg-white text-gray-600 border-gray-300 hover:border-gray-500"
+                ? "bg-gray-700 dark:bg-gray-600 text-white border-gray-700 dark:border-gray-500"
+                : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500"
             }`}
           >
             {opt.label}
@@ -197,7 +227,7 @@ export default function FilterBar({
           className={`px-2 py-1 rounded text-xs border transition-colors ${
             showDateRange
               ? "bg-indigo-600 text-white border-indigo-700"
-              : "bg-white text-gray-600 border-gray-200 hover:border-indigo-400"
+              : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-indigo-400"
           }`}
           title="Intervalle personnalisé"
         >
@@ -207,12 +237,12 @@ export default function FilterBar({
         {/* Feature 3: Date range inputs */}
         {showDateRange && (
           <div className="flex items-center gap-1 flex-wrap">
-            <label className="text-[10px] text-gray-500 hidden sm:inline">Depuis&nbsp;:</label>
+            <label className="text-[10px] text-gray-500 dark:text-gray-400 hidden sm:inline">Depuis&nbsp;:</label>
             <input
               type="datetime-local"
               value={dateFrom}
               onChange={(e) => handleDateFrom(e.target.value)}
-              className="text-[10px] px-1.5 py-1 border border-gray-300 rounded text-gray-700 bg-white hover:border-indigo-400 focus:outline-none focus:border-indigo-500 transition-colors"
+              className="text-[10px] px-1.5 py-1 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:border-indigo-400 focus:outline-none focus:border-indigo-500 transition-colors"
               title="Début de la période"
             />
             {dateFrom && !matchesPreset && (
@@ -234,7 +264,7 @@ export default function FilterBar({
             setShowDateRange(false);
             setDateFrom("");
           }}
-          className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-100 transition-colors"
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           title="Réinitialiser tous les filtres"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -248,7 +278,7 @@ export default function FilterBar({
       <button
         onClick={onRefresh}
         disabled={isLoading}
-        className="flex items-center gap-1 text-xs px-3 py-1 rounded border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ml-auto"
+        className="flex items-center gap-1 text-xs px-3 py-1 rounded border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ml-auto"
         title="Actualiser les données"
       >
         <svg
@@ -267,6 +297,7 @@ export default function FilterBar({
         </svg>
         <span className="hidden sm:inline">Actualiser</span>
       </button>
+      </div>
     </div>
   );
 }
