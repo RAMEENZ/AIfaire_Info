@@ -84,7 +84,7 @@ export default function EventMarker({ event, isSelected, onSelect }: EventMarker
               href={event.source_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-semibold text-gray-900 hover:text-blue-700 leading-snug block"
+              className="font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-700 leading-snug block"
             >
               {event.titre}
             </a>
@@ -105,7 +105,7 @@ export default function EventMarker({ event, isSelected, onSelect }: EventMarker
               {graviteConfig.label}
             </span>
             {event.lieu_nom && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 text-xs">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs">
                 {event.lieu_nom}
               </span>
             )}
@@ -114,8 +114,8 @@ export default function EventMarker({ event, isSelected, onSelect }: EventMarker
           {/* Résumé IA */}
           {event.resume_ia && (
             <div className="px-3 pb-2">
-              <p className="text-gray-700 leading-snug">{event.resume_ia}</p>
-              <span className="text-xs text-gray-400 italic mt-0.5 block">résumé automatique</span>
+              <p className="text-gray-700 dark:text-gray-200 leading-snug">{event.resume_ia}</p>
+              <span className="text-xs text-gray-400 dark:text-gray-500 italic mt-0.5 block">résumé automatique</span>
             </div>
           )}
 
@@ -125,7 +125,7 @@ export default function EventMarker({ event, isSelected, onSelect }: EventMarker
               {event.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-xs"
+                  className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs"
                 >
                   #{tag}
                 </span>
@@ -134,7 +134,7 @@ export default function EventMarker({ event, isSelected, onSelect }: EventMarker
           )}
 
           {/* Footer */}
-          <div className="px-3 pb-3 border-t border-gray-100 pt-2 flex justify-between text-xs text-gray-500">
+          <div className="px-3 pb-3 border-t border-gray-100 dark:border-gray-700 pt-2 flex justify-between text-xs text-gray-500 dark:text-gray-400">
             <span>{sourceLabel}</span>
             <span>{formatDate(event.date_publication)}</span>
           </div>

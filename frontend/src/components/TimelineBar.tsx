@@ -75,8 +75,8 @@ export default function TimelineBar({
           onClick={switchToLive}
           className={`text-[10px] font-semibold px-2 py-0.5 rounded transition-colors ${
             mode === "live"
-              ? "bg-green-100 text-green-700"
-              : "text-gray-400 hover:text-gray-600 dark:text-gray-500"
+              ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300"
+              : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-500"
           }`}
         >
           ● Live
@@ -85,8 +85,8 @@ export default function TimelineBar({
           onClick={() => switchToHistory(inputDate || today)}
           className={`text-[10px] font-semibold px-2 py-0.5 rounded transition-colors ${
             mode === "history"
-              ? "bg-blue-100 text-blue-700"
-              : "text-gray-400 hover:text-gray-600 dark:text-gray-500"
+              ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+              : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-500"
           }`}
         >
           ⏪ Historique
@@ -106,7 +106,7 @@ export default function TimelineBar({
               }}
               className="text-[10px] px-2 py-0.5 border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-blue-400 dark:bg-gray-700 dark:text-gray-200"
             />
-            <span className="text-[10px] text-blue-600 font-medium">
+            <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">
               — 48h
             </span>
           </>

@@ -40,17 +40,25 @@ function ConnectorDot({ connector }: { connector: ConnectorStatus }) {
   const color = STATUS_COLOR[connector.status];
 
   return (
-    <div
+    // Bouton (et non div) : la fiche détaillée s'ouvre aussi au focus clavier
+    // et au tap mobile, pas seulement au survol souris.
+    <button
+      type="button"
       className="relative flex items-center gap-1.5 cursor-default"
       onMouseEnter={() => setTooltipVisible(true)}
       onMouseLeave={() => setTooltipVisible(false)}
+      onFocus={() => setTooltipVisible(true)}
+      onBlur={() => setTooltipVisible(false)}
+      onClick={() => setTooltipVisible((v) => !v)}
+      aria-label={`${label} : ${STATUS_LABEL[connector.status]}`}
+      aria-expanded={tooltipVisible}
     >
       <span
         className="block w-2 h-2 rounded-full flex-shrink-0"
         style={{ backgroundColor: color }}
-        aria-label={STATUS_LABEL[connector.status]}
+        aria-hidden="true"
       />
-      <span className="text-xs text-gray-600 hidden sm:inline">{label}</span>
+      <span className="text-xs text-gray-600 dark:text-gray-300 hidden sm:inline">{label}</span>
 
       {tooltipVisible && (
         <div className="absolute bottom-full left-0 mb-2 z-50 w-52 rounded-md bg-gray-900 text-white text-xs p-2.5 shadow-lg pointer-events-none">
@@ -91,7 +99,7 @@ function ConnectorDot({ connector }: { connector: ConnectorStatus }) {
           />
         </div>
       )}
-    </div>
+    </button>
   );
 }
 
@@ -129,11 +137,11 @@ export default function StatusBar({ connectors, nextIngestAt, onTriggerIngest }:
   }
 
   return (
-    <footer className="flex items-center gap-4 px-4 py-1.5 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex-shrink-0 z-10">
-      <span className="font-medium text-gray-600 hidden sm:block">Connecteurs :</span>
+    <footer className="flex items-center gap-4 px-4 py-1.5 bg-gray-50 dark:bg-gray-900/40 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 z-10">
+      <span className="font-medium text-gray-600 dark:text-gray-300 hidden sm:block">Connecteurs :</span>
 
       {connectors.length === 0 ? (
-        <span className="text-gray-400 italic">Aucun connecteur disponible</span>
+        <span className="text-gray-400 dark:text-gray-500 italic">Aucun connecteur disponible</span>
       ) : (
         <div className="flex items-center gap-4 flex-wrap">
           {connectors.map((connector) => (
@@ -144,7 +152,7 @@ export default function StatusBar({ connectors, nextIngestAt, onTriggerIngest }:
 
       <div className="ml-auto flex items-center gap-3">
         {nextIngestAt && ingestState === "idle" && (
-          <span className="hidden md:inline text-gray-400">
+          <span className="hidden md:inline text-gray-400 dark:text-gray-500">
             Prochaine MàJ {formatNextIngest(nextIngestAt)}
           </span>
         )}
@@ -154,8 +162,8 @@ export default function StatusBar({ connectors, nextIngestAt, onTriggerIngest }:
             disabled={ingestState === "running"}
             className={`hidden md:flex items-center gap-1 text-xs px-2 py-0.5 rounded border transition-colors disabled:opacity-50 ${
               ingestState === "error"
-                ? "border-red-300 text-red-600 hover:bg-red-50"
-                : "border-gray-300 text-gray-500 hover:bg-gray-100"
+                ? "border-red-300 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
+                : "border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
             }`}
             title={ingestState === "error" ? "L'ingestion manuelle a échoué (voir la console)" : "Déclencher une ingestion manuelle"}
           >

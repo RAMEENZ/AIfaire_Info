@@ -79,7 +79,8 @@ function ShareButton({ eventId }: { eventId: string }) {
   const [copied, setCopied] = useState(false);
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const url = `${window.location.origin}${window.location.pathname}?event=${eventId}`;
+    // Permalien vers la page événement dédiée (lisible sans contexte carte).
+    const url = `${window.location.origin}/event/${eventId}`;
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
@@ -89,7 +90,8 @@ function ShareButton({ eventId }: { eventId: string }) {
     <button
       onClick={handleShare}
       title="Copier le lien vers cet événement"
-      className="text-gray-300 hover:text-blue-500 transition-colors flex-shrink-0"
+      aria-label="Copier le lien vers cet événement"
+      className="text-gray-400 dark:text-gray-500 hover:text-blue-500 transition-colors flex-shrink-0"
     >
       {copied ? (
         <span className="text-green-500 text-[10px] font-semibold">✓</span>
@@ -135,8 +137,8 @@ function EventCard({
   return (
     <article
       id={`event-card-${event.id}`}
-      className={`px-4 py-3 border-b border-gray-100 transition-colors cursor-pointer ${
-        selected ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-gray-50"
+      className={`px-4 py-3 border-b border-gray-100 dark:border-gray-700 transition-colors cursor-pointer ${
+        selected ? "bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/40" : "hover:bg-gray-50 dark:hover:bg-gray-700/50"
       }`}
       style={{ borderLeft: `3px solid ${borderColor}` }}
       onClick={() => onSelect?.(event)}
@@ -147,14 +149,15 @@ function EventCard({
         rel="noopener noreferrer"
         className="block group"
       >
-        <p className="text-sm font-medium text-gray-900 group-hover:text-blue-700 leading-snug line-clamp-2">
+        {/* Carte sélectionnée = dépliée : titre et résumé complets, détails. */}
+        <p className={`text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-700 leading-snug ${selected ? "" : "line-clamp-2"}`}>
           {event.titre}
         </p>
       </a>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         {isLive && (
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700 uppercase tracking-wide">
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 uppercase tracking-wide">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
             Nouveau
           </span>
@@ -177,7 +180,7 @@ function EventCard({
         )}
 
         {isLocalized && event.lieu_nom && event.lieu_nom !== "national" && (
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-xs">
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs">
             <svg className="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
             </svg>
@@ -186,15 +189,43 @@ function EventCard({
         )}
 
         {!isLocalized && event.lieu_nom && event.lieu_nom !== "national" && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-xs">
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs">
             {event.lieu_nom}
           </span>
         )}
 
         {event.resume_ia && (
-          <p className="w-full text-xs text-gray-500 line-clamp-2 mt-0.5">
+          <p className={`w-full text-xs text-gray-500 dark:text-gray-400 mt-0.5 ${selected ? "" : "line-clamp-2"}`}>
             {event.resume_ia}
           </p>
+        )}
+
+        {/* Détails supplémentaires quand la carte est dépliée */}
+        {selected && (
+          <div className="w-full mt-1.5 pt-1.5 border-t border-blue-100 dark:border-blue-800 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
+            {event.lieu_niveau && event.lieu_niveau !== "national" && (
+              <span>
+                Localisation : {event.lieu_niveau}
+                {event.lieu_confiance_geo > 0 && ` (confiance ${Math.round(event.lieu_confiance_geo * 100)} %)`}
+              </span>
+            )}
+            <span>
+              Publié le{" "}
+              {(() => {
+                try { return format(parseISO(event.date_publication), "d MMMM yyyy 'à' HH:mm", { locale: fr }); }
+                catch { return event.date_publication; }
+              })()}
+            </span>
+            <a
+              href={event.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(ev) => ev.stopPropagation()}
+              className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+            >
+              Lire l'article →
+            </a>
+          </div>
         )}
 
         {event.tags && event.tags.length > 0 && (
@@ -205,8 +236,8 @@ function EventCard({
                 onClick={(ev) => { ev.stopPropagation(); onTagClick?.(tag); }}
                 className={`px-1 py-0.5 rounded text-xs leading-none transition-colors ${
                   activeTag === tag
-                    ? "bg-blue-100 text-blue-700 font-medium"
-                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
               >
                 #{tag}
@@ -216,9 +247,9 @@ function EventCard({
         )}
       </div>
 
-      <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-gray-400">
+      <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-gray-400 dark:text-gray-500">
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-medium shrink-0 truncate max-w-[120px]">
+          <span className="inline-block px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium shrink-0 truncate max-w-[120px]">
             {sourceLabel}
           </span>
           {duplicateCount > 0 && (
@@ -226,7 +257,7 @@ function EventCard({
               onClick={toggleSources}
               aria-expanded={sourcesOpen}
               title={sourcesOpen ? "Masquer les autres sources" : "Afficher les autres sources"}
-              className="inline-block px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors shrink-0"
+              className="inline-block px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors shrink-0"
             >
               +{duplicateCount} {duplicateCount > 1 ? "autres sources" : "autre source"}
             </button>
@@ -248,15 +279,15 @@ function EventCard({
       </div>
 
       {duplicateCount > 0 && sourcesOpen && (
-        <ul className="mt-1.5 space-y-1 border-t border-gray-100 pt-1.5">
+        <ul className="mt-1.5 space-y-1 border-t border-gray-100 dark:border-gray-700 pt-1.5">
           {duplicates.map((dup) => (
-            <li key={dup.id} className="flex items-center gap-1.5 text-xs text-gray-500">
+            <li key={dup.id} className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
               <span className="truncate">{sourceLabelOf(dup)}</span>
               <a
                 href={dup.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-shrink-0 text-gray-400 hover:text-gray-600"
+                className="flex-shrink-0 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                 title="Ouvrir l'article"
                 onClick={(ev) => ev.stopPropagation()}
               >
@@ -282,9 +313,9 @@ function AlertBanner({ events, onSelect }: { events: Event[]; onSelect?: (e: Eve
   if (totalUrgent === 0) return null;
 
   const hasCritical = allUrgent.some((e) => e.gravite >= 3);
-  const bg = hasCritical ? "bg-red-50 border-red-200" : "bg-orange-50 border-orange-200";
-  const titleColor = hasCritical ? "text-red-700" : "text-orange-700";
-  const textColor = hasCritical ? "text-red-800 hover:text-red-600" : "text-orange-800 hover:text-orange-600";
+  const bg = hasCritical ? "bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800" : "bg-orange-50 dark:bg-orange-900/30 border-orange-200 dark:border-orange-800";
+  const titleColor = hasCritical ? "text-red-700 dark:text-red-300" : "text-orange-700 dark:text-orange-300";
+  const textColor = hasCritical ? "text-red-800 dark:text-red-200 hover:text-red-600" : "text-orange-800 dark:text-orange-200 hover:text-orange-600";
 
   return (
     <div className={`px-3 py-2 border-b ${bg}`}>
@@ -312,7 +343,7 @@ function AlertBanner({ events, onSelect }: { events: Event[]; onSelect?: (e: Eve
               href={e.source_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-shrink-0 text-gray-400 hover:text-gray-600"
+              className="flex-shrink-0 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
               title="Ouvrir l'article"
               onClick={(ev) => ev.stopPropagation()}
             >
@@ -339,9 +370,9 @@ function CategoryFilterBar({
   eventCounts: Partial<Record<Categorie, number>>;
 }) {
   return (
-    <div className="px-2 py-1.5 border-b border-gray-100 bg-gray-50">
+    <div className="px-2 py-1.5 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">Catégories</span>
+        <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">Catégories</span>
         {activeCategories.size > 0 && (
           <button onClick={onClear} className="text-[10px] text-blue-500 hover:underline">
             Effacer
@@ -362,7 +393,7 @@ function CategoryFilterBar({
               className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${
                 active
                   ? "text-white"
-                  : "bg-white text-gray-500 border border-gray-200 hover:border-gray-300"
+                  : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-gray-300"
               }`}
               style={active ? { backgroundColor: cfg.color } : undefined}
             >
@@ -387,6 +418,25 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Tri mémorisé entre les visites. Chargé dans un effet (et non dans
+  // l'initialiseur d'état) : le composant est pré-rendu côté serveur où
+  // localStorage n'existe pas.
+  useEffect(() => {
+    const stored = localStorage.getItem("faire-info-sort");
+    if (stored === "gravite" || stored === "recent" || stored === "pertinence") {
+      setSortMode(stored);
+    }
+  }, []);
+
+  const changeSortMode = (mode: SortMode) => {
+    setSortMode(mode);
+    try {
+      localStorage.setItem("faire-info-sort", mode);
+    } catch {
+      /* stockage plein / mode privé : préférence non persistée */
+    }
+  };
 
   useEffect(() => {
     if (activeTag && !events.some((e) => e.tags?.includes(activeTag))) {
@@ -491,10 +541,10 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
   };
 
   const tabClass = (t: Tab) =>
-    `px-2 py-0.5 text-xs rounded transition-colors ${
+    `px-2 py-1 text-xs rounded transition-colors ${
       tab === t
-        ? "bg-blue-100 text-blue-700 font-medium"
-        : "text-gray-500 hover:bg-gray-100"
+        ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium"
+        : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
     }`;
 
   const hasActiveFilters = activeCategories.size > 0 || !!activeTag;
@@ -505,14 +555,14 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
       <AlertBanner events={events} onSelect={onSelectEvent} />
 
       {/* Header + tabs */}
-      <div className="px-4 pt-2.5 pb-2 border-b border-gray-200 flex-shrink-0">
+      <div className="px-4 pt-2.5 pb-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-semibold text-gray-700">Actualités</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Actualités</h2>
           <div className="flex items-center gap-1.5">
             {activeTag && (
               <button
                 onClick={() => setActiveTag(null)}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-xs font-medium hover:bg-blue-200 transition-colors"
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-medium hover:bg-blue-200 transition-colors"
               >
                 #{activeTag}
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -521,12 +571,13 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
               </button>
             )}
             {collapsed.length > 0 && (
-              <span className="text-xs text-gray-400">{collapsed.length}</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500">{collapsed.length}</span>
             )}
             <select
               value={sortMode}
-              onChange={(e) => setSortMode(e.target.value as SortMode)}
-              className="text-[10px] px-1 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-600 focus:outline-none focus:border-blue-400 cursor-pointer"
+              onChange={(e) => changeSortMode(e.target.value as SortMode)}
+              aria-label="Ordre de tri du fil"
+              className="text-[10px] px-1 py-0.5 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 text-gray-600 dark:text-gray-300 focus:outline-none focus:border-blue-400 cursor-pointer"
               title="Ordre de tri du fil"
             >
               {SORT_OPTIONS.map((o) => (
@@ -538,7 +589,7 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
           </div>
         </div>
         <div className="relative mb-2">
-          <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 dark:text-gray-500 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -547,7 +598,7 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Rechercher… (/)"
-            className="w-full pl-6 pr-3 py-1 text-xs rounded border border-gray-200 bg-gray-50 focus:outline-none focus:border-blue-400 focus:bg-white transition-colors"
+            className="w-full pl-6 pr-3 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 focus:outline-none focus:border-blue-400 focus:bg-white dark:focus:bg-gray-800 transition-colors"
           />
         </div>
         <div className="flex gap-1 items-center">
@@ -567,10 +618,10 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
           </button>
           <button
             onClick={() => setShowFilters((v) => !v)}
-            className={`ml-auto px-2 py-0.5 text-xs rounded transition-colors flex items-center gap-1 ${
+            className={`ml-auto px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 ${
               showFilters || hasActiveFilters
-                ? "bg-blue-100 text-blue-700 font-medium"
-                : "text-gray-500 hover:bg-gray-100"
+                ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium"
+                : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
             }`}
             title="Filtrer par catégorie"
           >
@@ -600,13 +651,13 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
             </svg>
             <div className="text-center">
-              <p className="text-sm font-medium text-red-600 mb-1">Serveur inaccessible</p>
-              <p className="text-xs text-gray-400">Vérifiez que le backend est en ligne</p>
+              <p className="text-sm font-medium text-red-600 dark:text-red-400 mb-1">Serveur inaccessible</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Vérifiez que le backend est en ligne</p>
             </div>
             {onRetry && (
               <button
                 onClick={onRetry}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -621,16 +672,16 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
           <div className="flex flex-col gap-3 p-4">
             {[...Array(5)].map((_, i) => (
               <div key={i} className="animate-pulse">
-                <div className="h-3 bg-gray-200 rounded w-full mb-1.5" />
-                <div className="h-3 bg-gray-200 rounded w-3/4 mb-2" />
-                <div className="h-2 bg-gray-100 rounded w-1/2" />
+                <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-full mb-1.5" />
+                <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-3/4 mb-2" />
+                <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded w-1/2" />
               </div>
             ))}
           </div>
         )}
 
         {!isLoading && !error && sorted.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-32 text-sm text-gray-400 gap-1">
+          <div className="flex flex-col items-center justify-center h-32 text-sm text-gray-400 dark:text-gray-500 gap-1">
             {searchLower || hasActiveFilters ? (
               <>
                 <span>Aucun résultat pour ces filtres</span>
@@ -662,13 +713,13 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
 
         {/* Charger plus */}
         {hasMore && (
-          <div className="px-4 py-3 border-t border-gray-100 text-center">
+          <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-700 text-center">
             <button
               onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
-              className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
             >
               Charger {Math.min(PAGE_SIZE, collapsed.length - visibleCount)} de plus
-              <span className="text-gray-400 ml-1">({visibleCount} / {collapsed.length})</span>
+              <span className="text-gray-400 dark:text-gray-500 ml-1">({visibleCount} / {collapsed.length})</span>
             </button>
           </div>
         )}
@@ -677,7 +728,7 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
           <div className="sticky bottom-2 flex justify-center pb-2 pointer-events-none">
             <button
               onClick={() => listRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
-              className="pointer-events-auto bg-white border border-gray-200 shadow-sm rounded-full px-3 py-1 text-xs text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
+              className="pointer-events-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm rounded-full px-3 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:border-blue-300 transition-colors"
             >
               ↑ Haut
             </button>

@@ -110,8 +110,8 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
         onClick={() => setOpen((v) => !v)}
         className={`flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${
           active
-            ? "border-blue-300 bg-blue-50 text-blue-700"
-            : "border-gray-300 text-gray-600 hover:bg-gray-50"
+            ? "border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+            : "border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
         }`}
         title="Alertes navigateur"
       >
@@ -124,17 +124,17 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
       {open && settings && (
         <div
           ref={panelRef}
-          className="absolute right-0 top-9 z-[2000] w-72 bg-white border border-gray-200 rounded-lg shadow-xl p-3 text-xs"
+          className="absolute right-0 top-9 z-[2000] w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 text-xs"
         >
           {!notificationsSupported() ? (
-            <p className="text-gray-500">
+            <p className="text-gray-500 dark:text-gray-400">
               Votre navigateur ne supporte pas les notifications.
             </p>
           ) : (
             <>
               {/* Activation */}
               <label className="flex items-center justify-between cursor-pointer mb-3">
-                <span className="font-semibold text-gray-700">Alertes navigateur</span>
+                <span className="font-semibold text-gray-700 dark:text-gray-200">Alertes navigateur</span>
                 <button
                   type="button"
                   onClick={handleToggleEnabled}
@@ -145,7 +145,7 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
                   aria-checked={active}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white dark:bg-gray-800 rounded-full transition-transform ${
                       active ? "translate-x-4" : ""
                     }`}
                   />
@@ -153,21 +153,21 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
               </label>
 
               {permission === "denied" && (
-                <p className="text-amber-600 mb-3">
+                <p className="text-amber-600 dark:text-amber-400 mb-3">
                   Notifications bloquées dans le navigateur. Autorisez-les dans les
                   réglages du site pour recevoir des alertes.
                 </p>
               )}
 
               {/* Seuil de gravité */}
-              <p className="font-semibold text-gray-600 mb-1.5">Me prévenir pour</p>
+              <p className="font-semibold text-gray-600 dark:text-gray-300 mb-1.5">Me prévenir pour</p>
               <div className="flex gap-1 mb-3">
                 <button
                   onClick={() => update({ minGravite: 2 })}
                   className={`flex-1 py-1 rounded border transition-colors ${
                     settings.minGravite === 2
-                      ? "border-orange-400 bg-orange-50 text-orange-700 font-medium"
-                      : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                      ? "border-orange-400 bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 font-medium"
+                      : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                   }`}
                 >
                   🟠 Alerte & +
@@ -176,8 +176,8 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
                   onClick={() => update({ minGravite: 3 })}
                   className={`flex-1 py-1 rounded border transition-colors ${
                     settings.minGravite === 3
-                      ? "border-red-400 bg-red-50 text-red-700 font-medium"
-                      : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                      ? "border-red-400 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-medium"
+                      : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                   }`}
                 >
                   🔴 Urgence
@@ -185,8 +185,8 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
               </div>
 
               {/* Catégories (optionnel) */}
-              <p className="font-semibold text-gray-600 mb-1.5">
-                Catégories {settings.categories.length === 0 && <span className="font-normal text-gray-400">(toutes)</span>}
+              <p className="font-semibold text-gray-600 dark:text-gray-300 mb-1.5">
+                Catégories {settings.categories.length === 0 && <span className="font-normal text-gray-400 dark:text-gray-500">(toutes)</span>}
               </p>
               <div className="flex flex-wrap gap-1 mb-3">
                 {ALL_CATEGORIES.map((cat) => {
@@ -197,8 +197,8 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
                       onClick={() => toggleCategory(cat)}
                       className={`px-1.5 py-0.5 rounded border transition-colors ${
                         on
-                          ? "border-blue-300 bg-blue-50 text-blue-700"
-                          : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                          ? "border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                          : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                       }`}
                     >
                       {CATEGORY_CONFIG[cat]?.icon} {CATEGORY_CONFIG[cat]?.label}
@@ -208,12 +208,12 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
               </div>
 
               {/* Départements */}
-              <p className="font-semibold text-gray-600 mb-1.5">
+              <p className="font-semibold text-gray-600 dark:text-gray-300 mb-1.5">
                 Départements{" "}
                 {deptCount === 0 ? (
-                  <span className="font-normal text-gray-400">(toute la France)</span>
+                  <span className="font-normal text-gray-400 dark:text-gray-500">(toute la France)</span>
                 ) : (
-                  <span className="font-normal text-blue-600">({deptCount} sélectionné{deptCount > 1 ? "s" : ""})</span>
+                  <span className="font-normal text-blue-600 dark:text-blue-400">({deptCount} sélectionné{deptCount > 1 ? "s" : ""})</span>
                 )}
               </p>
               <input
@@ -221,23 +221,23 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
                 value={deptSearch}
                 onChange={(e) => setDeptSearch(e.target.value)}
                 placeholder="Filtrer (nom ou code)…"
-                className="w-full px-2 py-1 mb-1.5 rounded border border-gray-200 bg-gray-50 focus:outline-none focus:border-blue-400 focus:bg-white"
+                className="w-full px-2 py-1 mb-1.5 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 focus:outline-none focus:border-blue-400 focus:bg-white dark:focus:bg-gray-800"
               />
               {deptCount > 0 && (
                 <button
                   onClick={() => update({ departments: [] })}
-                  className="text-blue-600 hover:underline mb-1.5"
+                  className="text-blue-600 dark:text-blue-400 hover:underline mb-1.5"
                 >
                   Tout désélectionner
                 </button>
               )}
-              <div className="max-h-40 overflow-y-auto border border-gray-100 rounded divide-y divide-gray-50">
+              <div className="max-h-40 overflow-y-auto border border-gray-100 dark:border-gray-700 rounded divide-y divide-gray-50">
                 {filteredDepts.map((d) => {
                   const on = settings.departments.includes(d.code);
                   return (
                     <label
                       key={d.code}
-                      className="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-gray-50"
+                      className="flex items-center gap-2 px-2 py-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50"
                     >
                       <input
                         type="checkbox"
@@ -245,13 +245,13 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
                         onChange={() => toggleDept(d.code)}
                         className="accent-blue-600"
                       />
-                      <span className="text-gray-400 w-7">{d.code}</span>
-                      <span className="text-gray-700 truncate">{d.name}</span>
+                      <span className="text-gray-400 dark:text-gray-500 w-7">{d.code}</span>
+                      <span className="text-gray-700 dark:text-gray-200 truncate">{d.name}</span>
                     </label>
                   );
                 })}
                 {filteredDepts.length === 0 && (
-                  <p className="px-2 py-2 text-gray-400">Aucun département</p>
+                  <p className="px-2 py-2 text-gray-400 dark:text-gray-500">Aucun département</p>
                 )}
               </div>
             </>
