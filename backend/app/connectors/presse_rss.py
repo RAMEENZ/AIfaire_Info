@@ -1555,6 +1555,50 @@ async def _fetch_feed(
     return results[:_MAX_PER_FEED], False
 
 
+class FeedCircuitBreaker:
+    """Met de côté les flux RSS morts au lieu de les re-tenter à chaque run.
+
+    Après ``threshold`` échecs consécutifs, le flux est ignoré pendant
+    ``skip_runs`` cycles d'ingestion, puis re-testé une fois (demi-ouvert) :
+    succès → circuit refermé (compteur remis à zéro) ; échec → nouvelle mise à
+    l'écart de ``skip_runs`` cycles. État en mémoire uniquement (même modèle
+    que le cache ETag du connecteur) : un redémarrage re-teste tous les flux,
+    ce qui est auto-réparant et sans migration de schéma.
+    """
+
+    def __init__(self, threshold: int, skip_runs: int) -> None:
+        self._threshold = max(1, threshold)
+        self._skip_runs = max(1, skip_runs)
+        self._run_index = 0
+        self._failures: dict[str, int] = {}      # URL → échecs consécutifs
+        self._skip_until: dict[str, int] = {}    # URL → run_index de re-test
+
+    def begin_run(self) -> None:
+        self._run_index += 1
+
+    def should_skip(self, url: str) -> bool:
+        return self._skip_until.get(url, 0) > self._run_index
+
+    def record_success(self, url: str) -> None:
+        self._failures.pop(url, None)
+        self._skip_until.pop(url, None)
+
+    def record_failure(self, url: str) -> bool:
+        """Enregistre un échec. Retourne True si le circuit vient de s'ouvrir
+        (ou de se ré-ouvrir après un re-test raté)."""
+        count = self._failures.get(url, 0) + 1
+        self._failures[url] = count
+        if count >= self._threshold:
+            self._skip_until[url] = self._run_index + self._skip_runs + 1
+            return True
+        return False
+
+    @property
+    def open_count(self) -> int:
+        """Nombre de flux actuellement mis de côté."""
+        return sum(1 for until in self._skip_until.values() if until > self._run_index)
+
+
 class PresseRSSConnector(BaseConnector):
     def __init__(self) -> None:
         super().__init__()
@@ -1564,26 +1608,49 @@ class PresseRSSConnector(BaseConnector):
         # flux inchangés de répondre 304 (pas de corps) et d'économiser de la
         # bande passante / réduire le risque de 429.
         self._feed_cache: dict[str, dict[str, str]] = {}
+        # Circuit-breaker : les flux en échec chronique sont mis de côté
+        # quelques runs puis re-testés, au lieu d'être re-tentés (timeout,
+        # DNS…) à chaque ingestion.
+        self._breaker = FeedCircuitBreaker(
+            threshold=settings.FEED_FAILURE_THRESHOLD,
+            skip_runs=settings.FEED_SKIP_RUNS,
+        )
 
     @property
     def name(self) -> str:
         return "presse_rss"
 
     async def fetch(self) -> list[dict[str, Any]]:
+        # Circuit-breaker : les flux en échec chronique sont sautés ce run-ci.
+        # `active` conserve l'index d'origine dans RSS_FEEDS : il sert
+        # d'identité de flux pour la sélection diversifiée (round-robin).
+        self._breaker.begin_run()
+        active: list[tuple[int, dict[str, Any]]] = [
+            (i, cfg) for i, cfg in enumerate(RSS_FEEDS)
+            if not self._breaker.should_skip(cfg["url"])
+        ]
+        n_skipped = len(RSS_FEEDS) - len(active)
+
         async with httpx.AsyncClient(headers={"User-Agent": UA}, follow_redirects=True) as client:
             tasks = [
                 _fetch_feed(client, cfg, self._feed_cache, self._logger)
-                for cfg in RSS_FEEDS
+                for _, cfg in active
             ]
             feed_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         raw: list[dict[str, Any]] = []
         n_not_modified = 0
         n_fetched = 0
-        for i, res in enumerate(feed_results):
+        for (i, cfg), res in zip(active, feed_results):
             if isinstance(res, Exception):
-                self._logger.warning("Feed %s failed: %s", RSS_FEEDS[i]["name"], res)
+                self._logger.warning("Feed %s failed: %s", cfg["name"], res)
+                if self._breaker.record_failure(cfg["url"]):
+                    self._logger.warning(
+                        "presse_rss: flux %s mis de côté pour %d runs (%d échecs consécutifs)",
+                        cfg["name"], settings.FEED_SKIP_RUNS, settings.FEED_FAILURE_THRESHOLD,
+                    )
             else:
+                self._breaker.record_success(cfg["url"])
                 items, not_modified = res
                 if not_modified:
                     n_not_modified += 1
@@ -1616,9 +1683,9 @@ class PresseRSSConnector(BaseConnector):
         for it in capped:
             it.pop("_feed", None)
         self._logger.info(
-            "presse_rss: %d flux récupérés, %d inchangés (304) | "
+            "presse_rss: %d flux récupérés, %d inchangés (304), %d sautés (circuit ouvert) | "
             "%d raw → %d after title dedup → %d after cap (max=%d, round-robin par flux)",
-            n_fetched, n_not_modified,
+            n_fetched, n_not_modified, n_skipped,
             len(raw), len(seen), len(capped), settings.MAX_PRESSE_ARTICLES,
         )
         return capped

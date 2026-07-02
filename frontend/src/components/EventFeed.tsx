@@ -5,6 +5,7 @@ import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
 import { ALL_CATEGORIES, CATEGORY_CONFIG, GRAVITE_CONFIG, SOURCE_LABELS } from "@/lib/constants";
+import { SORT_OPTIONS, SortMode, sortComparator } from "@/lib/sortEvents";
 import { Categorie, Event } from "@/lib/types";
 
 type Tab = "all" | "local" | "national";
@@ -378,6 +379,7 @@ function CategoryFilterBar({
 
 export default function EventFeed({ events, isLoading, error, selectedEventId, onSelectEvent, onRetry, liveEventIds }: EventFeedProps) {
   const [tab, setTab] = useState<Tab>("all");
+  const [sortMode, setSortMode] = useState<SortMode>("gravite");
   const [search, setSearch] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [activeCategories, setActiveCategories] = useState<Set<Categorie>>(new Set());
@@ -392,10 +394,10 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
     }
   }, [events, activeTag]);
 
-  // Réinitialise la pagination quand les filtres changent.
+  // Réinitialise la pagination quand les filtres ou le tri changent.
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [tab, search, activeTag, activeCategories]);
+  }, [tab, search, activeTag, activeCategories, sortMode]);
 
   useEffect(() => {
     if (selectedEventId == null) return;
@@ -459,11 +461,7 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
     return true;
   });
 
-  const sorted = [...filtered].sort(
-    (a, b) =>
-      b.gravite - a.gravite ||
-      new Date(b.date_publication).getTime() - new Date(a.date_publication).getTime()
-  );
+  const sorted = [...filtered].sort(sortComparator(sortMode));
 
   const collapsed = collapseByCluster(sorted);
   const visible = collapsed.slice(0, visibleCount);
@@ -525,6 +523,18 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
             {collapsed.length > 0 && (
               <span className="text-xs text-gray-400">{collapsed.length}</span>
             )}
+            <select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value as SortMode)}
+              className="text-[10px] px-1 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-600 focus:outline-none focus:border-blue-400 cursor-pointer"
+              title="Ordre de tri du fil"
+            >
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
         <div className="relative mb-2">
