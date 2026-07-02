@@ -303,7 +303,9 @@ Trois tables principales :
 - **Dépendance Mistral** : sans clé/quota, résumés et catégorisation fine
   dégradés (repli règles) et brief figé.
 - **Mono-worker** : pas de scaling horizontal en l'état.
-- **Migrations à la main** (`init_db` + `ALTER … IF NOT EXISTS`, pas d'Alembic).
+- **Migrations hybrides** : le démarrage crée/complète toujours le schéma
+  automatiquement (`init_db` + `ALTER … IF NOT EXISTS`) ; Alembic est en place
+  pour versionner les évolutions futures.
 
 ---
 
@@ -449,14 +451,32 @@ docker-compose.yml
 
 ## 19. Pistes futures
 
-- **Auto-skip** des flux RSS morts (circuit-breaker par flux, auto-maintenu).
-- **Alembic** pour des migrations de schéma versionnées et sûres.
+- **Copie hors-site** des sauvegardes (rclone vers un stockage distant).
 - **Fond de carte offline** (tuiles + contours servis localement) pour supprimer
   la dernière dépendance CDN.
-- **Réplication / copie hors-site** des sauvegardes.
 - **Scaling** (workers multiples + diffusion SSE partagée type `LISTEN/NOTIFY` au
   lieu du polling par connexion) si le trafic grandit.
 - **Métriques Prometheus** (format texte) en complément de `/metrics` (JSON).
+- **Page événement dédiée** (`/event/<id>`, permalien partageable/indexable) et
+  **notifications push** (service worker) si l'audience grandit.
+
+### Lot robustesse & maintenance (juillet 2026)
+
+- 📡 **Circuit-breaker des flux RSS** : un flux en échec chronique
+  (`FEED_FAILURE_THRESHOLD`, défaut 3) est mis de côté pendant
+  `FEED_SKIP_RUNS` cycles (défaut 8) puis re-testé — fini les timeouts répétés
+  sur les ~5 % de flux morts. État en mémoire, auto-réparant au redémarrage.
+- 🗃️ **Alembic** : scaffolding + migration baseline. Le démarrage reste
+  inchangé (`init_db`/`migrate_db`) ; les évolutions futures du schéma passent
+  par des migrations versionnées (`alembic stamp head` une fois sur les bases
+  existantes).
+- 🔀 **Tri du fil dans l'UI** : Gravité (défaut) / Récents / Pertinence
+  (gravité pondérée par la récence — une vieille alerte ne squatte plus le
+  haut du fil).
+- 🪵 **Rotation des logs Docker** (3 × 10 Mo par conteneur) — le disque ne se
+  remplit plus silencieusement.
+- 🤖 **Dependabot** : PR hebdomadaires groupées (pip, npm, actions, docker),
+  validées par la CI.
 
 ### Améliorations de la revue de code (juillet 2026)
 

@@ -22,6 +22,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /install /usr/local
 
 COPY app/ ./app/
+# Migrations Alembic : permet `docker compose exec backend alembic upgrade head`.
+COPY alembic.ini ./
+COPY alembic/ ./alembic/
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
