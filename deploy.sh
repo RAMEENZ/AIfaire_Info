@@ -78,8 +78,15 @@ log "docker compose build ${SERVICES[*]}"
 docker compose build "${SERVICES[@]}"
 
 # ── 3) Recreate ───────────────────────────────────────────────────────────────
-log "docker compose up -d --no-deps ${SERVICES[*]}"
-docker compose up -d --no-deps "${SERVICES[@]}"
+# Un `up` groupé s'arrête net (set -e) au premier service malade : lors de
+# l'incident du 02/07, le script sortait sans afficher aucun log et laissait le
+# frontend en « Created » (site down). On recrée donc chaque service
+# individuellement en tolérant l'échec — le verdict (et le dump des logs du
+# service malade) est rendu à l'étape 4 par wait_healthy.
+for svc in "${SERVICES[@]}"; do
+  log "docker compose up -d --no-deps $svc"
+  docker compose up -d --no-deps "$svc" || err "$svc : le démarrage a échoué (verdict à l'étape santé)"
+done
 
 # ── 4) Attente healthcheck ────────────────────────────────────────────────────
 wait_healthy() {
@@ -110,9 +117,15 @@ wait_healthy() {
 }
 
 log "Vérification de la santé des services…"
+failed=()
 for svc in "${SERVICES[@]}"; do
-  wait_healthy "$svc" "$HEALTH_TIMEOUT" || die "Déploiement échoué : $svc n'est pas sain."
+  wait_healthy "$svc" "$HEALTH_TIMEOUT" || failed+=("$svc")
 done
+if [ "${#failed[@]}" -gt 0 ]; then
+  err "État complet des conteneurs :"
+  docker compose ps -a || true
+  die "Déploiement échoué : service(s) non sain(s) : ${failed[*]}"
+fi
 
 # ── 5) Garde-fou APP_ENV (APRÈS recréation, valeur réellement vue par le process)
 if printf '%s\n' "${SERVICES[@]}" | grep -qx backend; then
