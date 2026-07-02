@@ -11,6 +11,10 @@ services:
   db:
     logging: *default-logging
     image: postgis/postgis:16-3.4
+    # Seul service qui n'avait PAS de politique de redémarrage (défaut: no) :
+    # au redémarrage du démon Docker (MAJ automatiques…), tout revenait sauf la
+    # base → backend en crash-loop, site down. Incident du 02/07/2026.
+    restart: unless-stopped
     environment:
       POSTGRES_DB: faire_info
       POSTGRES_USER: faire_info

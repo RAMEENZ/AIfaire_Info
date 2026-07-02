@@ -61,9 +61,12 @@ function ConnectorDot({ connector }: { connector: ConnectorStatus }) {
       <span className="text-xs text-gray-600 dark:text-gray-300 hidden sm:inline">{label}</span>
 
       {tooltipVisible && (
-        <div className="absolute bottom-full left-0 mb-2 z-50 w-52 rounded-md bg-gray-900 text-white text-xs p-2.5 shadow-lg pointer-events-none">
-          <p className="font-semibold mb-1">{label}</p>
-          <p className="text-gray-300">
+        // Uniquement des <span> (contenu « phrasé ») : un <button> ne peut pas
+        // contenir de <div>/<p> en HTML valide. Rendu identique (block + reset
+        // des marges par le preflight Tailwind).
+        <span className="absolute bottom-full left-0 mb-2 z-50 w-52 rounded-md bg-gray-900 text-white text-xs p-2.5 shadow-lg pointer-events-none block text-left">
+          <span className="block font-semibold mb-1">{label}</span>
+          <span className="block text-gray-300">
             Statut :{" "}
             <span
               style={{ color }}
@@ -71,33 +74,33 @@ function ConnectorDot({ connector }: { connector: ConnectorStatus }) {
             >
               {STATUS_LABEL[connector.status]}
             </span>
-          </p>
-          <p className="text-gray-300">
+          </span>
+          <span className="block text-gray-300">
             Dernière exécution : {formatLastRun(connector.last_run)}
-          </p>
+          </span>
           {connector.last_count !== null && connector.last_count !== undefined && (
-            <p className="text-gray-300">
+            <span className="block text-gray-300">
               Dernière collecte : {connector.last_count} article{connector.last_count !== 1 ? "s" : ""}
-            </p>
+            </span>
           )}
-          <p className="text-gray-300">
+          <span className="block text-gray-300">
             Dernier succès : {formatLastRun(connector.last_success)}
-          </p>
+          </span>
           {connector.consecutive_failures > 0 && (
-            <p className="text-gray-300">
+            <span className="block text-gray-300">
               Échecs consécutifs : {connector.consecutive_failures}
-            </p>
+            </span>
           )}
           {connector.last_error && (
-            <p className="mt-1 text-red-300 break-words">
+            <span className="block mt-1 text-red-300 break-words">
               {connector.last_error}
-            </p>
+            </span>
           )}
-          <div
+          <span
             className="absolute left-2 bottom-[-4px] w-2 h-2 bg-gray-900 rotate-45"
             aria-hidden="true"
           />
-        </div>
+        </span>
       )}
     </button>
   );

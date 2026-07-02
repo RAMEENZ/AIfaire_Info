@@ -139,13 +139,14 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
                   type="button"
                   onClick={handleToggleEnabled}
                   className={`relative w-9 h-5 rounded-full transition-colors ${
-                    active ? "bg-blue-600" : "bg-gray-300"
+                    active ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
                   }`}
                   role="switch"
                   aria-checked={active}
                 >
+                  {/* Pommeau blanc dans les deux modes (contraste avec la piste). */}
                   <span
-                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white dark:bg-gray-800 rounded-full transition-transform ${
+                    className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
                       active ? "translate-x-4" : ""
                     }`}
                   />
