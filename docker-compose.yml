@@ -1,5 +1,15 @@
+# Rotation des logs : sans borne, le driver json-file grossit indéfiniment et
+# finit par remplir le disque (le backend logge à chaque ingestion). 3 fichiers
+# de 10 Mo max par conteneur. Prend effet à la recréation du conteneur.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
+    logging: *default-logging
     image: postgis/postgis:16-3.4
     environment:
       POSTGRES_DB: faire_info
@@ -14,6 +24,7 @@ services:
       retries: 5
 
   redis:
+    logging: *default-logging
     image: redis:7-alpine
     restart: unless-stopped
     healthcheck:
@@ -23,6 +34,7 @@ services:
       retries: 5
 
   backend:
+    logging: *default-logging
     build: ./backend
     # Bind sur localhost uniquement : le backend n'est PAS exposé sur Internet.
     # cloudflared et nginx le joignent par le réseau Docker interne (backend:8000).
@@ -58,6 +70,7 @@ services:
     restart: unless-stopped
 
   frontend:
+    logging: *default-logging
     build:
       context: ./frontend
       args:
@@ -73,6 +86,7 @@ services:
     restart: unless-stopped
 
   nginx:
+    logging: *default-logging
     image: nginx:alpine
     # cloudflared joint nginx via le réseau interne Docker (nginx:80), pas par ce
     # port hôte. Bind sur localhost : le mapping ne sert qu'aux tests locaux
@@ -87,6 +101,7 @@ services:
     restart: unless-stopped
 
   cloudflared:
+    logging: *default-logging
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
     environment:

@@ -1,0 +1,56 @@
+# Mises à jour automatiques des dépendances : Dependabot ouvre des PR que la
+# CI (tests backend + tests/build frontend) valide. Les minor/patch sont
+# groupées en une seule PR par écosystème pour limiter le bruit ; les majors
+# restent des PR individuelles (à relire avant merge).
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:30"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    groups:
+      python-minor-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:30"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:30"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: "docker"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:30"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 2
+
+  - package-ecosystem: "docker"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:30"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 2

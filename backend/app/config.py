@@ -83,6 +83,14 @@ class Settings(BaseSettings):
     # serveur répond 503 et le front retombe sur le polling SWR (5 min).
     MAX_SSE_CONNECTIONS: int = 100
 
+    # Circuit-breaker des flux RSS presse : après FEED_FAILURE_THRESHOLD échecs
+    # consécutifs, un flux est mis de côté pendant FEED_SKIP_RUNS cycles
+    # d'ingestion, puis re-testé (un seul essai ; nouvel échec → nouvelle mise à
+    # l'écart). État en mémoire (comme le cache ETag) : un redémarrage du
+    # backend re-teste tous les flux. À 3-4 ingestions/jour, 8 runs ≈ 2 jours.
+    FEED_FAILURE_THRESHOLD: int = 3
+    FEED_SKIP_RUNS: int = 8
+
     # Webhook de notification (optionnel) : URL appelée quand un connecteur dépasse
     # le seuil d'échecs consécutifs. Compatible Discord, Slack, ntfy, etc.
     # Exemple ntfy : https://ntfy.sh/mon-topic

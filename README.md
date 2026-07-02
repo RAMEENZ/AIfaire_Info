@@ -95,6 +95,21 @@ python -c "import asyncio; from app.database import init_db; asyncio.run(init_db
 uvicorn app.main:app --reload --port 8000
 ```
 
+### Migrations de schéma (Alembic)
+
+Le démarrage crée/complète toujours le schéma automatiquement (`init_db` +
+`migrate_db`, idempotents) — rien ne change pour l'existant. Alembic est la
+voie **pour les évolutions futures** :
+
+```bash
+cd backend
+alembic stamp head          # une seule fois sur une base EXISTANTE (marque la baseline)
+alembic upgrade head        # applique les migrations (crée tout sur une base neuve)
+alembic revision -m "..."   # nouvelle migration (opérations op.* explicites)
+```
+
+En production : `docker compose exec backend alembic upgrade head`.
+
 ### Frontend
 
 ```bash
@@ -157,6 +172,8 @@ cohérence des tables de configuration (labels de connecteurs, catégories).
 | `REDIS_URL` | _(vide)_ | Cache Redis optionnel (`redis://redis:6379` en prod) |
 | `REDIS_EVENTS_TTL` | `120` | TTL cache API événements (secondes) |
 | `MAX_SSE_CONNECTIONS` | `100` | Plafond de flux SSE `/events/stream` simultanés (au-delà : 503, repli polling) |
+| `FEED_FAILURE_THRESHOLD` | `3` | Échecs consécutifs avant mise à l'écart d'un flux RSS (circuit-breaker) |
+| `FEED_SKIP_RUNS` | `8` | Nb de cycles d'ingestion pendant lesquels un flux mort est sauté avant re-test |
 | `CORS_ORIGINS` | `*` | Origines CORS autorisées (séparées par virgule) |
 | `GIT_SHA` | _(vide)_ | Commit déployé, exposé par `GET /` (diagnostic « quelle version tourne ? ») |
 
