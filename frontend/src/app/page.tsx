@@ -11,7 +11,10 @@ import FilterBar from "@/components/FilterBar";
 import StatusBar from "@/components/StatusBar";
 import StatsBar from "@/components/StatsBar";
 import AlertSettings from "@/components/AlertSettings";
+import ShortcutsHelp from "@/components/ShortcutsHelp";
+import Toaster from "@/components/Toaster";
 import { fetchEvents, fetchHealth, triggerIngest } from "@/lib/api";
+import { toast } from "@/lib/toast";
 import { API_BASE_URL, ALL_CATEGORIES, GRAVITE_CONFIG, REFRESH_INTERVAL } from "@/lib/constants";
 import {
   AlertSettings as AlertSettingsType,
@@ -92,8 +95,8 @@ const INGEST_BUTTON_ENABLED = process.env.NEXT_PUBLIC_ENABLE_INGEST_BUTTON === "
 const MapWrapper = dynamic(() => import("@/components/MapWrapper"), {
   ssr: false,
   loading: () => (
-    <div className="flex-1 flex items-center justify-center bg-gray-100">
-      <span className="text-gray-500 text-sm">Chargement de la carte…</span>
+    <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
+      <span className="text-gray-500 dark:text-gray-400 text-sm">Chargement de la carte…</span>
     </div>
   ),
 });
@@ -343,7 +346,7 @@ export default function HomePage() {
       {/* Header */}
       <header className="flex flex-wrap items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm z-10 flex-shrink-0">
         <div className="flex items-center gap-2 mr-4">
-          <span className="text-blue-700 font-black text-xl tracking-tight">FAIRE</span>
+          <span className="text-blue-700 dark:text-blue-300 font-black text-xl tracking-tight">FAIRE</span>
           <span className="text-gray-500 dark:text-gray-400 text-sm font-medium hidden sm:inline">Info</span>
         </div>
         <FilterBar
@@ -371,9 +374,13 @@ export default function HomePage() {
         <AlertSettings onChange={setAlertSettings} />
         <button
           onClick={() => {
-            navigator.clipboard.writeText(window.location.href).catch(() => {});
+            navigator.clipboard
+              .writeText(window.location.href)
+              .then(() => toast("Lien copié dans le presse-papiers ✓", "success"))
+              .catch(() => toast("Impossible de copier le lien", "error"));
           }}
-          className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+          aria-label="Copier le lien avec les filtres actuels"
+          className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
           title="Copier le lien avec les filtres actuels"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -383,7 +390,11 @@ export default function HomePage() {
         </button>
         {allEvents.length > 0 && (
           <button
-            onClick={() => exportToCSV(allEvents)}
+            onClick={() => {
+              exportToCSV(allEvents);
+              toast(`${allEvents.length} événement${allEvents.length > 1 ? "s" : ""} exporté${allEvents.length > 1 ? "s" : ""} en CSV`, "success");
+            }}
+            aria-label={`Télécharger ${allEvents.length} événements en CSV`}
             className="hidden lg:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             title={`Télécharger ${allEvents.length} événements en CSV`}
           >
@@ -393,10 +404,18 @@ export default function HomePage() {
             CSV
           </button>
         )}
+        {/* FastAPI attend des paramètres répétés (?categories=a&categories=b),
+            pas une liste jointe par virgules (sinon 422). Filtre inclus
+            uniquement quand une sélection partielle est active. */}
         <a
-          href={`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api"}/feed.rss${filters.categories.length < 12 ? "?categories=" + filters.categories.join(",") : ""}`}
+          href={`${API_BASE_URL}/feed.rss${
+            filters.categories.length !== ALL_CATEGORIES.length
+              ? "?" + filters.categories.map((c) => `categories=${c}`).join("&")
+              : ""
+          }`}
           target="_blank"
           rel="noopener noreferrer"
+          aria-label="Flux RSS Atom (filtre catégories actuel)"
           className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           title="Flux RSS Atom (filtre catégories actuel)"
         >
@@ -417,8 +436,10 @@ export default function HomePage() {
           </svg>
           <span className="hidden lg:inline">Stats</span>
         </a>
+        <ShortcutsHelp />
         <button
           onClick={toggleDark}
+          aria-label={darkMode ? "Passer en mode clair" : "Passer en mode sombre"}
           className="flex items-center justify-center w-7 h-7 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           title={darkMode ? "Passer en mode clair" : "Passer en mode sombre"}
         >
@@ -434,20 +455,20 @@ export default function HomePage() {
         </button>
         <div className="ml-auto flex items-center gap-2 hidden md:flex">
           {isLive && (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold uppercase tracking-wide">
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 text-[10px] font-semibold uppercase tracking-wide">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
               En direct
             </span>
           )}
           {eventsError && allEvents.length > 0 && (
-            <span className="text-xs text-amber-600 flex items-center gap-1" title="Données potentiellement périmées — la dernière mise à jour a échoué">
+            <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1" title="Données potentiellement périmées — la dernière mise à jour a échoué">
               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
               Données possiblement périmées
             </span>
           )}
-          <span className="text-xs text-gray-400 whitespace-nowrap">
+          <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
             {eventsData
               ? localEvents.length > 0
                 ? `${eventsData.total} événement${eventsData.total > 1 ? "s" : ""} (${localEvents.length} localisé${localEvents.length > 1 ? "s" : ""} · ${nationalEvents.length} national${nationalEvents.length > 1 ? "aux" : ""})`
@@ -460,11 +481,11 @@ export default function HomePage() {
       </header>
 
       {/* Mobile toggle bar */}
-      <div className="flex md:hidden border-b border-gray-200 bg-white flex-shrink-0">
+      <div className="flex md:hidden border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
         <button
           onClick={() => setMobileView("map")}
           className={`flex-1 py-1.5 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
-            mobileView === "map" ? "text-blue-700 border-b-2 border-blue-700 bg-blue-50" : "text-gray-500"
+            mobileView === "map" ? "text-blue-700 dark:text-blue-300 border-b-2 border-blue-700 bg-blue-50 dark:bg-blue-900/30" : "text-gray-500 dark:text-gray-400"
           }`}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -475,7 +496,7 @@ export default function HomePage() {
         <button
           onClick={() => setMobileView("feed")}
           className={`flex-1 py-1.5 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
-            mobileView === "feed" ? "text-blue-700 border-b-2 border-blue-700 bg-blue-50" : "text-gray-500"
+            mobileView === "feed" ? "text-blue-700 dark:text-blue-300 border-b-2 border-blue-700 bg-blue-50 dark:bg-blue-900/30" : "text-gray-500 dark:text-gray-400"
           }`}
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -502,7 +523,7 @@ export default function HomePage() {
               </span>
               <button
                 onClick={() => setHistoryDate(null)}
-                className="text-amber-400 hover:text-amber-600 dark:hover:text-amber-200 transition-colors"
+                className="text-amber-400 dark:text-amber-500 hover:text-amber-600 dark:hover:text-amber-200 transition-colors"
                 title="Retour au live"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -560,6 +581,14 @@ export default function HomePage() {
         nextIngestAt={healthData?.next_ingest_at ?? null}
         onTriggerIngest={INGEST_BUTTON_ENABLED ? handleTriggerIngest : undefined}
       />
+
+      <Toaster />
+
+      {/* Annonce l'arrivée d'événements temps réel aux lecteurs d'écran */}
+      <div aria-live="polite" className="sr-only">
+        {liveEvents.length > 0 &&
+          `${liveEvents.length} nouveau${liveEvents.length > 1 ? "x" : ""} événement${liveEvents.length > 1 ? "s" : ""} reçu${liveEvents.length > 1 ? "s" : ""}`}
+      </div>
     </div>
   );
 }

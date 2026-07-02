@@ -457,8 +457,28 @@ docker-compose.yml
 - **Scaling** (workers multiples + diffusion SSE partagée type `LISTEN/NOTIFY` au
   lieu du polling par connexion) si le trafic grandit.
 - **Métriques Prometheus** (format texte) en complément de `/metrics` (JSON).
-- **Page événement dédiée** (`/event/<id>`, permalien partageable/indexable) et
-  **notifications push** (service worker) si l'audience grandit.
+- **Notifications push** (service worker) si l'audience grandit.
+
+### Lot UX/UI (juillet 2026)
+
+- 🌙 **Mode sombre complet** : variantes `dark:` sur les 9 composants (fil,
+  filtres, statut, brief, carte, alertes…), popups et contrôles Leaflet
+  adaptés, fond de carte assombri (filtre CSS sur les tuiles).
+- 🔔 **Feedbacks** : mini système de toasts (copie de lien, export CSV,
+  erreurs), tri du fil mémorisé (localStorage), panneau d'aide des raccourcis
+  clavier (« ? »).
+- 📱 **Mobile** : filtres repliés derrière un bouton « Filtres » avec badge du
+  nombre de filtres actifs ; cibles tactiles élargies.
+- ♿ **Accessibilité** : aria-labels sur les boutons icône, focus clavier
+  visible (`:focus-visible`), tooltip des connecteurs accessible au
+  clavier/tactile, annonces `aria-live` des nouveaux événements, contrastes
+  relevés.
+- 📄 **Page événement dédiée** (`/event/<id>`) : permalien partageable et
+  lisible sans le contexte carte (le bouton de partage des cartes copie ce
+  lien) ; carte sélectionnée **dépliée** dans le fil (résumé complet,
+  localisation + confiance, lien article).
+- 🐛 Correction du lien **RSS filtré** (paramètres répétés attendus par
+  FastAPI — le lien renvoyait 422 avec un filtre actif).
 
 ### Lot robustesse & maintenance (juillet 2026)
 
