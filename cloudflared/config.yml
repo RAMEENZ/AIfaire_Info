@@ -1,4 +1,5 @@
 ingress:
-  - hostname: aifaire.ramenz.qzz.io
+  # Remplace par ton vrai hostname (celui configuré dans le tunnel Cloudflare).
+  - hostname: aifaire.example.com
     service: http://nginx:80
   - service: http_status:404

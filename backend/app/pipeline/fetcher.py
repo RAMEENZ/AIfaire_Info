@@ -25,10 +25,7 @@ _FETCH_SEMAPHORE = asyncio.Semaphore(15)
 _MAX_REDIRECTS = 5
 
 _HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (compatible; FaireInfo/1.0; "
-        "+https://github.com/RAMEENZ/AIfaire_Info)"
-    ),
+    "User-Agent": "Mozilla/5.0 (compatible; FaireInfo/1.0)",
     "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
 }
 

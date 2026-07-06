@@ -6,7 +6,7 @@ limiting, le WAF et le blocage doivent se faire **au niveau de Cloudflare**, pas
 sur le serveur (qui ne voit que l'IP interne du tunnel, jamais l'IP réelle du
 visiteur).
 
-Domaine concerné : `aifaire.ramenz.qzz.io`.
+Domaine concerné : `aifaire.example.com` (remplace par ton vrai domaine).
 
 ---
 
@@ -19,7 +19,7 @@ Domaine concerné : `aifaire.ramenz.qzz.io`.
 - ✅ **Always Use HTTPS** : ON (force la redirection http→https).
 - ✅ **HTTP Strict Transport Security (HSTS)** : Enable, `max-age` 6 mois,
   *sans* « Include subdomains » au début (évite de bloquer d'autres
-  sous-domaines de `ramenz.qzz.io`). Active-le quand tu es sûr.
+  sous-domaines de `example.com`). Active-le quand tu es sûr.
 - ✅ **Minimum TLS Version** : `TLS 1.2`.
 
 > Les headers `X-Frame-Options`, `X-Content-Type-Options`, etc. sont déjà
@@ -66,7 +66,7 @@ Si tu veux **garder** la doc Swagger accessible à toi seul plutôt que de la
 désactiver totalement :
 
 **Zero Trust → Access → Applications → Add an application → Self-hosted**
-- Application domain : `aifaire.ramenz.qzz.io`
+- Application domain : `aifaire.example.com`
 - Path : `/docs` (puis répéter pour `/api/ingest`)
 - Policy : *Allow* → *Emails* → ton adresse Google.
 
