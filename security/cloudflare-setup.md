@@ -6,7 +6,7 @@ limiting, le WAF et le blocage doivent se faire **au niveau de Cloudflare**, pas
 sur le serveur (qui ne voit que l'IP interne du tunnel, jamais l'IP réelle du
 visiteur).
 
-Domaine concerné : `aifaire.example.com`.
+Domaine concerné : `aifaire.example.com` (remplace par ton vrai domaine).
 
 ---
 
