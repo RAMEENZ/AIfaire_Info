@@ -9,7 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "date-fns": "^3.6.0",
+    "date-fns": "^4.4.0",
     "date-fns-tz": "^3.1.3",
     "leaflet": "^1.9.4",
     "next": "14.2.30",
