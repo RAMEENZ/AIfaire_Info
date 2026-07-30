@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import init_db, migrate_db
 from app.api.routes.events import router as events_router
-from app.api.routes.health import router as health_router
+from app.api.routes.health import router as health_router, healthz_router
 from app.pipeline.geocoder import close_geo_client
 from app.pipeline.scheduler import start_scheduler, stop_scheduler, startup_ingestion
 
@@ -84,6 +84,8 @@ app.add_middleware(
 
 app.include_router(events_router, prefix="/api", tags=["events"])
 app.include_router(health_router, prefix="/api", tags=["health"])
+# Sonde d'infrastructure (healthcheck Docker) : hors préfixe /api.
+app.include_router(healthz_router, tags=["health"])
 
 
 API_VERSION = "1.0.0"

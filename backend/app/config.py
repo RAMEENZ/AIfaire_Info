@@ -98,6 +98,20 @@ class Settings(BaseSettings):
     # Nombre d'échecs consécutifs déclenchant le webhook.
     WEBHOOK_THRESHOLD: int = 3
 
+    # Healthcheck de fraîcheur (GET /healthz) : le conteneur est déclaré
+    # « unhealthy » si plus aucun événement n'a été ingéré depuis ce délai.
+    # Avec 3 ingestions/jour (écart max 12 h), 26 h = un cycle entièrement
+    # raté + marge. Panne du 27-30/07/2026 : scheduler mort dans un conteneur
+    # « healthy » pendant 3 jours — ce seuil l'aurait rendue visible dès J+1.
+    HEALTHZ_MAX_DATA_AGE_HOURS: int = 26
+    # Retard toléré sur l'heure de la prochaine ingestion planifiée avant de
+    # passer unhealthy (aligné sur le misfire_grace_time d'APScheduler : 1 h).
+    HEALTHZ_SCHEDULER_GRACE_MINUTES: int = 60
+    # Fenêtre après le démarrage pendant laquelle la fraîcheur des données
+    # n'est pas exigée : l'ingestion de démarrage peut prendre >10 min
+    # (MAX_PRESSE_ARTICLES × LLM) et la base peut légitimement être vide/stale.
+    HEALTHZ_BOOT_GRACE_MINUTES: int = 30
+
     @property
     def cors_origins_list(self) -> list[str]:
         origins = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]

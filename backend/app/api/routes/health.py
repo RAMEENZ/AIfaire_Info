@@ -3,9 +3,11 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.models import ConnectorStatus, Event
 from app.pipeline.ingestor import CONNECTORS, ingestion_in_progress
@@ -15,6 +17,15 @@ from app.schemas import HealthResponse, ConnectorStatusSchema
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Routeur séparé, monté SANS le préfixe /api : /healthz est une sonde
+# d'infrastructure (healthcheck Docker), pas un endpoint de l'API publique.
+healthz_router = APIRouter()
+
+# Instant de démarrage du processus (import du module ≈ boot de l'app) :
+# référence de la fenêtre de grâce pendant laquelle des données absentes ou
+# périmées sont tolérées (l'ingestion de démarrage n'a pas encore fini).
+STARTED_AT = datetime.now(timezone.utc)
 
 # Liste canonique dérivée des connecteurs réellement enregistrés : évite la
 # dérive entre cette liste et CONNECTORS (auparavant figée à 8 noms, alors que
@@ -107,6 +118,102 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> HealthResponse:
 def next_ingest_at_iso() -> Optional[str]:
     raw = get_next_ingest_time()
     return raw if raw else None
+
+
+# --- Healthcheck de fraîcheur (/healthz) ------------------------------------
+# L'ancien healthcheck Docker testait GET / : il validait que l'API répond,
+# pas que le pipeline produit. Un scheduler mort dans un processus vivant
+# laissait le conteneur « healthy » indéfiniment (panne silencieuse de
+# plusieurs jours en 07/2026). /healthz répond 503 dès que le scheduler ne
+# planifie plus rien ou que plus aucun événement n'est ingéré : la panne
+# devient visible dans `docker compose ps` et autoheal peut redémarrer le
+# conteneur.
+
+def _tz(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def compute_healthz_reasons(
+    now: datetime,
+    started_at: datetime,
+    next_ingest_at: Optional[datetime],
+    newest_created_at: Optional[datetime],
+    *,
+    max_data_age_hours: int,
+    scheduler_grace_minutes: int,
+    boot_grace_minutes: int,
+) -> list[str]:
+    """Logique pure du healthcheck : liste des raisons d'être unhealthy.
+
+    Liste vide = sain. Séparée de l'endpoint pour être testable hors-ligne.
+    """
+    reasons: list[str] = []
+
+    if next_ingest_at is None:
+        # get_next_ingest_time() ne renvoie None que si le scheduler est
+        # arrêté ou n'a plus de jobs d'ingestion : état mort, pas transitoire.
+        reasons.append("scheduler_stopped")
+    elif _tz(next_ingest_at) < now - timedelta(minutes=scheduler_grace_minutes):
+        # Le job existe mais son heure de passage est dépassée depuis plus
+        # que la marge de rattrapage : il ne se déclenche plus.
+        reasons.append("ingestion_overdue")
+
+    # Fraîcheur des données — hors fenêtre de démarrage uniquement.
+    if now - _tz(started_at) > timedelta(minutes=boot_grace_minutes):
+        if newest_created_at is None:
+            reasons.append("no_events_ingested")
+        elif _tz(newest_created_at) < now - timedelta(hours=max_data_age_hours):
+            reasons.append("stale_data")
+
+    return reasons
+
+
+@healthz_router.get("/healthz")
+async def healthz(db: AsyncSession = Depends(get_db)) -> JSONResponse:
+    now = datetime.now(timezone.utc)
+
+    next_ingest: Optional[datetime] = None
+    raw = get_next_ingest_time()
+    if raw:
+        try:
+            next_ingest = datetime.fromisoformat(raw)
+        except (ValueError, TypeError):
+            logger.warning("healthz: could not parse next_ingest time: %r", raw)
+
+    try:
+        # created_at (heure d'ingestion) et non date_publication : les
+        # vigilances J1 sont datées de demain, une date de publication
+        # « récente » ne prouve pas que le pipeline tourne.
+        newest = (await db.execute(select(func.max(Event.created_at)))).scalar_one()
+    except Exception as exc:
+        logger.warning("healthz: database check failed: %s", exc)
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "reasons": ["database_unreachable"]},
+        )
+
+    reasons = compute_healthz_reasons(
+        now,
+        STARTED_AT,
+        next_ingest,
+        newest,
+        max_data_age_hours=settings.HEALTHZ_MAX_DATA_AGE_HOURS,
+        scheduler_grace_minutes=settings.HEALTHZ_SCHEDULER_GRACE_MINUTES,
+        boot_grace_minutes=settings.HEALTHZ_BOOT_GRACE_MINUTES,
+    )
+    if reasons:
+        logger.warning("healthz: unhealthy (%s)", ", ".join(reasons))
+
+    return JSONResponse(
+        status_code=503 if reasons else 200,
+        content={
+            "status": "unhealthy" if reasons else "ok",
+            "reasons": reasons,
+            "next_ingest_at": next_ingest.isoformat() if next_ingest else None,
+            "newest_event_created_at": newest.isoformat() if newest else None,
+            "uptime_seconds": int((now - STARTED_AT).total_seconds()),
+        },
+    )
 
 
 @router.get("/metrics")

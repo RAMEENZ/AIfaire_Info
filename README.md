@@ -50,6 +50,7 @@ Pour déclencher manuellement : `POST /api/ingest/run` (clé `INGEST_API_KEY`). 
 - **Plafond presse** : `MAX_PRESSE_ARTICLES` (défaut 120) — cap appliqué après dédup pour éviter de saturer le LLM sur un cycle.
 - **Santé des connecteurs** : chaque run met à jour `last_success` et un compteur d'échecs consécutifs. Un raté isolé → « dégradé » (orange) ; panne chronique (≥ 3 runs) → « erreur » (rouge). Visible dans la StatusBar. Webhook configurable (`WEBHOOK_URL`).
 - **Géocodage départemental hors-ligne** : les centroïdes des 101 départements sont une table statique (`geo_data.DEPT_CENTROIDS`), pas un appel réseau. `geo.api.gouv.fr` ayant cessé de renvoyer le champ `centre`, les vigilances Météo-France (par département) retombaient toutes en « national » et n'apparaissaient pas sur la carte ; la table locale rend cette donnée constante déterministe et instantanée.
+- **Healthcheck de fraîcheur** : `GET /healthz` répond `503` si le scheduler ne planifie plus d'ingestion (ou la déclenche avec plus d'1 h de retard), ou si aucun événement n'a été ingéré depuis 26 h (`HEALTHZ_*`, grâce de 30 min au démarrage). Le healthcheck Docker pointe dessus, et le service `autoheal` redémarre automatiquement un backend « unhealthy ». Leçon de la panne de 07/2026 : un scheduler mort dans un processus vivant restait invisible avec un healthcheck qui ne testait que « l'API répond ».
 
 ### Brief quotidien
 
@@ -173,6 +174,9 @@ cohérence des tables de configuration (labels de connecteurs, catégories).
 | `REDIS_EVENTS_TTL` | `120` | TTL cache API événements (secondes) |
 | `MAX_SSE_CONNECTIONS` | `100` | Plafond de flux SSE `/events/stream` simultanés (au-delà : 503, repli polling) |
 | `FEED_FAILURE_THRESHOLD` | `3` | Échecs consécutifs avant mise à l'écart d'un flux RSS (circuit-breaker) |
+| `HEALTHZ_MAX_DATA_AGE_HOURS` | `26` | `/healthz` passe unhealthy si aucun événement ingéré depuis ce délai |
+| `HEALTHZ_SCHEDULER_GRACE_MINUTES` | `60` | Retard toléré sur la prochaine ingestion planifiée avant unhealthy |
+| `HEALTHZ_BOOT_GRACE_MINUTES` | `30` | Fenêtre post-démarrage sans exigence de fraîcheur (ingestion initiale en cours) |
 | `FEED_SKIP_RUNS` | `8` | Nb de cycles d'ingestion pendant lesquels un flux mort est sauté avant re-test |
 | `CORS_ORIGINS` | `*` | Origines CORS autorisées (séparées par virgule) |
 | `GIT_SHA` | _(vide)_ | Commit déployé, exposé par `GET /` (diagnostic « quelle version tourne ? ») |

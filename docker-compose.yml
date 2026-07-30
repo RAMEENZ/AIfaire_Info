@@ -66,11 +66,17 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/').status==200 else 1)"]
+      # /healthz teste la vraie santé (scheduler vivant + données fraîches),
+      # pas seulement « l'API répond ». Panne silencieuse de 07/2026 :
+      # scheduler mort 3 jours dans un conteneur « healthy » via GET /.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz', timeout=8).status==200 else 1)"]
       interval: 15s
-      timeout: 5s
+      timeout: 10s
       retries: 5
       start_period: 20s
+    # autoheal redémarre ce conteneur quand il devient unhealthy.
+    labels:
+      autoheal: "true"
     restart: unless-stopped
 
   frontend:
@@ -103,6 +109,26 @@ services:
       - frontend
       - backend
     restart: unless-stopped
+
+  # Redémarre automatiquement les conteneurs marqués `autoheal: "true"` quand
+  # leur healthcheck passe unhealthy (Docker seul ne redémarre jamais un
+  # conteneur unhealthy). Nécessite le socket Docker : accès root-équivalent
+  # au démon, limité ici à un conteneur sans port exposé qui ne surveille que
+  # les conteneurs étiquetés. Sans cette brique, un backend zombie (API vive,
+  # scheduler mort) resterait en panne jusqu'à une intervention manuelle.
+  autoheal:
+    logging: *default-logging
+    image: willfarrell/autoheal:1.2.0
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      # Arrêt gracieux : uvicorn a 30 s pour finir les requêtes en cours
+      # avant le kill (défaut autoheal : 10 s). Pas de risque de boucle
+      # serrée : après redémarrage, /healthz tolère 30 min de démarrage
+      # (HEALTHZ_BOOT_GRACE_MINUTES) avant d'exiger des données fraîches.
+      AUTOHEAL_DEFAULT_STOP_TIMEOUT: 30
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
   cloudflared:
     logging: *default-logging
