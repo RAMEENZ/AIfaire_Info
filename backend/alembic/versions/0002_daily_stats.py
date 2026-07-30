@@ -20,6 +20,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # Idempotent : init_db (create_all au démarrage) crée déjà les nouvelles
+    # tables — si le backend a booté avant `alembic upgrade`, la table existe.
+    # Dans ce cas la migration n'a rien à faire (équivaut à un stamp).
+    if sa.inspect(op.get_bind()).has_table("daily_stats"):
+        return
     op.create_table(
         "daily_stats",
         sa.Column("id", sa.Integer(), autoincrement=True, primary_key=True),
