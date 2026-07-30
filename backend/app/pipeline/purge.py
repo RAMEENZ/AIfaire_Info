@@ -13,7 +13,6 @@ TTL_HOURS: dict[str, int] = {
     "meteo_france": 36,   # remplacé à chaque ingestion
     "vigicrues":    36,
     "renass":       720,  # 30 jours — données sismiques historiquement utiles
-    "enedis":       48,
     "presse_rss":   72,   # 3 jours pour la presse
 }
 DEFAULT_TTL_HOURS = 72

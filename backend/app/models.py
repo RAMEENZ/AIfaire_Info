@@ -2,7 +2,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import String, Integer, Float, DateTime, Text, Index
+from datetime import date
+
+from sqlalchemy import String, Integer, Float, Date, DateTime, Text, Index, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 from geoalchemy2 import Geometry
@@ -72,6 +74,31 @@ class ConnectorStatus(Base):
     consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class DailyStat(Base):
+    """Agrégat quotidien : nombre d'événements par jour × catégorie × département.
+
+    La purge jette les événements bruts après 36 h – 30 j : sans agrégats, aucune
+    tendance possible (« plus d'incendies que le mois dernier ? »). Quelques Ko
+    par jour, remplis avant chaque purge (upsert idempotent, re-calcul rejouable).
+    """
+
+    __tablename__ = "daily_stats"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    jour: Mapped[date] = mapped_column(Date, nullable=False)
+    categorie: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Code département ("69", "2A", "971"…). Chaîne vide = national/non localisé
+    # — pas NULL, car Postgres considère les NULL distincts dans une contrainte
+    # unique, ce qui casserait l'upsert ON CONFLICT.
+    departement: Mapped[str] = mapped_column(String(3), nullable=False, default="")
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        UniqueConstraint("jour", "categorie", "departement", name="uq_daily_stats_jour_cat_dept"),
+        Index("ix_daily_stats_jour", "jour"),
     )
 
 

@@ -36,7 +36,6 @@ export const SOURCE_LABELS: Record<string, string> = {
   meteo_france: "Météo-France",
   vigicrues: "Vigicrues",
   renass: "RéNaSS",
-  enedis: "Enedis",
   presse_rss: "Presse",
   sncf: "SNCF",
   bison_fute: "Bison Futé",

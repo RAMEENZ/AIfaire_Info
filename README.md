@@ -17,8 +17,9 @@ Vue cartographique unifiée de l'actualité publique française en quasi temps r
 | Météo-France Vigilance | Météo, Crue | Open data |
 | Vigicrues | Crue | API publique GeoJSON |
 | USGS FDSNWS (RéNaSS) | Séisme | API publique |
-| Enedis | Énergie | Open data |
 | 870+ flux RSS (presse, officiel, thématique) | Toutes | RSS |
+
+_Enedis (coupures d'électricité) a été retiré en 07/2026 : le portail open data a migré et le dataset temps réel a disparu._
 
 ### Flux RSS inclus
 
@@ -38,8 +39,8 @@ Vue cartographique unifiée de l'actualité publique française en quasi temps r
 [Sources] → [Connectors] → [Extractor IA / règles] → [Geocoder BAN] → [Dédup] → [PostgreSQL+PostGIS] → [API FastAPI] → [Next.js + Leaflet]
 ```
 
-Ingestions automatiques : **7h00, 12h00, 19h00** (heure Paris).  
-Purge quotidienne : **3h00** — TTL variable par source : 36h météo/vigicrues, 48h Enedis, 72h presse, 30j séismes.
+Ingestions automatiques : **7h00, 12h00, 19h00** (heure Paris), plus un **passage horaire léger** (à :30) des sources d'alerte temps réel — météo, crues, séismes — sans coût LLM (`HOURLY_ALERT_INGESTION`).  
+Purge quotidienne : **3h00** — TTL variable par source : 36h météo/vigicrues, 72h presse, 30j séismes. Juste avant la purge, les comptes quotidiens (jour × catégorie × département) sont figés dans `daily_stats` (exposés par `GET /api/stats/history`) : les tendances longues survivent à la purge.
 
 Pour déclencher manuellement : `POST /api/ingest/run` (clé `INGEST_API_KEY`). Le bouton "Ingérer" de la StatusBar est réservé au dev/local (l'endpoint étant protégé par clé en production) : il est masqué par défaut et s'active via `NEXT_PUBLIC_ENABLE_INGEST_BUTTON=true`.
 
@@ -51,6 +52,19 @@ Pour déclencher manuellement : `POST /api/ingest/run` (clé `INGEST_API_KEY`). 
 - **Santé des connecteurs** : chaque run met à jour `last_success` et un compteur d'échecs consécutifs. Un raté isolé → « dégradé » (orange) ; panne chronique (≥ 3 runs) → « erreur » (rouge). Visible dans la StatusBar. Webhook configurable (`WEBHOOK_URL`).
 - **Géocodage départemental hors-ligne** : les centroïdes des 101 départements sont une table statique (`geo_data.DEPT_CENTROIDS`), pas un appel réseau. `geo.api.gouv.fr` ayant cessé de renvoyer le champ `centre`, les vigilances Météo-France (par département) retombaient toutes en « national » et n'apparaissaient pas sur la carte ; la table locale rend cette donnée constante déterministe et instantanée.
 - **Healthcheck de fraîcheur** : `GET /healthz` répond `503` si le scheduler ne planifie plus d'ingestion (ou la déclenche avec plus d'1 h de retard), ou si aucun événement n'a été ingéré depuis 26 h (`HEALTHZ_*`, grâce de 30 min au démarrage). Le healthcheck Docker pointe dessus, et le service `autoheal` redémarre automatiquement un backend « unhealthy ». Leçon de la panne de 07/2026 : un scheduler mort dans un processus vivant restait invisible avec un healthcheck qui ne testait que « l'API répond ».
+- **Alerte de staleness** : contrôle horaire de fraîcheur (`app/pipeline/freshness.py`) — si aucun événement n'est ingéré depuis 26 h, notification `WEBHOOK_URL` (anti-spam : une alerte par 12 h, réarmée dès le retour à la normale). Complète autoheal : si le redémarrage ne guérit pas, vous êtes prévenu au lieu d'une boucle silencieuse.
+- **Logs persistants** : en plus de stdout, le backend écrit dans `LOG_DIR` (monté sur `./logs`, rotation 5 × 10 Mo). Les logs Docker `json-file` meurent avec le conteneur — l'autopsie de la panne de 07/2026 a été impossible pour cette raison.
+- **Limite de concurrence par hôte** : au plus 3 requêtes simultanées vers un même domaine lors de la collecte RSS — une rafale de 12 flux d'un même éditeur (Le Télégramme…) déclenchait des 403 anti-bot.
+- **Rapport de santé des flux** : `GET /api/health/feeds` liste les flux RSS en échec (compteur, dernière erreur, mis de côté ou non) — le tri des flux morts devient une lecture de quelques minutes. Complémentaire du sondage complet `python -m app.maintenance check-feeds`.
+
+### Supervision externe (recommandé)
+
+Tout ce qui tourne sur le serveur meurt avec lui : ajoutez un moniteur externe
+gratuit (UptimeRobot, healthchecks.io…) qui interroge `https://<votre-domaine>/api/metrics`
+toutes les 5 minutes et alerte si la réponse est en erreur — ou, mieux, si
+`events_last_24h` tombe à 0 (healthchecks.io accepte un simple ping planifié
+depuis le serveur : `curl -fsS https://hc-ping.com/<uuid>` en cron après chaque
+ingestion réussie).
 
 ### Brief quotidien
 
@@ -177,6 +191,8 @@ cohérence des tables de configuration (labels de connecteurs, catégories).
 | `HEALTHZ_MAX_DATA_AGE_HOURS` | `26` | `/healthz` passe unhealthy si aucun événement ingéré depuis ce délai |
 | `HEALTHZ_SCHEDULER_GRACE_MINUTES` | `60` | Retard toléré sur la prochaine ingestion planifiée avant unhealthy |
 | `HEALTHZ_BOOT_GRACE_MINUTES` | `30` | Fenêtre post-démarrage sans exigence de fraîcheur (ingestion initiale en cours) |
+| `HOURLY_ALERT_INGESTION` | `true` | Passage horaire des sources d'alerte (météo, crues, séismes) sans coût LLM |
+| `LOG_DIR` | _(vide)_ | Répertoire de logs persistants (rotation 5×10 Mo) ; `/app/logs` en prod |
 | `FEED_SKIP_RUNS` | `8` | Nb de cycles d'ingestion pendant lesquels un flux mort est sauté avant re-test |
 | `CORS_ORIGINS` | `*` | Origines CORS autorisées (séparées par virgule) |
 | `GIT_SHA` | _(vide)_ | Commit déployé, exposé par `GET /` (diagnostic « quelle version tourne ? ») |
@@ -215,15 +231,16 @@ app/
 │   ├── meteo_france.py
 │   ├── vigicrues.py
 │   ├── renass.py    # USGS FDSNWS
-│   ├── enedis.py
-│   └── presse_rss.py  # 870+ flux RSS avec dédup et ETag
+│   └── presse_rss.py  # 870+ flux RSS avec dédup, ETag et limite par hôte
 ├── pipeline/
 │   ├── extractor.py # Mistral AI + fallback Ollama + fallback règles (cache SHA256)
 │   ├── geocoder.py  # BAN (communes) + centroïdes départementaux statiques + tables régions/DOM-TOM (cache 1024)
 │   ├── ingestor.py  # Orchestrateur — fetch → extract → geocode → upsert
 │   ├── brief.py     # Génération brief quotidien (Mistral)
+│   ├── freshness.py # Alerte webhook si plus rien n'est ingéré (staleness)
+│   ├── stats.py     # Agrégats quotidiens daily_stats (avant purge)
 │   ├── purge.py     # TTL par source (36h–30j)
-│   └── scheduler.py # APScheduler — ingestions 7h/12h/19h, briefs 9h/13h/20h, purge 3h
+│   └── scheduler.py # APScheduler — ingestions 7h/12h/19h + alertes horaires, briefs 9h/13h/20h, purge 3h
 ├── api/routes/
 │   ├── events.py    # GET /events, GET /events/{id}, POST /ingest/run
 │   └── health.py    # GET /health (statut connecteurs + prochain run)

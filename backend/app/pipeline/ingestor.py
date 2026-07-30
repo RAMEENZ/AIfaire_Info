@@ -14,7 +14,6 @@ from app.models import Event, ConnectorStatus
 from app.connectors.meteo_france import MeteoFranceConnector
 from app.connectors.vigicrues import VigicruesConnector
 from app.connectors.renass import RenassConnector
-from app.connectors.enedis import EnedisConnector
 from app.connectors.presse_rss import PresseRSSConnector
 from app.connectors.sncf import SNCFConnector
 from app.connectors.bison_fute import BisonFuteConnector
@@ -36,7 +35,9 @@ CONNECTORS = [
     MeteoFranceConnector(),
     VigicruesConnector(),
     RenassConnector(),
-    EnedisConnector(),
+    # Enedis : retiré 07/2026 — le portail open data a migré (Opendatasoft →
+    # Koumoul) et le dataset temps réel des coupures a disparu ; ne restent que
+    # des statistiques annuelles, inexploitables pour la carte.
     PresseRSSConnector(),
     SNCFConnector(),
     BisonFuteConnector(),
@@ -407,20 +408,37 @@ def ingestion_in_progress() -> bool:
     return _INGEST_LOCK.locked()
 
 
+# Sources d'alerte à passage horaire : connecteurs structurés (API publiques,
+# aucun article ne transite par le LLM) dont la valeur est le temps réel —
+# une vigilance orange de 14h ne doit pas attendre l'ingestion de 19h.
+# La presse et les autres sources gardent leur cadence de 3 runs/jour.
+ALERT_CONNECTOR_NAMES = ("meteo_france", "vigicrues", "renass")
+
+
 async def ingest_all() -> dict[str, Any]:
+    return await _run_ingestion(CONNECTORS, label="full")
+
+
+async def ingest_alerts() -> dict[str, Any]:
+    """Passage léger : uniquement les sources d'alerte temps réel."""
+    subset = [c for c in CONNECTORS if c.name in ALERT_CONNECTOR_NAMES]
+    return await _run_ingestion(subset, label="alerts")
+
+
+async def _run_ingestion(connectors: list[Any], label: str) -> dict[str, Any]:
     if _INGEST_LOCK.locked():
-        logger.info("Ingestion already in progress — skipping this trigger")
+        logger.info("Ingestion already in progress — skipping this %s trigger", label)
         return {"status": "skipped", "reason": "already_running", "total_saved": 0}
 
     async with _INGEST_LOCK:
-        return await _ingest_all_inner()
+        return await _ingest_inner(connectors, label)
 
 
-async def _ingest_all_inner() -> dict[str, Any]:
-    logger.info("Starting full ingestion pipeline")
+async def _ingest_inner(connectors: list[Any], label: str) -> dict[str, Any]:
+    logger.info("Starting %s ingestion pipeline (%d connectors)", label, len(connectors))
     start = datetime.now(timezone.utc)
 
-    tasks = [ingest_connector(c) for c in CONNECTORS]
+    tasks = [ingest_connector(c) for c in connectors]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     summary: dict[str, Any] = {

@@ -25,6 +25,8 @@ npm-debug.log*
 
 # Docker
 *.log
+# Logs applicatifs persistants (volume ./logs du backend, y compris rotations .log.1…)
+/logs/
 
 # OS
 .DS_Store

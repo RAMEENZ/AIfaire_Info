@@ -112,6 +112,17 @@ class Settings(BaseSettings):
     # (MAX_PRESSE_ARTICLES × LLM) et la base peut légitimement être vide/stale.
     HEALTHZ_BOOT_GRACE_MINUTES: int = 30
 
+    # Passage horaire des sources d'alerte (météo, crues, séismes) en plus des
+    # 3 ingestions complètes quotidiennes. APIs structurées, aucun coût LLM :
+    # une vigilance orange apparaît en ~1 h au lieu d'attendre le prochain run.
+    HOURLY_ALERT_INGESTION: bool = True
+
+    # Répertoire des logs applicatifs persistants (RotatingFileHandler).
+    # Vide = stdout uniquement. En prod : /app/logs, monté en volume — les logs
+    # survivent à la recréation du conteneur (panne de 07/2026 : autopsie
+    # impossible, les logs étaient morts avec l'ancien conteneur).
+    LOG_DIR: str = ""
+
     @property
     def cors_origins_list(self) -> list[str]:
         origins = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]

@@ -7,7 +7,8 @@ from apscheduler.triggers.cron import CronTrigger
 
 from app.config import settings
 from app.pipeline.brief import generate_daily_brief
-from app.pipeline.ingestor import ingest_all
+from app.pipeline.freshness import check_data_freshness
+from app.pipeline.ingestor import ingest_alerts, ingest_all
 from app.pipeline.purge import purge_old_events
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,22 @@ async def _run_ingestion_job() -> None:
         logger.info("Scheduled ingestion done: %s", summary)
     except Exception as exc:
         logger.error("Scheduled ingestion failed: %s", exc, exc_info=True)
+
+
+async def _run_alert_ingestion_job() -> None:
+    logger.info("Scheduled alert ingestion triggered at %s", datetime.now(timezone.utc).isoformat())
+    try:
+        summary = await ingest_alerts()
+        logger.info("Scheduled alert ingestion done: %s", summary)
+    except Exception as exc:
+        logger.error("Scheduled alert ingestion failed: %s", exc, exc_info=True)
+
+
+async def _run_freshness_check_job() -> None:
+    try:
+        await check_data_freshness()
+    except Exception as exc:
+        logger.error("Freshness check failed: %s", exc, exc_info=True)
 
 
 async def _run_brief_job() -> None:
@@ -51,6 +68,14 @@ async def _run_weekly_brief_job() -> None:
 
 async def _run_purge_job() -> None:
     logger.info("Scheduled purge triggered at %s", datetime.now(timezone.utc).isoformat())
+    # Agrégats AVANT purge : une fois les événements supprimés, leurs comptes
+    # quotidiens seraient définitivement perdus.
+    try:
+        from app.pipeline.stats import aggregate_daily_stats
+        written = await aggregate_daily_stats()
+        logger.info("Daily stats aggregated: %d rows", written)
+    except Exception as exc:
+        logger.error("Daily stats aggregation failed: %s", exc, exc_info=True)
     try:
         deleted = await purge_old_events()
         logger.info("Scheduled purge done: %d events deleted", deleted)
@@ -91,6 +116,32 @@ def get_scheduler() -> AsyncIOScheduler:
                 max_instances=1,
                 coalesce=True,
             )
+
+        # Passage horaire des sources d'alerte (météo, crues, séismes) : APIs
+        # structurées sans coût LLM. À :30 pour ne pas chevaucher les runs
+        # complets de :00 (le verrou d'ingestion protège de toute façon).
+        if settings.HOURLY_ALERT_INGESTION:
+            _scheduler.add_job(
+                _run_alert_ingestion_job,
+                trigger=CronTrigger(minute=30, timezone=settings.SCHEDULER_TIMEZONE),
+                id="ingest_alerts_hourly",
+                name="Hourly alert sources ingestion (:30)",
+                replace_existing=True,
+                max_instances=1,
+                coalesce=True,
+            )
+
+        # Contrôle horaire de fraîcheur des données → webhook si plus rien
+        # n'est ingéré (voir app/pipeline/freshness.py).
+        _scheduler.add_job(
+            _run_freshness_check_job,
+            trigger=CronTrigger(minute=45, timezone=settings.SCHEDULER_TIMEZONE),
+            id="freshness_check_hourly",
+            name="Hourly data freshness check (:45)",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
 
         _scheduler.add_job(
             _run_purge_job,

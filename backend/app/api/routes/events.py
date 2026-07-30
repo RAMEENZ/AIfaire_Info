@@ -181,15 +181,20 @@ async def list_events(
         )
 
     # Ordre de tri (défaut 'gravite' = comportement historique).
+    # Date bornée à now() : les événements datés dans le futur (vigilances J1
+    # « pour demain ») sont triés comme publiés à l'instant — sinon ils
+    # squattent la tête du tri 'recent' et reçoivent un bonus en 'pertinence'
+    # (âge négatif → score gonflé). Même correctif que sortEvents.ts côté front.
+    effective_date = func.least(Event.date_publication, func.now())
     if sort == "recent":
-        order_by = (Event.date_publication.desc(),)
+        order_by = (effective_date.desc(), Event.gravite.desc())
     elif sort == "pertinence":
         # Score de fraîcheur : la gravité perd ~1 point par jour écoulé, si bien
         # qu'une alerte ancienne ne squatte plus le haut du fil indéfiniment.
-        age_days = func.extract("epoch", func.now() - Event.date_publication) / 86400.0
-        order_by = ((Event.gravite - age_days).desc(), Event.date_publication.desc())
+        age_days = func.extract("epoch", func.now() - effective_date) / 86400.0
+        order_by = ((Event.gravite - age_days).desc(), effective_date.desc())
     else:  # "gravite"
-        order_by = (Event.gravite.desc(), Event.date_publication.desc())
+        order_by = (Event.gravite.desc(), effective_date.desc())
 
     # Une seule requête : la fonction fenêtre count() OVER() renvoie le total
     # filtré sur chaque ligne, ce qui évite un second passage des prédicats WHERE
@@ -652,6 +657,43 @@ async def get_geo_stats(
         "since_hours": since_hours,
         "departments": departments,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.get("/stats/history")
+async def get_stats_history(
+    days: int = Query(default=90, ge=1, le=730),
+    categorie: str | None = Query(default=None, max_length=64),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Séries quotidiennes agrégées (jour × catégorie × département).
+
+    Contrairement aux événements bruts (purgés après 36 h – 30 j), ces agrégats
+    sont conservés indéfiniment : ils permettent les tendances longues.
+    Département vide = événement national/non localisé.
+    """
+    from app.models import DailyStat
+
+    since = datetime.now(timezone.utc).date() - timedelta(days=days)
+    stmt = (
+        select(DailyStat.jour, DailyStat.categorie, DailyStat.departement, DailyStat.count)
+        .where(DailyStat.jour >= since)
+        .order_by(DailyStat.jour.asc(), DailyStat.categorie.asc())
+    )
+    if categorie:
+        stmt = stmt.where(DailyStat.categorie == categorie)
+    rows = await db.execute(stmt)
+    return {
+        "days": days,
+        "stats": [
+            {
+                "jour": r.jour.isoformat(),
+                "categorie": r.categorie,
+                "departement": r.departement,
+                "count": r.count,
+            }
+            for r in rows
+        ],
     }
 
 

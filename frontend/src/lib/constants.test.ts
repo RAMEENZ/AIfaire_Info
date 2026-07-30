@@ -8,7 +8,7 @@ import {
 // Noms canoniques des connecteurs backend (app/pipeline/ingestor.py::CONNECTORS).
 // À garder synchronisé si un connecteur est ajouté/retiré côté backend.
 const BACKEND_CONNECTOR_NAMES = [
-  "meteo_france", "vigicrues", "renass", "enedis", "presse_rss", "sncf",
+  "meteo_france", "vigicrues", "renass", "presse_rss", "sncf",
   "bison_fute", "incendies", "cert_fr", "irsn", "air_quality", "opensky",
   "bluesky", "wikipedia_fr", "spf",
 ];

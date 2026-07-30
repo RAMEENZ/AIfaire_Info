@@ -130,12 +130,12 @@ async def test_ingest_all_skips_when_already_running(monkeypatch):
     started = asyncio.Event()
     release = asyncio.Event()
 
-    async def slow_inner():
+    async def slow_inner(connectors, label):
         started.set()
         await release.wait()
         return {"total_saved": 1}
 
-    monkeypatch.setattr(ingestor, "_ingest_all_inner", slow_inner)
+    monkeypatch.setattr(ingestor, "_ingest_inner", slow_inner)
 
     task = asyncio.create_task(ingest_all())
     await started.wait()
@@ -149,3 +149,17 @@ async def test_ingest_all_skips_when_already_running(monkeypatch):
     release.set()
     await task
     assert ingestion_in_progress() is False
+
+
+def test_alert_connector_names_exist():
+    """Chaque source d'alerte du passage horaire doit correspondre à un
+    connecteur réellement enregistré (sinon le job léger tourne à vide)."""
+    registered = {c.name for c in ingestor.CONNECTORS}
+    for name in ingestor.ALERT_CONNECTOR_NAMES:
+        assert name in registered
+
+
+def test_alert_connectors_are_llm_free():
+    """Le passage horaire ne doit inclure aucune source presse : chaque article
+    presse passe par le LLM, et la cadence horaire ferait exploser le coût."""
+    assert "presse_rss" not in ingestor.ALERT_CONNECTOR_NAMES

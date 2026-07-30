@@ -29,7 +29,8 @@ services:
 
   redis:
     logging: *default-logging
-    image: redis:7-alpine
+    # Branche épinglée : les correctifs 7.4.x passent, pas les sauts majeurs.
+    image: redis:7.4-alpine
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -60,6 +61,11 @@ services:
       WEBHOOK_THRESHOLD: ${WEBHOOK_THRESHOLD:-3}
       # Commit déployé (facultatif) : docker compose … avec GIT_SHA=$(git rev-parse --short HEAD)
       GIT_SHA: ${GIT_SHA:-}
+      # Logs applicatifs persistants : survivent à la recréation du conteneur
+      # (contrairement aux logs Docker json-file, détruits avec lui).
+      LOG_DIR: /app/logs
+    volumes:
+      - ./logs:/app/logs
     depends_on:
       db:
         condition: service_healthy
@@ -97,7 +103,9 @@ services:
 
   nginx:
     logging: *default-logging
-    image: nginx:alpine
+    # Branche stable épinglée (1.30 = stable, 1.31 = mainline) : un tag
+    # flottant peut casser à la recréation du conteneur.
+    image: nginx:1.30-alpine
     # cloudflared joint nginx via le réseau interne Docker (nginx:80), pas par ce
     # port hôte. Bind sur localhost : le mapping ne sert qu'aux tests locaux
     # (curl http://localhost:8088/) et n'expose rien sur Internet.
@@ -132,7 +140,9 @@ services:
 
   cloudflared:
     logging: *default-logging
-    image: cloudflare/cloudflared:latest
+    # Version épinglée (pas de branche stable chez cloudflared) : `latest`
+    # peut casser le tunnel à la recréation. À bumper lors des déploiements.
+    image: cloudflare/cloudflared:2026.7.3
     restart: unless-stopped
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}

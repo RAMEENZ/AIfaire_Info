@@ -120,6 +120,22 @@ def next_ingest_at_iso() -> Optional[str]:
     return raw if raw else None
 
 
+@router.get("/health/feeds")
+async def feeds_health() -> dict:
+    """Rapport des flux RSS en échec (circuit-breaker + dernière erreur).
+
+    Avec 800+ flux, l'érosion est permanente (403 anti-bot, URLs déplacées,
+    sites disparus) : ce rapport transforme le tri des flux morts en lecture
+    de quelques minutes. État en mémoire — vide juste après un redémarrage,
+    rempli après la première ingestion.
+    """
+    for connector in CONNECTORS:
+        feed_health = getattr(connector, "feed_health", None)
+        if callable(feed_health):
+            return feed_health()
+    return {"total_feeds": 0, "failing_count": 0, "sidelined_count": 0, "failing": []}
+
+
 # --- Healthcheck de fraîcheur (/healthz) ------------------------------------
 # L'ancien healthcheck Docker testait GET / : il validait que l'API répond,
 # pas que le pipeline produit. Un scheduler mort dans un processus vivant

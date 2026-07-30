@@ -17,6 +17,27 @@ logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
+
+# Logs persistants (LOG_DIR monté en volume) : les logs Docker json-file
+# meurent avec le conteneur — la panne de 07/2026 n'a pas pu être autopsiée
+# car la recréation du backend avait détruit les journaux de l'incident.
+if settings.LOG_DIR:
+    from logging.handlers import RotatingFileHandler
+    from pathlib import Path
+
+    _log_dir = Path(settings.LOG_DIR)
+    _log_dir.mkdir(parents=True, exist_ok=True)
+    _file_handler = RotatingFileHandler(
+        _log_dir / "backend.log",
+        maxBytes=10 * 1024 * 1024,
+        backupCount=5,
+        encoding="utf-8",
+    )
+    _file_handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    )
+    logging.getLogger().addHandler(_file_handler)
+
 logger = logging.getLogger(__name__)
 
 

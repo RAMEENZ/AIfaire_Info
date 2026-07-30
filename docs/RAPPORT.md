@@ -118,7 +118,7 @@ Un cycle complet prend **~1 à 2 minutes** (ex. 148 événements en ~1 min 40).
 | **Météo-France Vigilance** | Météo, canicule, orages… | Open data |
 | **Vigicrues** | Crues | API GeoJSON publique |
 | **RéNaSS / USGS FDSNWS** | Séismes | API publique |
-| **Enedis** | Coupures électriques | Open data |
+| ~~Enedis~~ | ~~Coupures électriques~~ | Retiré 07/2026 — dataset temps réel disparu du portail open data |
 | **Presse RSS** | Toutes catégories | **~877 flux** (presse nationale + régionale) |
 | **SNCF** | Transport ferroviaire | API |
 | **Bison Futé** | Trafic routier | RSS |

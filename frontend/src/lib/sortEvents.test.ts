@@ -45,4 +45,30 @@ describe("sortComparator", () => {
   it("expose les trois modes dans SORT_OPTIONS", () => {
     expect(SORT_OPTIONS.map((o) => o.value)).toEqual(["gravite", "recent", "pertinence"]);
   });
+
+  // --- Événements datés dans le futur (vigilances J1 « pour demain ») --------
+
+  const vigilanceDemain = ev("vigilance-demain", 1, -24); // datée de demain, gravité 1
+
+  it("recent : un événement futur est traité comme publié maintenant, pas au-dessus de tout", () => {
+    // Borné à `now`, il est à égalité de date avec les plus récents : le
+    // départage se fait par gravité (vigilance g=1 devant info g=0 d'il y a 1 h,
+    // mais une alerte future ne relègue pas une alerte plus grave d'à l'instant).
+    const alerteMaintenant = ev("alerte-maintenant", 2, 0);
+    const out = [vigilanceDemain, infoFraiche, alerteMaintenant].sort(
+      sortComparator("recent", NOW)
+    );
+    expect(out.map((e) => e.id)).toEqual([
+      "alerte-maintenant",
+      "vigilance-demain",
+      "info-fraiche",
+    ]);
+  });
+
+  it("pertinence : pas de bonus de score pour une date future", () => {
+    // Sans borne, vigilance-demain aurait un score de 1 + 1 = 2 et passerait
+    // devant l'alerte fraîche (score ≈ 1.92). Bornée, son score reste 1.
+    const out = [vigilanceDemain, alerteFraiche].sort(sortComparator("pertinence", NOW));
+    expect(out[0].id).toBe("alerte-fraiche");
+  });
 });

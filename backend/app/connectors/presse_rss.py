@@ -7,6 +7,7 @@ import httpx
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
+from urllib.parse import urlparse
 
 from app.config import settings
 from app.connectors.base import BaseConnector
@@ -30,7 +31,8 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "RFI",                 "url": "https://www.rfi.fr/fr/rss",                              "region": None},
     {"name": "Euronews France",     "url": "https://fr.euronews.com/rss",                            "region": None},
     {"name": "CNews",               "url": "https://www.cnews.fr/rss.xml",                           "region": None},
-    {"name": "20 Minutes",          "url": "https://www.20minutes.fr/rss/actu-france.xml",           "region": None},
+    # 07/2026 : les chemins /rss/*.xml renvoient 403 — migrés vers /feeds/rss-*.xml
+    {"name": "20 Minutes",          "url": "https://www.20minutes.fr/feeds/rss-france.xml",          "region": None},
     {"name": "Le Monde",            "url": "https://www.lemonde.fr/rss/une.xml",                     "region": None},
     {"name": "Le Figaro",           "url": "https://plus.lefigaro.fr/page/flux-rss",                 "region": None},
     {"name": "Libération",          "url": "https://www.liberation.fr/arc/outboundfeeds/rss-all/",  "region": None},
@@ -43,14 +45,17 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "BFM TV",              "url": "https://www.bfmtv.com/rss/news-24-7/",                  "region": None},
 
     # ── ACTUALITÉS ÉCONOMIQUES ET TECH ───────────────────────────────────────
-    {"name": "Les Échos",           "url": "https://www.lesechos.fr/rss",                           "region": None},
+    # Les Échos : retiré 07/2026 — WAF 403 sur toutes les variantes de flux,
+    # quel que soit le User-Agent (plus de RSS public exploitable).
     {"name": "Le Journal du Net",   "url": "https://www.journaldunet.com/rss/",                     "region": None},
     {"name": "L'Usine Nouvelle",    "url": "https://www.usinenouvelle.com/rss/",                    "region": None},
 
     # ── SOURCES GOUVERNEMENTALES ET OFFICIELLES ───────────────────────────────
-    {"name": "Gouvernement.fr",       "url": "https://www.gouvernement.fr/rss",                     "region": None},
+    # Gouvernement.fr (info.gouv.fr) : retiré 07/2026 — WAF 403 permanent sur le
+    # flux RSS. L'actualité officielle reste couverte par Service-Public et
+    # Vie Publique ci-dessous.
     {"name": "Santé Publique France", "url": "https://www.santepubliquefrance.fr/rss.xml",           "region": None},
-    {"name": "Ministère Intérieur",   "url": "https://www.interieur.gouv.fr/rss.xml",               "region": None},
+    # Ministère de l'Intérieur : retiré 07/2026 — WAF 403 permanent sur le flux.
 
     # ── ACTUALITÉS RÉGIONALES — RÉSEAU ACTU.FR ──────────────────────────────
     {"name": "Actu Bretagne",                "url": "https://actu.fr/bretagne/rss.xml",                      "region": "Bretagne"},
@@ -82,7 +87,8 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Ouest-France",                  "url": "https://www.ouest-france.fr/rss/une",                "region": None},
     {"name": "Le Parisien",                   "url": "https://feeds.leparisien.fr/leparisien/rss",         "region": "Île-de-France"},
     {"name": "Sud Ouest",                     "url": "https://www.sudouest.fr/rss.xml",                    "region": "Nouvelle-Aquitaine"},
-    {"name": "La Provence",                   "url": "https://www.laprovence.com/rss/une.xml",             "region": "Provence-Alpes-Côte d'Azur"},
+    # La Provence : retiré 07/2026 — /rss/une.xml en 404 définitif, et le flux
+    # Arc (/arc/outboundfeeds/rss/) répond 503 aux requêtes serveur.
     {"name": "Nice-Matin",                    "url": "https://www.nicematin.com/rss",                      "region": "Provence-Alpes-Côte d'Azur"},
     {"name": "La Dépêche du Midi",            "url": "https://www.ladepeche.fr/rss.xml",                   "region": "Occitanie"},
     {"name": "Midi Libre",                    "url": "https://www.midilibre.fr/rss.xml",                   "region": "Occitanie"},
@@ -166,7 +172,7 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Actu.fr : Vaucluse", "url": "https://actu.fr/vaucluse/rss.xml", "region": "Provence-Alpes-Côte d'Azur"},
 
     # ── AISNE NOUVELLE ─────────────────────────────────────────────────────────────────
-    {"name": "Aisne nouvelle", "url": "https://www.aisnenouvelle.fr/rss.xml", "region": "Hauts-de-France"},
+    # Aisne nouvelle : retiré 07/2026 — 403 anti-bot permanent (groupe Rossel).
 
     # ── ALTA FREQUENZA ─────────────────────────────────────────────────────────────────
     {"name": "Alta Frequenza : audio", "url": "https://www.alta-frequenza.corsica/rss/feed/actu", "region": "Corse"},
@@ -1273,7 +1279,9 @@ RSS_FEEDS: list[dict[str, Any]] = [
     # ── JEUX VIDÉO ────────────────────────────────────────────────────────────
     {"name": "Jeux Vidéo.com",     "url": "https://www.jeuxvideo.com/rss/rss.xml",              "region": None},
     {"name": "Gamekult",           "url": "https://www.gamekult.com/feed.xml",                  "region": None},
-    {"name": "Dexerto Esport",     "url": "https://www.dexerto.fr/esport/feed/",                "region": None},
+    # 07/2026 : les flux par rubrique (/esport/feed/, /divertissement/feed) sont
+    # morts — seul le flux global subsiste.
+    {"name": "Dexerto",            "url": "https://www.dexerto.fr/feed/",                       "region": None},
 
     # ── INFO POSITIVE ─────────────────────────────────────────────────────────
     {"name": "Positivr",           "url": "https://positivr.fr/feed/",                          "region": None},
@@ -1287,15 +1295,17 @@ RSS_FEEDS: list[dict[str, Any]] = [
 
     # ── STREAMING ─────────────────────────────────────────────────────────────
     {"name": "Univers Freebox",    "url": "https://www.universfreebox.com/rss",                 "region": None},
-    {"name": "Netflix Blog FR",    "url": "https://about.netflix.com/fr/feed",                  "region": None},
-    {"name": "Dexerto Divertissement", "url": "https://www.dexerto.fr/divertissement/feed",     "region": None},
+    # Netflix Blog FR : retiré 07/2026 — plus aucun flux RSS (les chemins /feed
+    # et /rss renvoient du HTML).
 
     # ── YOUTUBE ───────────────────────────────────────────────────────────────
-    {"name": "YouTube : Journal du Geek", "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCofQxWvPrDk19gGMqZNM75A", "region": None},
-    {"name": "YouTube : Frandroid",       "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC_oY_e-4m-Dk_2t3zQ3qQ9w", "region": None},
+    # YouTube Journal du Geek : retiré 07/2026 — channel_id invalide (404) et
+    # introuvable ; le site est déjà couvert par son flux principal ci-dessus.
+    {"name": "YouTube : Frandroid",       "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCOyUCj6Wx9skJggzZFUDZyA", "region": None},
 
     # ── AUTOMOBILE ────────────────────────────────────────────────────────────
-    {"name": "Caradisiac",         "url": "https://www.caradisiac.com/rss/",                   "region": None},
+    # 07/2026 : /rss/ renvoie 410 Gone — le flux officiel passe par FeedBurner.
+    {"name": "Caradisiac",         "url": "https://feeds.feedburner.com/Caradisiac",           "region": None},
     {"name": "Automobile Propre",  "url": "https://www.automobile-propre.com/feed/",            "region": None},
     {"name": "Auto-Moto",          "url": "https://www.auto-moto.com/feed",                     "region": None},
 
@@ -1307,15 +1317,16 @@ RSS_FEEDS: list[dict[str, Any]] = [
     # ── DESIGN ────────────────────────────────────────────────────────────────
     {"name": "Grapheine",          "url": "https://www.grapheine.com/feed",                     "region": None},
     {"name": "Étapes",             "url": "https://etapes.com/feed/",                           "region": None},
-    {"name": "Abduzeedo",          "url": "https://abduzeedo.com/feed",                         "region": None},
+    {"name": "Abduzeedo",          "url": "https://abduzeedo.com/rss.xml",                      "region": None},
 
     # ── INFORMATIQUE / IT ─────────────────────────────────────────────────────
     {"name": "Le Monde Informatique", "url": "https://www.lemondeinformatique.fr/rss/rss.xml", "region": None},
     {"name": "Developpez.com",        "url": "https://www.developpez.com/index/rss",            "region": None},
-    {"name": "Next INpact",           "url": "https://www.nextinpact.com/rss/news.xml",         "region": None},
+    # 07/2026 : Next INpact est devenu Next (next.ink), flux WordPress standard.
+    {"name": "Next (ex-INpact)",      "url": "https://next.ink/feed/",                          "region": None},
 
     # ── HARDWARE ──────────────────────────────────────────────────────────────
-    {"name": "Cowcotland",         "url": "https://www.cowcotland.com/rss",                     "region": None},
+    # Cowcotland : retiré 07/2026 — aucune variante de flux ne répond (404/403).
     {"name": "Comptoir Hardware",  "url": "https://www.comptoir-hardware.com/home.xml",         "region": None},
     {"name": "Tom's Hardware FR",  "url": "https://www.tomshardware.fr/feed/",                  "region": None},
 
@@ -1331,6 +1342,22 @@ _MAX_ARTICLE_AGE = timedelta(hours=72)
 
 # Limit simultaneous HTTP requests to avoid overwhelming news sites or the local connection pool
 _FETCH_SEMAPHORE = asyncio.Semaphore(20)
+
+# Limite de concurrence PAR HÔTE : plusieurs flux d'un même éditeur (12 flux
+# Le Télégramme, 43 France Bleu, 13 actu.fr…) partaient simultanément vers le
+# même serveur — rafale que les WAF anti-bot sanctionnent en 403 (constaté sur
+# letelegramme.fr en 07/2026 : 403 en production sur les 12 flux d'un coup,
+# alors que chaque flux pris isolément répond 200, même avec notre User-Agent).
+_HOST_CONCURRENCY = 3
+_host_semaphores: dict[str, asyncio.Semaphore] = {}
+
+
+def _host_semaphore(url: str) -> asyncio.Semaphore:
+    host = urlparse(url).hostname or ""
+    sem = _host_semaphores.get(host)
+    if sem is None:
+        sem = _host_semaphores[host] = asyncio.Semaphore(_HOST_CONCURRENCY)
+    return sem
 
 # Plafond d'articles conservés par flux (les plus récents). Évite qu'un flux
 # volumineux (Google News renvoie ~100 entrées) ne monopolise à lui seul le
@@ -1467,7 +1494,7 @@ async def _fetch_feed(
         except Exception:
             req_headers = {}
 
-    async with _FETCH_SEMAPHORE:
+    async with _FETCH_SEMAPHORE, _host_semaphore(feed_url):
         try:
             resp = await client.get(feed_url, timeout=15.0, headers=req_headers or None)
             if resp.status_code == 304:
@@ -1598,6 +1625,13 @@ class FeedCircuitBreaker:
         """Nombre de flux actuellement mis de côté."""
         return sum(1 for until in self._skip_until.values() if until > self._run_index)
 
+    def snapshot(self) -> dict[str, dict[str, Any]]:
+        """État courant par URL en échec : compteur et mise à l'écart."""
+        return {
+            url: {"failures": n, "sidelined": self.should_skip(url)}
+            for url, n in self._failures.items()
+        }
+
 
 class PresseRSSConnector(BaseConnector):
     def __init__(self) -> None:
@@ -1615,6 +1649,31 @@ class PresseRSSConnector(BaseConnector):
             threshold=settings.FEED_FAILURE_THRESHOLD,
             skip_runs=settings.FEED_SKIP_RUNS,
         )
+        # Dernière erreur par URL de flux (pour le rapport GET /api/health/feeds) :
+        # transforme le nettoyage des flux morts en routine de lecture rapide.
+        self._feed_errors: dict[str, str] = {}
+
+    def feed_health(self) -> dict[str, Any]:
+        """Rapport des flux en échec : nom, URL, échecs consécutifs, dernière
+        erreur, mis de côté ou non. Les flux sains ne sont pas listés."""
+        by_url = {cfg["url"]: cfg["name"] for cfg in RSS_FEEDS}
+        failing = [
+            {
+                "name": by_url.get(url, "?"),
+                "url": url,
+                "consecutive_failures": state["failures"],
+                "sidelined": state["sidelined"],
+                "last_error": self._feed_errors.get(url),
+            }
+            for url, state in self._breaker.snapshot().items()
+        ]
+        failing.sort(key=lambda f: (-f["consecutive_failures"], f["name"]))
+        return {
+            "total_feeds": len(RSS_FEEDS),
+            "failing_count": len(failing),
+            "sidelined_count": self._breaker.open_count,
+            "failing": failing,
+        }
 
     @property
     def name(self) -> str:
@@ -1644,6 +1703,7 @@ class PresseRSSConnector(BaseConnector):
         for (i, cfg), res in zip(active, feed_results):
             if isinstance(res, Exception):
                 self._logger.warning("Feed %s failed: %s", cfg["name"], res)
+                self._feed_errors[cfg["url"]] = str(res)[:300]
                 if self._breaker.record_failure(cfg["url"]):
                     self._logger.warning(
                         "presse_rss: flux %s mis de côté pour %d runs (%d échecs consécutifs)",
@@ -1651,6 +1711,7 @@ class PresseRSSConnector(BaseConnector):
                     )
             else:
                 self._breaker.record_success(cfg["url"])
+                self._feed_errors.pop(cfg["url"], None)
                 items, not_modified = res
                 if not_modified:
                     n_not_modified += 1
