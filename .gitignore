@@ -27,6 +27,11 @@ npm-debug.log*
 *.log
 # Logs applicatifs persistants (volume ./logs du backend, y compris rotations .log.1…)
 /logs/
+# Config locale du serveur (vrai hostname du tunnel — le dépôt est anonymisé) :
+# docker-compose.override.yml monte cloudflared/config.local.yml à la place du
+# config.yml versionné (placeholder). Voir cloudflared/config.yml.
+docker-compose.override.yml
+cloudflared/config.local.yml
 
 # OS
 .DS_Store

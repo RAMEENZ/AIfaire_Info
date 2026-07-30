@@ -1,5 +1,12 @@
+# ATTENTION : ce fichier versionné est un placeholder (dépôt anonymisé) et
+# cloudflared ne le lit QU'AU DÉMARRAGE du conteneur. Incident du 30/07/2026 :
+# la recréation du conteneur a rechargé ce placeholder → tout le site en 404
+# (le vrai hostname ne matchait plus aucune règle d'ingress).
+#
+# En production, ne PAS éditer ce fichier : créer cloudflared/config.local.yml
+# (copie avec le vrai hostname, non versionnée) et un docker-compose.override.yml
+# qui le monte à la place — voir .gitignore et security/README.md.
 ingress:
-  # Remplace par ton vrai hostname (celui configuré dans le tunnel Cloudflare).
   - hostname: aifaire.example.com
     service: http://nginx:80
   - service: http_status:404

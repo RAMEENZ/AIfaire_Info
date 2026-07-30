@@ -46,6 +46,31 @@ Ces correctifs sont **dans le repo** (commités), pas à refaire :
   `Referrer-Policy`, `Strict-Transport-Security`, masquage `Server` et
   `X-Powered-By` (`nginx/nginx.conf`).
 
+### Hostname du tunnel : config locale non versionnée
+
+Le `cloudflared/config.yml` versionné contient un **placeholder** (dépôt
+anonymisé). cloudflared ne lit ce fichier qu'au démarrage du conteneur :
+recréer le conteneur avec le placeholder rend tout le site inaccessible en 404
+(incident du 30/07/2026). Sur le serveur, une seule fois :
+
+```bash
+cd /opt/aifaire
+cp cloudflared/config.yml cloudflared/config.local.yml
+# → éditer config.local.yml : remplacer le hostname placeholder par le vrai
+
+cat > docker-compose.override.yml <<'EOF'
+services:
+  cloudflared:
+    volumes:
+      - ./cloudflared/config.local.yml:/home/nonroot/.cloudflared/config.yml:ro
+EOF
+docker compose up -d cloudflared
+```
+
+Les deux fichiers sont dans `.gitignore` : le vrai domaine ne retourne jamais
+dans le dépôt public, et aucun `git pull` ne peut plus le remplacer par le
+placeholder.
+
 ### Appliquer le Tier 1 sur le serveur (sans rien casser)
 
 Le tunnel passe par le réseau Docker interne, donc rebuild + restart ne coupe
