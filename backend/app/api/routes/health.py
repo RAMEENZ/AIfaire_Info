@@ -249,6 +249,17 @@ async def metrics(db: AsyncSession = Depends(get_db)) -> dict:
             select(func.count()).select_from(Event).where(Event.date_publication >= h24_ago)
         )
     ).scalar_one()
+    # Part d'événements réellement géolocalisés (commune/département/région) sur
+    # 24 h : une chute brutale de ce ratio signale une régression silencieuse du
+    # géocodeur ou de l'extraction LLM (cf. l'épisode geo.api.gouv.fr qui
+    # renvoyait tout en « national » sans aucune erreur).
+    localized_24h = (
+        await db.execute(
+            select(func.count())
+            .select_from(Event)
+            .where(Event.date_publication >= h24_ago, Event.lieu_niveau != "national")
+        )
+    ).scalar_one()
     newest = (await db.execute(select(func.max(Event.date_publication)))).scalar_one()
 
     rows = {row.name: row for row in (await db.execute(select(ConnectorStatus))).scalars().all()}
@@ -264,6 +275,8 @@ async def metrics(db: AsyncSession = Depends(get_db)) -> dict:
     return {
         "total_events": total_events,
         "events_last_24h": events_24h,
+        "localized_last_24h": localized_24h,
+        "localized_pct_24h": round(100 * localized_24h / events_24h) if events_24h else None,
         "newest_event": newest.isoformat() if newest else None,
         "connectors": {"total": len(KNOWN_CONNECTORS), **status_counts},
         "ingestion_in_progress": ingestion_in_progress(),

@@ -5,7 +5,6 @@ renseignant ``last_error``, pour qu'un connecteur en panne ne fasse pas tomber
 l'ingestion globale. ``app.connectors.base`` n'utilise que la bibliothèque
 standard, l'import via le package est donc sans dépendance lourde.
 """
-import pytest
 
 from app.connectors.base import BaseConnector
 

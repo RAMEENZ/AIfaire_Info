@@ -45,6 +45,55 @@ function BriefContent({ content }: { content: string }) {
   return <div className="space-y-0.5">{elements}</div>;
 }
 
+function BriefArchive({ latestGeneratedAt }: { latestGeneratedAt: string }) {
+  const [showArchive, setShowArchive] = useState(false);
+  // Chargement paresseux : l'archive n'est demandée qu'à l'ouverture.
+  const { data, isLoading } = useSWR<{ briefs: BriefData[] }>(
+    showArchive ? `${API_BASE_URL}/brief/history?limit=14` : null,
+    fetcher,
+    { revalidateOnFocus: false }
+  );
+
+  // Le brief courant est déjà affiché au-dessus : on ne liste que les autres.
+  const past = (data?.briefs ?? []).filter((b) => b.generated_at !== latestGeneratedAt);
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setShowArchive((v) => !v)}
+        className="text-[10px] font-medium text-blue-600 dark:text-blue-300 hover:underline"
+        aria-expanded={showArchive}
+      >
+        {showArchive ? "▲ Masquer les briefs précédents" : "▼ Briefs précédents"}
+      </button>
+      {showArchive && (
+        <div className="mt-1.5 space-y-1">
+          {isLoading && <p className="text-[10px] text-gray-400">Chargement…</p>}
+          {!isLoading && past.length === 0 && (
+            <p className="text-[10px] text-gray-400">Aucun brief antérieur.</p>
+          )}
+          {past.map((b) => (
+            <details key={b.generated_at} className="group">
+              <summary className="cursor-pointer text-[11px] text-gray-600 dark:text-gray-300 hover:text-blue-700 dark:hover:text-blue-300">
+                {new Date(b.generated_at).toLocaleDateString("fr-FR", {
+                  weekday: "long", day: "numeric", month: "long",
+                })}{" "}
+                ·{" "}
+                {new Date(b.generated_at).toLocaleTimeString("fr-FR", {
+                  hour: "2-digit", minute: "2-digit",
+                })}
+              </summary>
+              <div className="mt-1 pl-2 border-l-2 border-blue-200 dark:border-blue-800">
+                <BriefContent content={b.content} />
+              </div>
+            </details>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DailyBrief() {
   const [open, setOpen] = useState(false);
   const { data, isLoading } = useSWR<BriefData>(`${API_BASE_URL}/brief`, fetcher, {
@@ -79,6 +128,7 @@ export default function DailyBrief() {
           <p className="mt-3 text-[10px] text-gray-400 dark:text-gray-500">
             Généré à {new Date(data.generated_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} · {data.event_count} événements analysés
           </p>
+          <BriefArchive latestGeneratedAt={data.generated_at} />
         </div>
       )}
     </div>

@@ -3,7 +3,6 @@ OpenSky Network – incidents aériens au-dessus de la France.
 Seuls les squawks d'urgence (7700/7600/7500) au-dessus de la France métropolitaine
 sont remontés.
 """
-import logging
 import httpx
 from datetime import datetime, timezone
 from typing import Any

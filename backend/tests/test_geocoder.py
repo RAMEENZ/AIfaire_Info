@@ -7,7 +7,6 @@ cascade) are deliberately NOT tested here to keep the suite offline.
 """
 import pytest
 
-from app.pipeline import geocoder
 from app.pipeline.geocoder import (
     _LEADING_ARTICLE_RE,
     _geo_cache,

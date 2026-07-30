@@ -46,6 +46,43 @@ Ces correctifs sont **dans le repo** (commités), pas à refaire :
   `Referrer-Policy`, `Strict-Transport-Security`, masquage `Server` et
   `X-Powered-By` (`nginx/nginx.conf`).
 
+### Sauvegardes : hors-site + exercice de restauration
+
+`backup-postgres.sh` vérifie chaque backup avant publication, mais un backup
+sur le même disque que la base ne protège ni d'une panne disque ni d'une perte
+du serveur. Deux compléments :
+
+**Copie hors-site (une fois rclone configuré)** — le fichier étant chiffré
+AES-256, n'importe quel stockage objet convient (Backblaze B2 : 10 Go
+gratuits ; Scaleway ; un simple SFTP…) :
+
+```bash
+apt install rclone && rclone config        # créer le remote, ex. « b2 »
+# puis ajouter RCLONE_REMOTE au cron existant :
+30 2 * * *  WEBHOOK_URL=… RCLONE_REMOTE=b2:aifaire-backups /opt/aifaire/security/backup-postgres.sh >> /var/log/aifaire-backup.log 2>&1
+```
+
+Rétention hors-site : 35 jours par défaut (`OFFSITE_RETENTION_DAYS`). Un échec
+de la copie hors-site alerte via webhook sans invalider le backup local.
+
+**Exercice de restauration (trimestriel)** — une sauvegarde jamais restaurée
+n'est qu'un espoir. Le test se fait dans un conteneur jetable, sans toucher à
+la production :
+
+```bash
+LATEST=$(ls -1t /var/backups/aifaire/faire_info-*.sql.gz.enc | head -1)
+docker run -d --name restore-test -e POSTGRES_PASSWORD=test postgis/postgis:16-3.4
+sleep 15
+openssl enc -d -aes-256-cbc -pbkdf2 -pass file:/etc/aifaire-backup.key -in "$LATEST" \
+  | gunzip | docker exec -i restore-test psql -U postgres
+docker exec restore-test psql -U postgres -d faire_info \
+  -c "SELECT count(*) AS events FROM events; SELECT count(*) AS stats FROM daily_stats;"
+docker rm -f restore-test
+```
+
+Si les deux `count(*)` renvoient des valeurs plausibles, l'exercice est réussi.
+Noter la date du dernier exercice ici : _(dernier test : à faire)_.
+
 ### Hostname du tunnel : config locale non versionnée
 
 Le `cloudflared/config.yml` versionné contient un **placeholder** (dépôt

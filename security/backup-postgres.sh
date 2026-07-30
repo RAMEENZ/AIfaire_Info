@@ -19,10 +19,16 @@
 #        30 2 * * *  WEBHOOK_URL=https://ntfy.sh/ton-topic /opt/aifaire/security/backup-postgres.sh >> /var/log/aifaire-backup.log 2>&1
 #        0  8 * * *  WEBHOOK_URL=https://ntfy.sh/ton-topic /opt/aifaire/security/backup-verify.sh   >> /var/log/aifaire-backup.log 2>&1
 #
+# Copie hors-site (recommandé) : configurer un remote rclone (`rclone config`)
+# puis passer RCLONE_REMOTE au cron :
+#   30 2 * * *  WEBHOOK_URL=… RCLONE_REMOTE=b2:aifaire-backups /opt/aifaire/security/backup-postgres.sh >> /var/log/aifaire-backup.log 2>&1
+#
 # Restauration :
 #   openssl enc -d -aes-256-cbc -pbkdf2 -pass file:/etc/aifaire-backup.key \
 #     -in faire_info-AAAA-MM-JJ.sql.gz.enc | gunzip | \
 #     docker compose exec -T db psql -U faire_info -d faire_info
+# Test de restauration périodique : voir security/README.md (§ exercice de
+# restauration — une sauvegarde jamais restaurée n'est qu'un espoir).
 #
 set -euo pipefail
 
@@ -36,6 +42,13 @@ KEY_FILE="${KEY_FILE:-/etc/aifaire-backup.key}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 MIN_SIZE_BYTES="${MIN_SIZE_BYTES:-1024}"     # un dump valide pèse > 1 Ko
 WEBHOOK_URL="${WEBHOOK_URL:-}"               # alerte échec (Discord/Slack/ntfy…)
+# Copie HORS-SITE (optionnelle mais fortement recommandée : un backup sur le
+# même disque que la base ne protège ni d'une panne disque ni d'une perte du
+# serveur). Remote rclone préconfiguré (`rclone config`), ex. "b2:aifaire-backups"
+# ou "scw:aifaire-backups". Le fichier étant déjà chiffré (AES-256), n'importe
+# quel stockage objet convient.
+RCLONE_REMOTE="${RCLONE_REMOTE:-}"
+OFFSITE_RETENTION_DAYS="${OFFSITE_RETENTION_DAYS:-35}"
 
 DATE="$(date +%F)"
 OUT="${BACKUP_DIR}/${DB_NAME}-${DATE}.sql.gz.enc"
@@ -87,6 +100,26 @@ fi
 chmod 600 "${TMP}"; mv -f "${TMP}" "${OUT}"
 trap - ERR
 log "OK (intégrité vérifiée) : ${OUT} ($(du -h "${OUT}" | cut -f1))"
+
+# ── Copie hors-site (rclone) ─────────────────────────────────────────────────
+# Un échec hors-site n'invalide PAS le backup local (déjà publié et vérifié) :
+# on alerte, mais on ne sort pas en erreur.
+if [[ -n "${RCLONE_REMOTE}" ]]; then
+  if command -v rclone >/dev/null 2>&1; then
+    if rclone copy "${OUT}" "${RCLONE_REMOTE}" --no-traverse 2>/dev/null; then
+      log "Copie hors-site OK : ${RCLONE_REMOTE}/$(basename "${OUT}")"
+      rclone delete "${RCLONE_REMOTE}" --min-age "${OFFSITE_RETENTION_DAYS}d" \
+        --include "${DB_NAME}-*.sql.gz.enc" 2>/dev/null \
+        && log "Rétention hors-site appliquée (>${OFFSITE_RETENTION_DAYS}j)" || true
+    else
+      log "AVERTISSEMENT : copie hors-site échouée (backup local intact)"
+      notify "Backup ${DB_NAME} : local OK mais copie hors-site KO (${RCLONE_REMOTE})"
+    fi
+  else
+    log "AVERTISSEMENT : RCLONE_REMOTE défini mais rclone introuvable"
+    notify "Backup ${DB_NAME} : rclone introuvable, pas de copie hors-site"
+  fi
+fi
 
 # ── Rétention ────────────────────────────────────────────────────────────────
 find "${BACKUP_DIR}" -name "${DB_NAME}-*.sql.gz.enc" -mtime "+${RETENTION_DAYS}" -print -delete \

@@ -3,7 +3,6 @@ case) and the global ingestion concurrency guard.
 """
 import asyncio
 
-import pytest
 
 from app.pipeline import ingestor
 from app.pipeline.ingestor import _build_event, ingest_all, ingestion_in_progress

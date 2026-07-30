@@ -89,6 +89,9 @@ export default function StatsPage() {
         </Link>
         <span className="text-blue-700 font-black text-lg tracking-tight">FAIRE</span>
         <h1 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Statistiques</h1>
+        <Link href="/tendances" className="ml-auto text-xs text-gray-500 hover:text-blue-600 transition-colors">
+          Tendances →
+        </Link>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-8">

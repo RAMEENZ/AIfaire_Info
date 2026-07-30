@@ -56,6 +56,14 @@ Pour déclencher manuellement : `POST /api/ingest/run` (clé `INGEST_API_KEY`). 
 - **Logs persistants** : en plus de stdout, le backend écrit dans `LOG_DIR` (monté sur `./logs`, rotation 5 × 10 Mo). Les logs Docker `json-file` meurent avec le conteneur — l'autopsie de la panne de 07/2026 a été impossible pour cette raison.
 - **Limite de concurrence par hôte** : au plus 3 requêtes simultanées vers un même domaine lors de la collecte RSS — une rafale de 12 flux d'un même éditeur (Le Télégramme…) déclenchait des 403 anti-bot.
 - **Rapport de santé des flux** : `GET /api/health/feeds` liste les flux RSS en échec (compteur, dernière erreur, mis de côté ou non) — le tri des flux morts devient une lecture de quelques minutes. Complémentaire du sondage complet `python -m app.maintenance check-feeds`.
+- **Métrique de localisation** : `/api/metrics` expose `localized_pct_24h` (% d'événements géolocalisés sur 24 h) — une chute brutale signale une régression silencieuse du géocodeur ou de l'extraction LLM.
+- **Sauvegardes chiffrées + hors-site** : `security/backup-postgres.sh` (dump vérifié avant publication, rétention, copie rclone optionnelle vers un stockage objet) et exercice de restauration documenté dans `security/README.md`.
+
+### Interface
+
+- **Page Tendances** (`/tendances`) : historique quotidien tiré de `daily_stats` — événements par jour empilés par catégorie, cumuls par catégorie et top des départements, sur 30 j / 90 j / 1 an.
+- **Département épinglé** : un clic sur un département (carte) filtre le fil (événements du département + nationaux) ; l'épingle 📌 le mémorise entre les visites.
+- **Archive des briefs** : les briefs précédents (14 derniers) sont consultables depuis le panneau Brief (`GET /api/brief/history`).
 
 ### Supervision externe (recommandé)
 

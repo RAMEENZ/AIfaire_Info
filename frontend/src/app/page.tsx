@@ -23,6 +23,7 @@ import {
   sendEventNotification,
 } from "@/lib/notifications";
 import { Categorie, Event, EventFilters } from "@/lib/types";
+import { DEPT_CODE_TO_NAME } from "@/lib/departments";
 
 function useEventStream(categories: Categorie[], graviteMin: number) {
   const [liveEvents, setLiveEvents] = useState<Event[]>([]);
@@ -120,7 +121,18 @@ export default function HomePage() {
   const [filters, setFilters] = useState<EventFilters>(readFiltersFromURL);
   const [darkMode, setDarkMode] = useState(false);
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
+  // Département épinglé : persiste entre les sessions (localStorage) et
+  // ré-applique le filtre départemental au chargement.
+  const [pinnedDept, setPinnedDept] = useState<string | null>(null);
   const [historyDate, setHistoryDate] = useState<Date | null>(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("pinnedDept");
+    if (stored && DEPT_CODE_TO_NAME[stored]) {
+      setPinnedDept(stored);
+      setSelectedDept(stored);
+    }
+  }, []);
 
   useEffect(() => {
     const p = new URLSearchParams();
@@ -341,6 +353,37 @@ export default function HomePage() {
     return allEvents.filter((e) => e.lieu_code_insee?.startsWith(selectedDept) ?? false);
   }, [allEvents, selectedDept]);
 
+  const togglePinDept = useCallback(() => {
+    if (!selectedDept) return;
+    setPinnedDept((prev) => {
+      if (prev === selectedDept) {
+        localStorage.removeItem("pinnedDept");
+        return null;
+      }
+      localStorage.setItem("pinnedDept", selectedDept);
+      return selectedDept;
+    });
+  }, [selectedDept]);
+
+  const clearDept = useCallback(() => {
+    setSelectedDept(null);
+    setPinnedDept((prev) => {
+      if (prev) localStorage.removeItem("pinnedDept");
+      return null;
+    });
+  }, []);
+
+  // Fil filtré quand un département est sélectionné : ses événements + les
+  // nationaux (qui concernent tout le monde). La carte, elle, garde tout.
+  const feedEvents = useMemo(() => {
+    if (!selectedDept) return allEvents;
+    return allEvents.filter(
+      (e) =>
+        (e.lieu_code_insee?.startsWith(selectedDept) ?? false) ||
+        e.lieu_niveau === "national"
+    );
+  }, [allEvents, selectedDept]);
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
       {/* Header */}
@@ -435,6 +478,16 @@ export default function HomePage() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
           <span className="hidden lg:inline">Stats</span>
+        </a>
+        <a
+          href="/tendances"
+          className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          title="Tendances (historique quotidien)"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+          </svg>
+          <span className="hidden lg:inline">Tendances</span>
         </a>
         <ShortcutsHelp />
         <button
@@ -533,19 +586,38 @@ export default function HomePage() {
             </div>
           )}
           {selectedDept && (
-            <div className="flex items-center justify-between px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800 flex-shrink-0">
-              <span className="text-xs text-blue-700 dark:text-blue-300 font-medium">
-                Dép. {selectedDept} — {deptEvents.length} événement{deptEvents.length !== 1 ? "s" : ""}
+            <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800 flex-shrink-0">
+              <span className="text-xs text-blue-700 dark:text-blue-300 font-medium truncate">
+                {DEPT_CODE_TO_NAME[selectedDept] ?? `Dép. ${selectedDept}`} ({selectedDept}) —{" "}
+                {deptEvents.length} événement{deptEvents.length !== 1 ? "s" : ""}
               </span>
-              <button
-                onClick={() => setSelectedDept(null)}
-                className="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 transition-colors"
-                title="Effacer le filtre département"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <button
+                  onClick={togglePinDept}
+                  className={`text-xs transition-colors ${
+                    pinnedDept === selectedDept
+                      ? "text-blue-700 dark:text-blue-200"
+                      : "text-blue-300 dark:text-blue-500 hover:text-blue-600 dark:hover:text-blue-300"
+                  }`}
+                  title={
+                    pinnedDept === selectedDept
+                      ? "Département épinglé — cliquer pour désépingler"
+                      : "Épingler ce département (retrouvé à chaque visite)"
+                  }
+                  aria-pressed={pinnedDept === selectedDept}
+                >
+                  📌
+                </button>
+                <button
+                  onClick={clearDept}
+                  className="text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 transition-colors"
+                  title="Effacer le filtre département"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
           )}
           <TimelineBar
@@ -564,7 +636,7 @@ export default function HomePage() {
           />
           <DailyBrief />
           <EventFeed
-            events={allEvents}
+            events={feedEvents}
             isLoading={eventsLoading}
             error={eventsError}
             selectedEventId={selectedEvent?.id ?? null}

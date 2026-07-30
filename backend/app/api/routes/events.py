@@ -527,6 +527,33 @@ async def get_brief() -> dict:
     return brief
 
 
+@router.get("/brief/history")
+async def get_brief_history(
+    limit: int = Query(default=14, ge=1, le=90),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Archive des briefs : la table DailyBrief conserve tout l'historique,
+    mais seul le dernier était exposé jusqu'ici."""
+    from app.models import DailyBrief
+
+    rows = (
+        await db.execute(
+            select(DailyBrief).order_by(DailyBrief.generated_at.desc()).limit(limit)
+        )
+    ).scalars().all()
+    return {
+        "briefs": [
+            {
+                "date": b.date.isoformat(),
+                "content": b.content,
+                "event_count": b.event_count,
+                "generated_at": b.generated_at.isoformat(),
+            }
+            for b in rows
+        ]
+    }
+
+
 # ── Flux Atom RSS ─────────────────────────────────────────────────────────────
 
 _ATOM_NS = "http://www.w3.org/2005/Atom"

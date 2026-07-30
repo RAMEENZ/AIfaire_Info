@@ -1,0 +1,17 @@
+line-length = 120
+
+[lint]
+# Sélection EXPLICITE (les règles par défaut varient selon la version de ruff :
+# 0.16 a élargi aux imports triés, pyupgrade, bugbear…) : pycodestyle erreurs
+# majeures + pyflakes, le socle stable.
+select = ["E4", "E7", "E9", "F"]
+# E402 (imports pas en tête de fichier) : le projet utilise délibérément des
+# imports tardifs (après logging.basicConfig dans main.py, imports locaux dans
+# les endpoints pour éviter les cycles). Le reste des règles par défaut (E, F)
+# s'applique.
+ignore = ["E402"]
+
+[lint.per-file-ignores]
+# Style délibérément compact des tests : `_run(cb); assert …` (E702), petites
+# lambdas de formatage (E731), variables illustratives (F841).
+"tests/*" = ["E702", "E731", "F841"]
