@@ -22,7 +22,15 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // Pas de maximumScale : bloquer le pinch-zoom pénalise l'accessibilité
+  // (et Lighthouse le signale). Le zoom utilisateur doit rester possible.
+  // viewport-fit=cover : la page s'étend sous l'encoche/la barre home des
+  // iPhone — les safe-areas sont gérées via env(safe-area-inset-*).
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#1d4ed8" },
+    { media: "(prefers-color-scheme: dark)", color: "#1f2937" },
+  ],
 };
 
 export default function RootLayout({

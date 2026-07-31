@@ -187,6 +187,10 @@ export default function HomePage() {
 
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [mobileView, setMobileView] = useState<"map" | "feed">("map");
+  // Menu « ⋯ » mobile : Stats, Tendances, RSS, Partager et CSV sont des liens
+  // desktop-only (hidden md:flex) — sans ce menu, ils sont inaccessibles au
+  // téléphone.
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const ingestTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   // Dark mode: sync with localStorage on mount
@@ -385,7 +389,7 @@ export default function HomePage() {
   }, [allEvents, selectedDept]);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col h-app overflow-hidden bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <header className="flex flex-wrap items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm z-10 flex-shrink-0">
         <div className="flex items-center gap-2 mr-4">
@@ -489,6 +493,75 @@ export default function HomePage() {
           </svg>
           <span className="hidden lg:inline">Tendances</span>
         </a>
+        {/* Menu mobile ⋯ : donne accès aux liens masqués sur petit écran */}
+        <div className="relative md:hidden ml-auto">
+          <button
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-label="Plus d'options"
+            aria-expanded={mobileMenuOpen}
+            className="flex items-center justify-center w-8 h-8 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+            </svg>
+          </button>
+          {mobileMenuOpen && (
+            <>
+              {/* Voile : ferme le menu au tap en dehors */}
+              <div className="fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)} aria-hidden="true" />
+              <div className="absolute right-0 top-9 z-50 w-48 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg py-1">
+                <a
+                  href="/stats"
+                  className="block px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                >
+                  📊 Statistiques
+                </a>
+                <a
+                  href="/tendances"
+                  className="block px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                >
+                  📈 Tendances
+                </a>
+                <a
+                  href={`${API_BASE_URL}/feed.rss${
+                    filters.categories.length !== ALL_CATEGORIES.length
+                      ? "?" + filters.categories.map((c) => `categories=${c}`).join("&")
+                      : ""
+                  }`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                >
+                  📡 Flux RSS
+                </a>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    navigator.clipboard
+                      .writeText(window.location.href)
+                      .then(() => toast("Lien copié dans le presse-papiers ✓", "success"))
+                      .catch(() => toast("Impossible de copier le lien", "error"));
+                  }}
+                  className="block w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                >
+                  🔗 Partager le lien
+                </button>
+                {allEvents.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      exportToCSV(allEvents);
+                      toast(`${allEvents.length} événement${allEvents.length > 1 ? "s" : ""} exporté${allEvents.length > 1 ? "s" : ""} en CSV`, "success");
+                    }}
+                    className="block w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                  >
+                    ⬇️ Export CSV
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
         <ShortcutsHelp />
         <button
           onClick={toggleDark}
@@ -537,7 +610,7 @@ export default function HomePage() {
       <div className="flex md:hidden border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
         <button
           onClick={() => setMobileView("map")}
-          className={`flex-1 py-1.5 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
+          className={`flex-1 py-2.5 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
             mobileView === "map" ? "text-blue-700 dark:text-blue-300 border-b-2 border-blue-700 bg-blue-50 dark:bg-blue-900/30" : "text-gray-500 dark:text-gray-400"
           }`}
         >
@@ -548,7 +621,7 @@ export default function HomePage() {
         </button>
         <button
           onClick={() => setMobileView("feed")}
-          className={`flex-1 py-1.5 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
+          className={`flex-1 py-2.5 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
             mobileView === "feed" ? "text-blue-700 dark:text-blue-300 border-b-2 border-blue-700 bg-blue-50 dark:bg-blue-900/30" : "text-gray-500 dark:text-gray-400"
           }`}
         >

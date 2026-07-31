@@ -125,7 +125,7 @@ export default function FilterBar({
       <div className="flex items-center gap-1 flex-wrap">
         <button
           onClick={selectAllCategories}
-          className={`text-xs px-2 py-1 rounded border transition-colors ${
+          className={`text-xs px-2.5 py-1.5 md:px-2 md:py-1 rounded border transition-colors ${
             allSelected
               ? "bg-gray-700 dark:bg-gray-600 text-white border-gray-700 dark:border-gray-500"
               : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500"
@@ -143,7 +143,7 @@ export default function FilterBar({
               key={cat}
               onClick={() => toggleCategory(cat)}
               title={trendingCats.has(cat) ? `${config.label} — En tendance 🔥` : config.label}
-              className={`relative text-xs px-2 py-1 rounded border transition-colors flex items-center gap-1 ${
+              className={`relative text-xs px-2.5 py-1.5 md:px-2 md:py-1 rounded border transition-colors flex items-center gap-1 ${
                 active
                   ? "text-white border-transparent"
                   : "bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700 hover:border-gray-400"
@@ -181,7 +181,7 @@ export default function FilterBar({
           <button
             key={opt.value}
             onClick={() => onGraviteChange(opt.value)}
-            className={`text-xs px-2 py-1 rounded border transition-colors ${
+            className={`text-xs px-2.5 py-1.5 md:px-2 md:py-1 rounded border transition-colors ${
               filters.gravite_min === opt.value
                 ? "bg-gray-700 dark:bg-gray-600 text-white border-gray-700 dark:border-gray-500"
                 : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500"
@@ -203,7 +203,7 @@ export default function FilterBar({
               setShowDateRange(false);
               setDateFrom("");
             }}
-            className={`text-xs px-2 py-1 rounded border transition-colors ${
+            className={`text-xs px-2.5 py-1.5 md:px-2 md:py-1 rounded border transition-colors ${
               filters.depuis_heures === opt.value && !showDateRange
                 ? "bg-gray-700 dark:bg-gray-600 text-white border-gray-700 dark:border-gray-500"
                 : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-gray-500"
@@ -224,7 +224,7 @@ export default function FilterBar({
               return !v;
             });
           }}
-          className={`px-2 py-1 rounded text-xs border transition-colors ${
+          className={`px-2.5 py-1.5 md:px-2 md:py-1 rounded text-xs border transition-colors ${
             showDateRange
               ? "bg-indigo-600 text-white border-indigo-700"
               : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-indigo-400"
@@ -264,7 +264,7 @@ export default function FilterBar({
             setShowDateRange(false);
             setDateFrom("");
           }}
-          className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          className="flex items-center gap-1 text-xs px-2.5 py-1.5 md:px-2 md:py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           title="Réinitialiser tous les filtres"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

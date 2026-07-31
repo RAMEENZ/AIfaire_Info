@@ -9,6 +9,17 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
+  /* Mobile : le glisser sur la carte ou le fil ne doit pas déclencher le
+     pull-to-refresh ni le rebond de page (l'app gère ses propres scrolls). */
+  overscroll-behavior: none;
+}
+
+/* Hauteur d'app mobile-safe : 100vh inclut la zone de la barre d'URL sur
+   iOS Safari (bas de page coupé) ; 100dvh suit la hauteur réellement
+   visible. Le double height = fallback pour les navigateurs sans dvh. */
+.h-app {
+  height: 100vh;
+  height: 100dvh;
 }
 
 #__next,

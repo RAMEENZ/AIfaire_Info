@@ -140,7 +140,7 @@ export default function StatusBar({ connectors, nextIngestAt, onTriggerIngest }:
   }
 
   return (
-    <footer className="flex items-center gap-4 px-4 py-1.5 bg-gray-50 dark:bg-gray-900/40 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 z-10">
+    <footer className="flex items-center gap-4 px-4 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] bg-gray-50 dark:bg-gray-900/40 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 z-10">
       <span className="font-medium text-gray-600 dark:text-gray-300 hidden sm:block">Connecteurs :</span>
 
       {connectors.length === 0 ? (
