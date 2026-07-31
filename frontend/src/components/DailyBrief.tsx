@@ -121,7 +121,11 @@ export default function DailyBrief() {
         {hasBrief && <span className="text-gray-400 dark:text-gray-500">{open ? "▲" : "▼"}</span>}
       </button>
       {open && hasBrief && (
-        <div className="px-3 pb-3 text-xs bg-blue-50 dark:bg-blue-900/30 border-t border-blue-100 dark:border-blue-800">
+        // max-h + overflow-y : la colonne parente est en overflow-hidden — sans
+        // défilement propre, un brief long (a fortiori avec les archives
+        // dépliées) déborde et devient illisible, surtout sur mobile.
+        // overscroll-contain : arrivé en butée, le geste ne scrolle pas la page.
+        <div className="px-3 pb-3 text-xs bg-blue-50 dark:bg-blue-900/30 border-t border-blue-100 dark:border-blue-800 max-h-[45vh] overflow-y-auto overscroll-contain">
           <div className="mt-2">
             <BriefContent content={data.content} />
           </div>
