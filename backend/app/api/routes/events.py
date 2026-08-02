@@ -20,7 +20,7 @@ from app.categories import CATEGORY_SET
 from app.config import settings
 from app.database import get_db
 from app.models import Event
-from app.schemas import EventDetail, EventList
+from app.schemas import EventBase, EventDetail, EventList
 from app.pipeline.ingestor import ingest_all, ingestion_in_progress
 
 # ── Cache Redis (optionnel) ──────────────────────────────────────────────────
@@ -73,6 +73,23 @@ def _release_sse_slot() -> None:
     _sse_active_connections = max(0, _sse_active_connections - 1)
 
 
+# Longueur du résumé conservée dans les listes. Le texte complet reste servi
+# par GET /events/{id} (et par ?full=true) : dans le fil, seul le début est
+# visible tant que la carte n'est pas dépliée.
+_RESUME_PREVIEW_CHARS = 220
+
+
+def _truncate_resume(text: Optional[str]) -> Optional[str]:
+    if not text or len(text) <= _RESUME_PREVIEW_CHARS:
+        return text
+    # Coupe au dernier espace pour ne pas trancher un mot en deux.
+    cut = text[:_RESUME_PREVIEW_CHARS]
+    space = cut.rfind(" ")
+    if space > _RESUME_PREVIEW_CHARS * 0.6:
+        cut = cut[:space]
+    return cut.rstrip(" ,;:.") + "…"
+
+
 VALID_CATEGORIES = CATEGORY_SET
 VALID_NIVEAUX = {"commune", "departement", "region", "national"}
 VALID_SORTS = {"gravite", "recent", "pertinence"}
@@ -89,6 +106,12 @@ async def list_events(
     avant: Optional[datetime] = Query(None, description="Filtrer les événements antérieurs à cette date"),
     q: Optional[str] = Query(None, max_length=200, description="Recherche textuelle (titre, résumé, lieu)"),
     limit: int = Query(default=settings.DEFAULT_EVENTS_LIMIT, ge=1, le=settings.MAX_EVENTS_LIMIT),
+    offset: int = Query(default=0, ge=0, le=100_000, description="Rang du premier événement (pagination)"),
+    full: bool = Query(
+        default=False,
+        description="Résumés IA complets. Par défaut ils sont tronqués : "
+        "invisibles tant qu'une carte n'est pas dépliée, ils pesaient un tiers de la réponse.",
+    ),
     national_only: bool = Query(False),
     dept: Optional[str] = Query(None, max_length=3, description="Filtrer par code département (ex: 75, 13, 2A)"),
     sort: str = Query(
@@ -112,7 +135,7 @@ async def list_events(
     # ── Cache Redis ────────────────────────────────────────────────────────────
     cache_key = _events_cache_key(
         bbox=bbox, categories=categories, gravite_min=gravite_min, niveau=niveau,
-        depuis=depuis, avant=avant, q=q, limit=limit,
+        depuis=depuis, avant=avant, q=q, limit=limit, offset=offset, full=full,
         national_only=national_only, dept=dept, sort=sort,
     )
     redis = await _get_redis()
@@ -202,6 +225,7 @@ async def list_events(
     stmt = (
         stmt.add_columns(func.count().over().label("total_count"))
         .order_by(*order_by)
+        .offset(offset)
         .limit(limit)
     )
     result = await db.execute(stmt)
@@ -209,10 +233,17 @@ async def list_events(
     events = [row[0] for row in rows]
     total = rows[0].total_count if rows else 0
 
+    payload = [EventBase.model_validate(e) for e in events]
+    if not full:
+        for item in payload:
+            item.resume_ia = _truncate_resume(item.resume_ia)
+
     response = EventList(
-        events=events,
+        events=payload,
         total=total,
         generated_at=datetime.now(timezone.utc),
+        offset=offset,
+        has_more=offset + len(events) < total,
     )
 
     # Écriture en cache Redis (TTL configurable, défaut 120s).

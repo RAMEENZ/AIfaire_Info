@@ -27,7 +27,20 @@ interface EventFeedProps {
   onSelectEvent?: (event: Event) => void;
   onRetry?: () => void;
   liveEventIds?: Set<string>;
+  /** Remonte la recherche (anti-rebondie) pour interroger le serveur. */
+  onSearchChange?: (q: string) => void;
+  /** Nombre total d'événements correspondant aux filtres, côté serveur. */
+  totalAvailable?: number;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  moreError?: boolean;
+  onLoadMore?: () => void;
+  /** Rafraîchissement déclenché par le geste de tirage (mobile). */
+  onRefresh?: () => void;
 }
+
+/** Délai avant d'interroger le serveur : évite une requête par frappe. */
+const SEARCH_DEBOUNCE_MS = 400;
 
 function formatRelative(iso: string): string {
   try {
@@ -410,7 +423,22 @@ function CategoryFilterBar({
   );
 }
 
-export default function EventFeed({ events, isLoading, error, selectedEventId, onSelectEvent, onRetry, liveEventIds }: EventFeedProps) {
+export default function EventFeed({
+  events,
+  isLoading,
+  error,
+  selectedEventId,
+  onSelectEvent,
+  onRetry,
+  liveEventIds,
+  onSearchChange,
+  totalAvailable = 0,
+  hasMore = false,
+  loadingMore = false,
+  moreError = false,
+  onLoadMore,
+  onRefresh,
+}: EventFeedProps) {
   const [tab, setTab] = useState<Tab>("all");
   const [sortMode, setSortMode] = useState<SortMode>("gravite");
   const [search, setSearch] = useState("");
@@ -445,6 +473,42 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
       setActiveTag(null);
     }
   }, [events, activeTag]);
+
+  // Recherche : le filtre local ci-dessous reste (réactivité immédiate), mais
+  // la requête est aussi envoyée au serveur après un temps de pause — sinon on
+  // ne cherchait que dans la page courante, et « incendie Gard » ne trouvait
+  // rien si l'événement n'y figurait pas.
+  useEffect(() => {
+    if (!onSearchChange) return;
+    const t = setTimeout(() => onSearchChange(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [search, onSearchChange]);
+
+  // ── Tirer pour rafraîchir (mobile) ──────────────────────────────────────
+  // Ne s'arme qu'en haut de liste et sur un geste tactile franchement
+  // vertical, pour ne pas gêner le défilement normal.
+  const [pullDistance, setPullDistance] = useState(0);
+  const pullStartRef = useRef<number | null>(null);
+  const PULL_TRIGGER_PX = 70;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!onRefresh) return;
+    const el = listRef.current;
+    pullStartRef.current = el && el.scrollTop <= 0 ? e.touches[0].clientY : null;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (pullStartRef.current === null) return;
+    const delta = e.touches[0].clientY - pullStartRef.current;
+    // Résistance : le doigt parcourt plus de distance que l'indicateur.
+    setPullDistance(delta > 0 ? Math.min(delta * 0.45, PULL_TRIGGER_PX + 25) : 0);
+  };
+
+  const handleTouchEnd = () => {
+    if (pullDistance >= PULL_TRIGGER_PX) onRefresh?.();
+    pullStartRef.current = null;
+    setPullDistance(0);
+  };
 
   // Réinitialise la pagination quand les filtres ou le tri changent.
   useEffect(() => {
@@ -517,7 +581,10 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
 
   const collapsed = collapseByCluster(sorted);
   const visible = collapsed.slice(0, visibleCount);
-  const hasMore = visibleCount < collapsed.length;
+  // Deux paliers distincts : d'abord révéler ce qui est déjà chargé (rendu
+  // incrémental, aucun réseau), puis seulement demander la page suivante au
+  // serveur (prop `hasMore`).
+  const hasMoreLocal = visibleCount < collapsed.length;
 
   // Comptage par catégorie (avant filtre catégorie, après autres filtres).
   const preCatFiltered = events
@@ -650,7 +717,23 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
       )}
 
       {/* List */}
-      <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain relative">
+      <div
+        ref={listRef}
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain relative"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Indicateur de tirage (mobile) */}
+        {pullDistance > 0 && (
+          <div
+            className="flex items-center justify-center text-[11px] text-gray-500 dark:text-gray-400 overflow-hidden transition-[height] duration-75"
+            style={{ height: pullDistance }}
+            aria-hidden="true"
+          >
+            {pullDistance >= PULL_TRIGGER_PX ? "↻ Relâchez pour actualiser" : "↓ Tirez pour actualiser"}
+          </div>
+        )}
         {error && !isLoading && sorted.length === 0 && (
           <div className="flex flex-col items-center justify-center h-40 gap-3 px-4">
             <svg className="w-8 h-8 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -717,20 +800,40 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
           />
         ))}
 
-        {/* Charger plus */}
-        {hasMore && (
+        {/* Charger plus — d'abord le stock local, puis le serveur */}
+        {(hasMoreLocal || hasMore) && (
           <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-700 text-center">
-            <button
-              onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
-              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
-            >
-              Charger {Math.min(PAGE_SIZE, collapsed.length - visibleCount)} de plus
-              <span className="text-gray-400 dark:text-gray-500 ml-1">({visibleCount} / {collapsed.length})</span>
-            </button>
+            {hasMoreLocal ? (
+              <button
+                onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
+              >
+                Charger {Math.min(PAGE_SIZE, collapsed.length - visibleCount)} de plus
+                <span className="text-gray-400 dark:text-gray-500 ml-1">({visibleCount} / {collapsed.length})</span>
+              </button>
+            ) : (
+              <button
+                onClick={onLoadMore}
+                disabled={loadingMore}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline disabled:opacity-50 disabled:cursor-wait"
+              >
+                {loadingMore ? "Chargement…" : "Charger plus d'événements"}
+                {totalAvailable > 0 && (
+                  <span className="text-gray-400 dark:text-gray-500 ml-1">
+                    ({events.length} / {totalAvailable})
+                  </span>
+                )}
+              </button>
+            )}
+            {moreError && (
+              <p className="mt-1 text-[10px] text-red-500">
+                Chargement impossible — vérifiez la connexion, puis réessayez.
+              </p>
+            )}
           </div>
         )}
 
-        {collapsed.length > 8 && !hasMore && (
+        {collapsed.length > 8 && !hasMoreLocal && !hasMore && (
           <div className="sticky bottom-2 flex justify-center pb-2 pointer-events-none">
             <button
               onClick={() => listRef.current?.scrollTo({ top: 0, behavior: "smooth" })}

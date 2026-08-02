@@ -13,9 +13,10 @@ import StatsBar from "@/components/StatsBar";
 import AlertSettings from "@/components/AlertSettings";
 import ShortcutsHelp from "@/components/ShortcutsHelp";
 import Toaster from "@/components/Toaster";
+import OfflineIndicator from "@/components/OfflineIndicator";
 import { fetchEvents, fetchHealth, triggerIngest } from "@/lib/api";
 import { toast } from "@/lib/toast";
-import { API_BASE_URL, ALL_CATEGORIES, GRAVITE_CONFIG, REFRESH_INTERVAL } from "@/lib/constants";
+import { API_BASE_URL, ALL_CATEGORIES, EVENTS_PAGE_SIZE, GRAVITE_CONFIG, REFRESH_INTERVAL } from "@/lib/constants";
 import {
   AlertSettings as AlertSettingsType,
   loadAlertSettings,
@@ -146,39 +147,85 @@ export default function HomePage() {
     window.history.replaceState(null, "", newUrl);
   }, [filters]);
 
+  // Recherche côté serveur : porte sur toute la base et non sur les seuls
+  // événements déjà chargés (auparavant « incendie Gard » ne trouvait rien si
+  // l'événement n'était pas dans la page courante). Valeur déjà anti-rebondie
+  // par EventFeed.
+  const [serverQuery, setServerQuery] = useState("");
+
+  // Une recherche mérite une fenêtre temporelle large : chercher dans les
+  // 48 dernières heures seulement raterait l'essentiel de ce que l'utilisateur
+  // a en tête.
+  const SEARCH_WINDOW_HOURS = 720;
+  const effectiveSinceHours = serverQuery ? Math.max(filters.depuis_heures, SEARCH_WINDOW_HOURS) : filters.depuis_heures;
+
   // SWR key uses stable primitive values (no datetime string that changes every render)
-  const swrKey = ["events", filters.categories, filters.gravite_min, filters.depuis_heures, historyDate?.toISOString() ?? null];
+  const swrKey = ["events", filters.categories, filters.gravite_min, effectiveSinceHours, serverQuery, historyDate?.toISOString() ?? null];
+
+  const buildParams = useCallback(
+    (offset: number) => {
+      const base = {
+        categories: filters.categories,
+        gravite_min: filters.gravite_min > 0 ? filters.gravite_min : undefined,
+        limit: EVENTS_PAGE_SIZE,
+        offset,
+        q: serverQuery || undefined,
+      };
+      if (historyDate) {
+        const depuis = new Date(historyDate);
+        const avant = new Date(historyDate);
+        avant.setDate(avant.getDate() + 2);
+        return { ...base, depuis: depuis.toISOString(), avant: avant.toISOString() };
+      }
+      return { ...base, depuis: new Date(Date.now() - effectiveSinceHours * 3600 * 1000).toISOString() };
+    },
+    [filters.categories, filters.gravite_min, effectiveSinceHours, serverQuery, historyDate]
+  );
 
   const {
     data: eventsData,
     isLoading: eventsLoading,
     error: eventsError,
     mutate: refreshEvents,
-  } = useSWR(
-    swrKey,
-    () => {
-      if (historyDate) {
-        const depuis = new Date(historyDate);
-        const avant = new Date(historyDate);
-        avant.setDate(avant.getDate() + 2);
-        return fetchEvents({
-          categories: filters.categories,
-          gravite_min: filters.gravite_min > 0 ? filters.gravite_min : undefined,
-          depuis: depuis.toISOString(),
-          avant: avant.toISOString(),
-        });
-      }
-      return fetchEvents({
-        categories: filters.categories,
-        gravite_min: filters.gravite_min > 0 ? filters.gravite_min : undefined,
-        depuis: new Date(Date.now() - filters.depuis_heures * 3600 * 1000).toISOString(),
+  } = useSWR(swrKey, () => fetchEvents(buildParams(0)), {
+    refreshInterval: historyDate ? 0 : REFRESH_INTERVAL,
+    revalidateOnFocus: false,
+    keepPreviousData: true,
+  });
+
+  // Pages suivantes chargées à la demande, empilées sous la première.
+  const [extraEvents, setExtraEvents] = useState<Event[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState(false);
+
+  // Tout changement de filtre/recherche repart de la première page.
+  const swrKeyStr = JSON.stringify(swrKey);
+  useEffect(() => {
+    setExtraEvents([]);
+    setMoreError(false);
+  }, [swrKeyStr]);
+
+  const loadedCount = (eventsData?.events.length ?? 0) + extraEvents.length;
+  const hasMore = Boolean(eventsData) && loadedCount < (eventsData?.total ?? 0);
+
+  const handleLoadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    setMoreError(false);
+    try {
+      const next = await fetchEvents(buildParams(loadedCount));
+      setExtraEvents((prev) => {
+        // Filet anti-doublon : une ingestion entre deux pages peut décaler la
+        // fenêtre et renvoyer un événement déjà présent.
+        const seen = new Set([...(eventsData?.events ?? []), ...prev].map((e) => e.id));
+        return [...prev, ...next.events.filter((e) => !seen.has(e.id))];
       });
-    },
-    {
-      refreshInterval: historyDate ? 0 : REFRESH_INTERVAL,
-      revalidateOnFocus: false,
+    } catch {
+      setMoreError(true);
+    } finally {
+      setLoadingMore(false);
     }
-  );
+  }, [loadingMore, hasMore, buildParams, loadedCount, eventsData]);
 
   const { data: healthData } = useSWR("health", fetchHealth, {
     refreshInterval: REFRESH_INTERVAL,
@@ -239,12 +286,12 @@ export default function HomePage() {
   const { liveEvents, isLive } = useEventStream(filters.categories, filters.gravite_min);
 
   const allEvents: Event[] = useMemo(() => {
-    const base = eventsData?.events ?? [];
+    const base = [...(eventsData?.events ?? []), ...extraEvents];
     if (liveEvents.length === 0) return base;
     const existingIds = new Set(base.map((e) => e.id));
     const fresh = liveEvents.filter((e) => !existingIds.has(e.id));
     return fresh.length > 0 ? [...fresh, ...base] : base;
-  }, [eventsData?.events, liveEvents]);
+  }, [eventsData?.events, extraEvents, liveEvents]);
 
   // Auto-select event from ?event=<id> URL param on first load
   useEffect(() => {
@@ -606,6 +653,8 @@ export default function HomePage() {
         </div>
       </header>
 
+      <OfflineIndicator />
+
       {/* Mobile toggle bar */}
       <div className="flex md:hidden border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
         <button
@@ -723,6 +772,13 @@ export default function HomePage() {
             onSelectEvent={setSelectedEvent}
             onRetry={refreshEvents}
             liveEventIds={new Set(liveEvents.map((e) => e.id))}
+            onSearchChange={setServerQuery}
+            totalAvailable={eventsData?.total ?? 0}
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            moreError={moreError}
+            onLoadMore={handleLoadMore}
+            onRefresh={refreshEvents}
           />
         </aside>
       </main>

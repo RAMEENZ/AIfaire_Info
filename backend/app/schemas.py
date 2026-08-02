@@ -36,6 +36,11 @@ class EventList(BaseModel):
     events: List[EventBase]
     total: int
     generated_at: datetime
+    # Pagination : rang du premier élément renvoyé et présence d'une suite.
+    # Permet au client de charger le fil par tranches au lieu des 500
+    # événements historiques (451 Ko de JSON, ~90 000 px de DOM).
+    offset: int = 0
+    has_more: bool = False
 
 
 class ConnectorStatusSchema(BaseModel):

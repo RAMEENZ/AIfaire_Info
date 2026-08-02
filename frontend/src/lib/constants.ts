@@ -78,4 +78,15 @@ export const FRANCE_BOUNDS: [[number, number], [number, number]] = [
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 
-export const REFRESH_INTERVAL = 300_000;
+// Sondage complet du fil. Le flux SSE (/events/stream) pousse déjà les
+// nouveautés en direct : ce sondage n'est qu'un filet de sécurité, il n'a pas
+// besoin d'être fréquent. Passé de 5 à 15 min — sur mobile, chaque cycle
+// coûtait une réponse de ~120 Ko compressés.
+export const REFRESH_INTERVAL = 900_000;
+
+// Taille d'une page du fil. Le chargement historique de 500 événements pesait
+// 451 Ko de JSON (mesuré en production). Cette même requête alimente aussi les
+// marqueurs de la carte : trop réduire la page viderait la carte. 200 + les
+// résumés tronqués côté serveur ramènent la réponse à environ un tiers, sans
+// dégarnir la carte ; la suite se charge à la demande.
+export const EVENTS_PAGE_SIZE = 200;

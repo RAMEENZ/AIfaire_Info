@@ -57,6 +57,10 @@ export interface EventsResponse {
   events: Event[];
   total: number;
   generated_at: string;
+  /** Rang du premier événement renvoyé (pagination). */
+  offset?: number;
+  /** Reste-t-il des événements à charger après ce lot ? */
+  has_more?: boolean;
 }
 
 export interface HealthResponse {
