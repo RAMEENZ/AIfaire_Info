@@ -693,20 +693,27 @@ export default function HomePage() {
               </div>
             </div>
           )}
-          <TimelineBar
-            categories={filters.categories}
-            graviteMin={filters.gravite_min}
-            historyDate={historyDate}
-            onHistoryDateChange={setHistoryDate}
-          />
-          <StatsBar
-            localCount={localEvents.length}
-            nationalCount={nationalEvents.length}
-            newestEventDate={newestEventDate}
-            events={allEvents}
-            activeCategoryFilter={activeCategoryFilter}
-            onCategorySelect={handleStatsBarCategorySelect}
-          />
+          {/* Timeline et stats : desktop uniquement. Sur mobile ces deux
+              barres mangeaient 154 px des ~550 px de la colonne, ne laissant
+              que ~130 px au fil (une carte visible). Leurs compteurs sont
+              déjà repris par la barre d'onglets mobile et par les onglets du
+              fil (« Tous / Carte / National »). */}
+          <div className="hidden md:block flex-shrink-0">
+            <TimelineBar
+              categories={filters.categories}
+              graviteMin={filters.gravite_min}
+              historyDate={historyDate}
+              onHistoryDateChange={setHistoryDate}
+            />
+            <StatsBar
+              localCount={localEvents.length}
+              nationalCount={nationalEvents.length}
+              newestEventDate={newestEventDate}
+              events={allEvents}
+              activeCategoryFilter={activeCategoryFilter}
+              onCategorySelect={handleStatsBarCategorySelect}
+            />
+          </div>
           <DailyBrief />
           <EventFeed
             events={feedEvents}

@@ -324,11 +324,13 @@ function AlertBanner({ events, onSelect }: { events: Event[]; onSelect?: (e: Eve
           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
         {totalUrgent} alerte{totalUrgent > 1 ? "s" : ""} importante{totalUrgent > 1 ? "s" : ""}
-        {totalUrgent > 4 && <span className="font-normal opacity-70"> (top 4)</span>}
+        {totalUrgent > 2 && <span className="font-normal opacity-70"> (les plus graves)</span>}
       </p>
       <ul className="space-y-1">
-        {urgent.map((e) => (
-          <li key={e.id} className="flex items-center gap-1.5">
+        {urgent.map((e, i) => (
+          // Mobile : 2 alertes au lieu de 4 — le bandeau occupait 115 px sur
+          // les ~550 px de la colonne, au détriment du fil lui-même.
+          <li key={e.id} className={`${i < 2 ? "flex" : "hidden md:flex"} items-center gap-1.5`}>
             <span
               className="w-1.5 h-1.5 rounded-full flex-shrink-0"
               style={{ backgroundColor: GRAVITE_CONFIG[e.gravite]?.color }}
@@ -550,14 +552,18 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
   const hasActiveFilters = activeCategories.size > 0 || !!activeTag;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    // flex-1 + min-h-0 (et non h-full) : dans une colonne flex, h-full
+    // demande 100 % de la hauteur du parent alors que des frères occupent
+    // déjà de la place — la liste finissait écrasée.
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       {/* Alert banner */}
       <AlertBanner events={events} onSelect={onSelectEvent} />
 
       {/* Header + tabs */}
-      <div className="px-4 pt-2.5 pb-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Actualités</h2>
+      <div className="px-4 pt-2 pb-1.5 md:pt-2.5 md:pb-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <div className="flex items-center justify-between mb-1.5 md:mb-2">
+          {/* Titre redondant sur mobile avec l'onglet « Actualités » actif */}
+          <h2 className="hidden md:block text-sm font-semibold text-gray-700 dark:text-gray-200">Actualités</h2>
           <div className="flex items-center gap-1.5">
             {activeTag && (
               <button
@@ -588,7 +594,7 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
             </select>
           </div>
         </div>
-        <div className="relative mb-2">
+        <div className="relative mb-1.5 md:mb-2">
           <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 dark:text-gray-500 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -644,7 +650,7 @@ export default function EventFeed({ events, isLoading, error, selectedEventId, o
       )}
 
       {/* List */}
-      <div ref={listRef} className="flex-1 overflow-y-auto relative">
+      <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain relative">
         {error && !isLoading && sorted.length === 0 && (
           <div className="flex flex-col items-center justify-center h-40 gap-3 px-4">
             <svg className="w-8 h-8 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
