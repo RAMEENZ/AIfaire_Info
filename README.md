@@ -189,6 +189,21 @@ Couvre le géocodeur (termes nationaux, articles, alias, régions, DOM-TOM),
 l'extracteur (catégorisation/gravité par règles, overrides de source) et
 le calcul de statut des connecteurs.
 
+**Tests d'intégration** (vraie base PostgreSQL/PostGIS) — ignorés
+automatiquement si `TEST_DATABASE_URL` n'est pas défini ; la CI fournit un
+service PostGIS. Ils vérifient le SQL réellement émis : pagination, troncature
+des résumés, recherche, filtre spatial bbox, endpoint carte, brief local,
+upsert d'abonnement push.
+
+```bash
+TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/faire_test \
+  pytest tests/test_integration_api.py
+```
+
+**Jeu d'évaluation** (`tests/test_extraction_eval.py`) : corpus annoté rejoué
+sans réseau ni LLM, avec seuils de non-régression — permet de retoucher
+mots-clés, prompt ou modèle sans régresser à l'aveugle.
+
 ### Tests (frontend)
 
 Tests unitaires des fonctions pures (Vitest, environnement jsdom) :
@@ -201,6 +216,19 @@ npm test
 Couvre la déduction du département depuis le code INSEE (métropole/Corse/DOM/COM),
 la logique d'alertes navigateur (`shouldAlert`, persistance localStorage) et la
 cohérence des tables de configuration (labels de connecteurs, catégories).
+
+**Tests de bout en bout** (Playwright, API simulée — ni backend ni base) :
+
+```bash
+cd frontend
+npm run build && npm run test:e2e
+# Environnement fournissant déjà un Chromium : CHROMIUM_PATH=/chemin/vers/chromium npm run test:e2e
+```
+
+Couvre les régressions d'interface qu'aucun test unitaire ne voit — hauteur
+utile du fil et défilement effectif sur mobile, panneau de brief défilable,
+accès aux pages secondaires sur petit écran, pagination et recherche serveur —
+ainsi qu'un audit d'accessibilité automatisé (axe-core, WCAG 2 A/AA).
 
 ### Variables d'environnement backend
 
