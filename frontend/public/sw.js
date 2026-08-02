@@ -43,6 +43,46 @@ async function trimCache(cacheName, maxEntries) {
   await Promise.all(keys.slice(0, keys.length - maxEntries).map((k) => cache.delete(k)));
 }
 
+// ── Notifications Web Push ───────────────────────────────────────────────
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  let payload = {};
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: "FAIRE Info", body: event.data.text() };
+  }
+  event.waitUntil(
+    self.registration.showNotification(payload.title || "FAIRE Info", {
+      body: payload.body || "",
+      icon: "/icon.svg",
+      badge: "/icon.svg",
+      // `tag` : une reprise du même fait (même cluster) remplace la
+      // notification précédente au lieu d'en empiler une seconde.
+      tag: payload.tag || "faire-info",
+      data: { url: payload.url || "/" },
+      lang: "fr",
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      // Réutilise un onglet déjà ouvert plutôt que d'en empiler un nouveau.
+      for (const client of clients) {
+        if ("focus" in client) {
+          client.navigate(target);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(target);
+    })
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 

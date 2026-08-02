@@ -102,6 +102,33 @@ class DailyStat(Base):
     )
 
 
+class PushSubscription(Base):
+    """Abonnement Web Push d'un navigateur.
+
+    L'endpoint fourni par le service de push (Google, Mozilla, Apple) identifie
+    l'abonnement de façon unique : il sert de clé naturelle. Les clés `p256dh`
+    et `auth` chiffrent la charge utile de bout en bout — le service de push ne
+    peut pas la lire.
+    """
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    endpoint: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    p256dh: Mapped[str] = mapped_column(String(255), nullable=False)
+    auth: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Département suivi ("" = toute la France) et gravité minimale déclenchante.
+    departement: Mapped[str] = mapped_column(String(3), nullable=False, default="")
+    gravite_min: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+    # Dernier envoi réussi : permet de purger les abonnements dormants.
+    last_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (Index("ix_push_dept_gravite", "departement", "gravite_min"),)
+
+
 class DailyBrief(Base):
     __tablename__ = "daily_briefs"
 

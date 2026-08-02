@@ -63,6 +63,32 @@ Pour déclencher manuellement : `POST /api/ingest/run` (clé `INGEST_API_KEY`). 
 - **Mode hors ligne** : service worker à priorité réseau (`frontend/public/sw.js`) — cache uniquement en repli, version épinglée et purgée à l'activation, HTML jamais servi depuis le cache tant que le réseau répond. Bandeau « Hors ligne » dans l'interface.
 - **Sauvegardes chiffrées + hors-site** : `security/backup-postgres.sh` (dump vérifié avant publication, rétention, copie rclone optionnelle vers un stockage objet) et exercice de restauration documenté dans `security/README.md`.
 
+### Notifications Web Push (optionnel)
+
+Désactivées tant qu'aucune clé VAPID n'est configurée : les endpoints
+répondent alors `enabled: false` et l'interface masque le bouton. Pour les
+activer :
+
+```bash
+docker compose exec backend python -m app.maintenance vapid-keys
+# → reporter VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_CONTACT_EMAIL
+#   dans le .env du serveur, puis :
+docker compose up -d backend
+docker compose exec backend alembic upgrade head   # table push_subscriptions
+```
+
+Fonctionnement : après chaque ingestion, les événements **nouvellement
+insérés** de gravité ≥ 2 déclenchent une notification vers les abonnés dont le
+département et le seuil correspondent. Trois garde-fous : au plus 3
+notifications par cycle (une vigilance nationale produit des dizaines
+d'événements graves d'un coup), rien au-delà de 6 h d'ancienneté (pas de
+réveil pour du rattrapage après panne), et regroupement par `cluster_id` (une
+reprise de la même dépêche remplace la notification au lieu de s'empiler).
+Les abonnements révoqués (404/410) sont purgés automatiquement.
+
+Changer de paire de clés invalide tous les abonnements existants. La clé
+privée ne doit jamais être commitée.
+
 ### Interface
 
 - **Page Tendances** (`/tendances`) : historique quotidien tiré de `daily_stats` — événements par jour empilés par catégorie, cumuls par catégorie et top des départements, sur 30 j / 90 j / 1 an.

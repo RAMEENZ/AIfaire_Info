@@ -129,8 +129,46 @@ async def check_feeds(verbose: bool = False) -> dict:
     return dict(stats)
 
 
+def generate_vapid_keys() -> dict:
+    """Génère une paire de clés VAPID pour les notifications Web Push.
+
+    À exécuter une seule fois ; reporter les valeurs dans le .env du serveur.
+    Changer de clé invalide TOUS les abonnements existants.
+    """
+    import base64
+
+    from cryptography.hazmat.primitives import serialization
+    from py_vapid import Vapid01
+
+    vapid = Vapid01()
+    vapid.generate_keys()
+    private_key = vapid.private_pem().decode()
+    # La clé publique attendue par `pushManager.subscribe` est le point EC
+    # non compressé, encodé en base64 URL-safe sans remplissage.
+    raw_public = vapid.public_key.public_bytes(
+        serialization.Encoding.X962,
+        serialization.PublicFormat.UncompressedPoint,
+    )
+    public_key = base64.urlsafe_b64encode(raw_public).decode().rstrip("=")
+
+    print("Ajoutez ces lignes au .env du serveur, puis redémarrez le backend :\n")
+    print(f"VAPID_PUBLIC_KEY={public_key}")
+    print("VAPID_PRIVATE_KEY=<contenu PEM ci-dessous, sur une seule ligne avec des \\n>")
+    print("VAPID_CONTACT_EMAIL=vous@exemple.fr\n")
+    print("--- clé privée (PEM) ---")
+    print(private_key)
+    print(
+        "\nAttention : la clé privée ne doit jamais être commitée. "
+        "Changer de paire invalide tous les abonnements déjà enregistrés."
+    )
+    return {"public_key": public_key}
+
+
 def _main(argv: list[str]) -> int:
     cmd = argv[1] if len(argv) > 1 else ""
+    if cmd == "vapid-keys":
+        generate_vapid_keys()
+        return 0
     if cmd == "backfill-locations":
         asyncio.run(backfill_url_locations(dry_run="--dry-run" in argv))
         return 0

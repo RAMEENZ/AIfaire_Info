@@ -14,6 +14,7 @@ import AlertSettings from "@/components/AlertSettings";
 import ShortcutsHelp from "@/components/ShortcutsHelp";
 import Toaster from "@/components/Toaster";
 import OfflineIndicator from "@/components/OfflineIndicator";
+import PushSettings from "@/components/PushSettings";
 import { fetchEvents, fetchHealth, fetchMapEvents, triggerIngest } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { API_BASE_URL, ALL_CATEGORIES, EVENTS_PAGE_SIZE, GRAVITE_CONFIG, REFRESH_INTERVAL, readableTextColor } from "@/lib/constants";
@@ -491,6 +492,7 @@ export default function HomePage() {
           </span>
         )}
         <AlertSettings onChange={setAlertSettings} />
+        <PushSettings pinnedDept={pinnedDept} />
         <button
           onClick={() => {
             navigator.clipboard

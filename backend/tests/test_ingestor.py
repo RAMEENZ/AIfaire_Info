@@ -98,7 +98,9 @@ async def test_ingest_connector_succeeds_within_timeout(monkeypatch):
         pass
 
     async def fake_save(events):
-        return len(events)
+        # _save_events renvoie les identifiants réellement insérés (RETURNING),
+        # ce qui permet de ne notifier que les vraies nouveautés.
+        return [f"id-{i}" for i, _ in enumerate(events)]
 
     monkeypatch.setattr(ingestor, "_upsert_connector_status", fake_upsert)
     monkeypatch.setattr(ingestor, "_save_events", fake_save)

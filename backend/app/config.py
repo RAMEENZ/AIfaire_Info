@@ -117,6 +117,18 @@ class Settings(BaseSettings):
     # une vigilance orange apparaît en ~1 h au lieu d'attendre le prochain run.
     HOURLY_ALERT_INGESTION: bool = True
 
+    # ── Notifications Web Push (VAPID) ──────────────────────────────────────
+    # Générer une paire une seule fois :
+    #   docker compose exec backend python -m app.maintenance vapid-keys
+    # La clé publique est distribuée aux navigateurs, la privée signe les
+    # envois. Sans ces valeurs, les endpoints de notification renvoient 503 et
+    # l'interface masque l'option — l'application fonctionne normalement.
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    # Contact exigé par la spécification VAPID (les services de push l'utilisent
+    # pour signaler un problème d'émission).
+    VAPID_CONTACT_EMAIL: str = ""
+
     # Répertoire des logs applicatifs persistants (RotatingFileHandler).
     # Vide = stdout uniquement. En prod : /app/logs, monté en volume — les logs
     # survivent à la recréation du conteneur (panne de 07/2026 : autopsie

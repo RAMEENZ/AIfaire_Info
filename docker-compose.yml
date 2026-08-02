@@ -58,6 +58,11 @@ services:
       LOG_LEVEL: INFO
       REDIS_URL: redis://redis:6379
       WEBHOOK_URL: ${WEBHOOK_URL:-}
+      # Notifications Web Push — vides par défaut : la fonctionnalité reste
+      # inerte tant qu'une paire VAPID n'est pas générée (voir README).
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_CONTACT_EMAIL: ${VAPID_CONTACT_EMAIL:-}
       WEBHOOK_THRESHOLD: ${WEBHOOK_THRESHOLD:-3}
       # Commit déployé (facultatif) : docker compose … avec GIT_SHA=$(git rev-parse --short HEAD)
       GIT_SHA: ${GIT_SHA:-}

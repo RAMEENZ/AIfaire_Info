@@ -254,9 +254,9 @@ async def _upsert_connector_status(
             await session.rollback()
 
 
-async def _save_events(events: list[dict[str, Any]]) -> int:
+async def _save_events(events: list[dict[str, Any]]) -> list[str]:
     if not events:
-        return 0
+        return []
 
     # Déduplique par source_url à l'intérieur du lot (un même article peut
     # apparaître dans plusieurs flux) — sinon ON CONFLICT échoue sur le lot.
@@ -280,15 +280,18 @@ async def _save_events(events: list[dict[str, Any]]) -> int:
                 pg_insert(Event)
                 .values(rows)
                 .on_conflict_do_nothing(index_elements=["source_url"])
+                # RETURNING : seuls les identifiants réellement insérés
+                # remontent (les conflits ignorés n'en produisent pas). C'est
+                # aussi ce qui permet de ne notifier que les vraies nouveautés.
+                .returning(Event.id)
             )
             result = await session.execute(stmt)
             await session.commit()
-            # rowcount = nombre de lignes réellement insérées (les conflits sont ignorés)
-            return result.rowcount if result.rowcount is not None else 0
+            return [row[0] for row in result.all()]
         except Exception as exc:
             logger.error("Failed to save events batch: %s", exc, exc_info=True)
             await session.rollback()
-            return 0
+            return []
 
 
 # Plafond du nombre d'items traités simultanément. Le vrai back-pressure vient
@@ -381,7 +384,13 @@ async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
             elif r is not None:
                 valid_events.append(r)
 
-        total_saved += await _save_events(valid_events)
+        inserted_ids = await _save_events(valid_events)
+        total_saved += len(inserted_ids)
+        # Notifications Web Push : uniquement sur les événements réellement
+        # insérés (pas les doublons ignorés), et sans jamais bloquer le run.
+        if inserted_ids:
+            from app.pipeline.push import notify_new_events
+            asyncio.create_task(notify_new_events(inserted_ids))
 
         # Statut mis à jour à chaque lot : la table ConnectorStatus (lue par
         # /api/health) reflète la progression au lieu de rester vide jusqu'à la
