@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "./constants";
-import { Categorie, EventsResponse, HealthResponse } from "./types";
+import { Categorie, Event, EventsResponse, HealthResponse } from "./types";
 
 interface FetchEventsParams {
   bbox?: string | null;
@@ -55,6 +55,41 @@ export async function fetchEvents(params: FetchEventsParams = {}): Promise<Event
   }
 
   return response.json() as Promise<EventsResponse>;
+}
+
+/** Réponse allégée de /events/map : les champs absents sont complétés par des
+ * valeurs neutres pour rester compatible avec le type Event. */
+type MapEventRaw = Omit<Event, "resume_ia" | "tags" | "score_confiance" | "created_at" | "date_evenement" | "lieu_confiance_geo">;
+
+/**
+ * Marqueurs de la carte, chargés indépendamment de la pagination du fil :
+ * la carte doit rester complète même quand le fil n'affiche que sa première
+ * page. Charge utile réduite (pas de résumé IA) ; le détail complet est
+ * récupéré au clic via la fiche événement.
+ */
+export async function fetchMapEvents(params: {
+  categories?: Categorie[];
+  gravite_min?: number;
+  depuis?: string;
+}): Promise<Event[]> {
+  const search = new URLSearchParams();
+  params.categories?.forEach((c) => search.append("categories", c));
+  if (params.gravite_min !== undefined) search.set("gravite_min", String(params.gravite_min));
+  if (params.depuis) search.set("depuis", params.depuis);
+  const query = search.toString() ? `?${search}` : "";
+
+  const response = await fetch(`${API_BASE_URL}/events/map${query}`, { next: { revalidate: 0 } });
+  if (!response.ok) throw new Error(`Erreur API /events/map : ${response.status}`);
+  const data = (await response.json()) as { events: MapEventRaw[] };
+  return data.events.map((e) => ({
+    ...e,
+    date_evenement: null,
+    lieu_confiance_geo: 1,
+    resume_ia: null,
+    tags: [],
+    score_confiance: 1,
+    created_at: e.date_publication,
+  }));
 }
 
 export async function fetchHealth(): Promise<HealthResponse> {

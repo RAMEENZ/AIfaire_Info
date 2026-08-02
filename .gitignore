@@ -38,3 +38,9 @@ cloudflared/config.local.yml
 Thumbs.db
 frontend/tsconfig.tsbuildinfo
 backend/scripts/communes_api.json
+
+# Playwright
+/frontend/test-results/
+/frontend/playwright-report/
+/frontend/blob-report/
+/frontend/.playwright/

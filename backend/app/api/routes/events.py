@@ -256,6 +256,81 @@ async def list_events(
     return response
 
 
+@router.get("/events/map")
+async def list_events_for_map(
+    categories: Optional[list[str]] = Query(None),
+    gravite_min: Optional[int] = Query(None, ge=0, le=3),
+    depuis: Optional[datetime] = Query(None),
+    limit: int = Query(default=settings.MAX_EVENTS_LIMIT, ge=1, le=settings.MAX_EVENTS_LIMIT),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Marqueurs de la carte — uniquement les événements localisés.
+
+    Le fil est paginé (200 par page) mais la carte doit rester complète : la
+    faire dépendre de cette pagination reviendrait à demander à l'utilisateur
+    de « charger plus » pour voir ses points. Cette réponse omet le champ le
+    plus lourd (`resume_ia`, ~40 % de la charge utile) : la fiche complète
+    reste accessible via GET /events/{id} au clic.
+    """
+    if categories:
+        invalid = [c for c in categories if c not in VALID_CATEGORIES]
+        if invalid:
+            raise HTTPException(status_code=422, detail=f"Invalid categories: {invalid}")
+
+    since_dt = depuis or (datetime.now(timezone.utc) - timedelta(hours=settings.DEFAULT_SINCE_HOURS))
+    if since_dt.tzinfo is None:
+        since_dt = since_dt.replace(tzinfo=timezone.utc)
+
+    stmt = (
+        select(
+            Event.id, Event.titre, Event.source, Event.auteur, Event.source_url,
+            Event.date_publication, Event.categorie, Event.gravite,
+            Event.lieu_nom, Event.lieu_code_insee, Event.lieu_lat, Event.lieu_lon,
+            Event.lieu_niveau, Event.cluster_id,
+        )
+        .where(
+            Event.date_publication >= since_dt,
+            # Seuls les points plaçables : inutile de transporter les
+            # événements nationaux, la carte ne peut rien en faire.
+            Event.lieu_lat.isnot(None),
+            Event.lieu_lon.isnot(None),
+        )
+        .order_by(Event.gravite.desc(), Event.date_publication.desc())
+        .limit(limit)
+    )
+    if categories:
+        stmt = stmt.where(Event.categorie.in_(categories))
+    if gravite_min is not None:
+        stmt = stmt.where(Event.gravite >= gravite_min)
+
+    rows = (await db.execute(stmt)).all()
+    return {
+        "events": [
+            {
+                "id": r.id,
+                "titre": r.titre,
+                "source": r.source,
+                "auteur": r.auteur,
+                "source_url": r.source_url,
+                "date_publication": r.date_publication.isoformat(),
+                "categorie": r.categorie,
+                "gravite": r.gravite,
+                "lieu_nom": r.lieu_nom,
+                "lieu_code_insee": r.lieu_code_insee,
+                "lieu_lat": r.lieu_lat,
+                "lieu_lon": r.lieu_lon,
+                "lieu_niveau": r.lieu_niveau,
+                "cluster_id": r.cluster_id,
+                # Champs absents volontairement (voir docstring) : resume_ia,
+                # tags, score_confiance, created_at, date_evenement.
+            }
+            for r in rows
+        ],
+        "total": len(rows),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 @router.get("/stats")
 async def get_stats(db: AsyncSession = Depends(get_db)) -> dict:
     """Statistiques générales sur les événements en base."""

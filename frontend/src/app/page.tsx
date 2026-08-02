@@ -14,7 +14,7 @@ import AlertSettings from "@/components/AlertSettings";
 import ShortcutsHelp from "@/components/ShortcutsHelp";
 import Toaster from "@/components/Toaster";
 import OfflineIndicator from "@/components/OfflineIndicator";
-import { fetchEvents, fetchHealth, triggerIngest } from "@/lib/api";
+import { fetchEvents, fetchHealth, fetchMapEvents, triggerIngest } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { API_BASE_URL, ALL_CATEGORIES, EVENTS_PAGE_SIZE, GRAVITE_CONFIG, REFRESH_INTERVAL } from "@/lib/constants";
 import {
@@ -227,6 +227,22 @@ export default function HomePage() {
     }
   }, [loadingMore, hasMore, buildParams, loadedCount, eventsData]);
 
+  // Marqueurs de la carte : source dédiée et complète, indépendante de la
+  // pagination du fil (sinon il faudrait « charger plus » pour voir ses
+  // points). Charge utile réduite — pas de résumé IA.
+  const { data: mapData } = useSWR(
+    ["map", filters.categories, filters.gravite_min, filters.depuis_heures, historyDate?.toISOString() ?? null],
+    () =>
+      fetchMapEvents({
+        categories: filters.categories,
+        gravite_min: filters.gravite_min > 0 ? filters.gravite_min : undefined,
+        depuis: historyDate
+          ? new Date(historyDate).toISOString()
+          : new Date(Date.now() - filters.depuis_heures * 3600 * 1000).toISOString(),
+      }),
+    { refreshInterval: historyDate ? 0 : REFRESH_INTERVAL, revalidateOnFocus: false, keepPreviousData: true }
+  );
+
   const { data: healthData } = useSWR("health", fetchHealth, {
     refreshInterval: REFRESH_INTERVAL,
     revalidateOnFocus: false,
@@ -308,10 +324,16 @@ export default function HomePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allEvents.length > 0]);
 
-  const localEvents = useMemo(
-    () => allEvents.filter((e) => e.lieu_lat !== null && e.lieu_lon !== null),
-    [allEvents]
-  );
+  // La carte s'appuie sur sa source dédiée ; les événements arrivés en direct
+  // (SSE) y sont ajoutés immédiatement sans attendre le prochain cycle.
+  const localEvents = useMemo(() => {
+    const base = mapData ?? allEvents.filter((e) => e.lieu_lat !== null && e.lieu_lon !== null);
+    const known = new Set(base.map((e) => e.id));
+    const liveLocated = liveEvents.filter(
+      (e) => !known.has(e.id) && e.lieu_lat !== null && e.lieu_lon !== null
+    );
+    return liveLocated.length > 0 ? [...liveLocated, ...base] : base;
+  }, [mapData, allEvents, liveEvents]);
 
   const nationalEvents = useMemo(
     () => allEvents.filter((e) => e.lieu_niveau === "national" || (e.lieu_lat === null && e.lieu_lon === null)),
