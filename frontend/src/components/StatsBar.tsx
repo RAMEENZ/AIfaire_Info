@@ -42,7 +42,7 @@ export default function StatsBar({ localCount, nationalCount, newestEventDate, e
     <div className="px-4 py-1.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
       <div className="flex items-center gap-2 text-xs">
         <span className="font-semibold text-gray-700 dark:text-gray-200">{total}</span>
-        <span className="text-gray-400 dark:text-gray-500">événements</span>
+        <span className="text-gray-500 dark:text-gray-400">événements</span>
 
         <span className="text-gray-200 dark:text-gray-700 mx-1">|</span>
 
@@ -53,12 +53,12 @@ export default function StatsBar({ localCount, nationalCount, newestEventDate, e
           {localCount} localisé{localCount !== 1 ? "s" : ""}
         </span>
 
-        <span className="text-gray-400 dark:text-gray-500">
+        <span className="text-gray-500 dark:text-gray-400">
           · {nationalCount} national{nationalCount !== 1 ? "aux" : ""}
         </span>
 
         {time && (
-          <span className="ml-auto text-gray-400 dark:text-gray-500" title="Date du dernier article reçu">
+          <span className="ml-auto text-gray-500 dark:text-gray-400" title="Date du dernier article reçu">
             Dernier article {time}
           </span>
         )}

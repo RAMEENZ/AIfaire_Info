@@ -144,7 +144,7 @@ export default function StatusBar({ connectors, nextIngestAt, onTriggerIngest }:
       <span className="font-medium text-gray-600 dark:text-gray-300 hidden sm:block">Connecteurs :</span>
 
       {connectors.length === 0 ? (
-        <span className="text-gray-400 dark:text-gray-500 italic">Aucun connecteur disponible</span>
+        <span className="text-gray-500 dark:text-gray-400 italic">Aucun connecteur disponible</span>
       ) : (
         <div className="flex items-center gap-4 flex-wrap">
           {connectors.map((connector) => (
@@ -155,7 +155,7 @@ export default function StatusBar({ connectors, nextIngestAt, onTriggerIngest }:
 
       <div className="ml-auto flex items-center gap-3">
         {nextIngestAt && ingestState === "idle" && (
-          <span className="hidden md:inline text-gray-400 dark:text-gray-500">
+          <span className="hidden md:inline text-gray-500 dark:text-gray-400">
             Prochaine MàJ {formatNextIngest(nextIngestAt)}
           </span>
         )}

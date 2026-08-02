@@ -187,7 +187,7 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
 
               {/* Catégories (optionnel) */}
               <p className="font-semibold text-gray-600 dark:text-gray-300 mb-1.5">
-                Catégories {settings.categories.length === 0 && <span className="font-normal text-gray-400 dark:text-gray-500">(toutes)</span>}
+                Catégories {settings.categories.length === 0 && <span className="font-normal text-gray-500 dark:text-gray-400">(toutes)</span>}
               </p>
               <div className="flex flex-wrap gap-1 mb-3">
                 {ALL_CATEGORIES.map((cat) => {
@@ -212,7 +212,7 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
               <p className="font-semibold text-gray-600 dark:text-gray-300 mb-1.5">
                 Départements{" "}
                 {deptCount === 0 ? (
-                  <span className="font-normal text-gray-400 dark:text-gray-500">(toute la France)</span>
+                  <span className="font-normal text-gray-500 dark:text-gray-400">(toute la France)</span>
                 ) : (
                   <span className="font-normal text-blue-600 dark:text-blue-400">({deptCount} sélectionné{deptCount > 1 ? "s" : ""})</span>
                 )}
@@ -246,13 +246,13 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
                         onChange={() => toggleDept(d.code)}
                         className="accent-blue-600"
                       />
-                      <span className="text-gray-400 dark:text-gray-500 w-7">{d.code}</span>
+                      <span className="text-gray-500 dark:text-gray-400 w-7">{d.code}</span>
                       <span className="text-gray-700 dark:text-gray-200 truncate">{d.name}</span>
                     </label>
                   );
                 })}
                 {filteredDepts.length === 0 && (
-                  <p className="px-2 py-2 text-gray-400 dark:text-gray-500">Aucun département</p>
+                  <p className="px-2 py-2 text-gray-500 dark:text-gray-400">Aucun département</p>
                 )}
               </div>
             </>

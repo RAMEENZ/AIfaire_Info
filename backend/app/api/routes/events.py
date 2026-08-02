@@ -633,6 +633,70 @@ async def get_brief() -> dict:
     return brief
 
 
+@router.get("/brief/local")
+async def get_local_brief(
+    dept: str = Query(..., max_length=3, description="Code département (75, 2A, 971…)"),
+    heures: int = Query(default=24, ge=1, le=168),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Volet local du brief : ce qu'il faut retenir dans un département.
+
+    Déterministe et sans appel LLM — le brief national est déjà généré trois
+    fois par jour, régénérer un texte par département coûterait 101 appels par
+    cycle pour une valeur marginale. On renvoie les faits saillants (les plus
+    graves d'abord) et la répartition par catégorie ; la mise en forme est du
+    ressort de l'interface.
+    """
+    if not re.fullmatch(r"\d{2,3}|2[AB]", dept.upper()):
+        raise HTTPException(status_code=422, detail="Code département invalide")
+    dept = dept.upper()
+
+    since = datetime.now(timezone.utc) - timedelta(hours=heures)
+    base = (
+        Event.date_publication >= since,
+        Event.lieu_code_insee.like(f"{dept}%"),
+    )
+
+    rows = (
+        await db.execute(
+            select(Event)
+            .where(*base)
+            .order_by(Event.gravite.desc(), Event.date_publication.desc())
+            .limit(5)
+        )
+    ).scalars().all()
+
+    par_cat = (
+        await db.execute(
+            select(Event.categorie, func.count().label("n"))
+            .where(*base)
+            .group_by(Event.categorie)
+            .order_by(func.count().desc())
+        )
+    ).all()
+
+    total = sum(r.n for r in par_cat)
+    return {
+        "dept": dept,
+        "heures": heures,
+        "total": total,
+        "par_categorie": {r.categorie: r.n for r in par_cat},
+        "faits": [
+            {
+                "id": e.id,
+                "titre": e.titre,
+                "categorie": e.categorie,
+                "gravite": e.gravite,
+                "lieu_nom": e.lieu_nom,
+                "source_url": e.source_url,
+                "date_publication": e.date_publication.isoformat(),
+            }
+            for e in rows
+        ],
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 @router.get("/brief/history")
 async def get_brief_history(
     limit: int = Query(default=14, ge=1, le=90),

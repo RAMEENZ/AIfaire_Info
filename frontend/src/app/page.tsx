@@ -16,7 +16,7 @@ import Toaster from "@/components/Toaster";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import { fetchEvents, fetchHealth, fetchMapEvents, triggerIngest } from "@/lib/api";
 import { toast } from "@/lib/toast";
-import { API_BASE_URL, ALL_CATEGORIES, EVENTS_PAGE_SIZE, GRAVITE_CONFIG, REFRESH_INTERVAL } from "@/lib/constants";
+import { API_BASE_URL, ALL_CATEGORIES, EVENTS_PAGE_SIZE, GRAVITE_CONFIG, REFRESH_INTERVAL, readableTextColor } from "@/lib/constants";
 import {
   AlertSettings as AlertSettingsType,
   loadAlertSettings,
@@ -477,8 +477,11 @@ export default function HomePage() {
         />
         {maxGravite >= 2 && (
           <span
-            className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-full text-white text-xs font-semibold animate-pulse"
-            style={{ backgroundColor: GRAVITE_CONFIG[maxGravite]?.color }}
+            className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold motion-safe:animate-pulse"
+            style={{
+              backgroundColor: GRAVITE_CONFIG[maxGravite]?.color,
+              color: readableTextColor(GRAVITE_CONFIG[maxGravite]?.color ?? "#6B7280"),
+            }}
             title={GRAVITE_CONFIG[maxGravite]?.label}
           >
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -663,7 +666,7 @@ export default function HomePage() {
               Données possiblement périmées
             </span>
           )}
-          <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+          <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
             {eventsData
               ? localEvents.length > 0
                 ? `${eventsData.total} événement${eventsData.total > 1 ? "s" : ""} (${localEvents.length} localisé${localEvents.length > 1 ? "s" : ""} · ${nationalEvents.length} national${nationalEvents.length > 1 ? "aux" : ""})`
@@ -785,7 +788,7 @@ export default function HomePage() {
               onCategorySelect={handleStatsBarCategorySelect}
             />
           </div>
-          <DailyBrief />
+          <DailyBrief pinnedDept={pinnedDept} />
           <EventFeed
             events={feedEvents}
             isLoading={eventsLoading}

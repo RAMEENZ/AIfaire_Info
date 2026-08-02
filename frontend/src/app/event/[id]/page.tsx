@@ -51,7 +51,7 @@ export default function EventPage({ params }: { params: { id: string } }) {
 
       <main className="max-w-2xl mx-auto px-4 py-8">
         {isLoading && (
-          <div className="text-center py-16 text-gray-400 dark:text-gray-500">Chargement…</div>
+          <div className="text-center py-16 text-gray-500 dark:text-gray-400">Chargement…</div>
         )}
 
         {error && (
@@ -61,7 +61,7 @@ export default function EventPage({ params }: { params: { id: string } }) {
                 ? "Événement introuvable"
                 : "Erreur de chargement"}
             </p>
-            <p className="text-sm text-gray-400 dark:text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Il a peut-être été purgé (les événements ne sont conservés que
               quelques jours).
             </p>
@@ -108,7 +108,7 @@ export default function EventPage({ params }: { params: { id: string } }) {
               </p>
             )}
             {event.resume_ia && (
-              <p className="text-[10px] text-gray-400 dark:text-gray-500 italic mb-4">
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 italic mb-4">
                 résumé automatique
               </p>
             )}

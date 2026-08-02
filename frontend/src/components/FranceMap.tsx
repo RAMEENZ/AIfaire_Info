@@ -115,7 +115,7 @@ function MapLegend() {
               </div>
             ))}
           </div>
-          <p className="mt-2 text-gray-400 dark:text-gray-500 text-[10px]">
+          <p className="mt-2 text-gray-500 dark:text-gray-400 text-[10px]">
             Cercle bleu = cluster (cliquez pour dézoomer)
           </p>
         </div>
@@ -509,7 +509,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
               <span className="font-medium text-indigo-700">Rayon : {watchZone.radius} km</span>
               <button
                 onClick={() => { setWatchZone(null); setWatchMode(false); }}
-                className="text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors"
+                className="text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors"
                 title="Effacer la zone"
               >
                 ✕
@@ -526,7 +526,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
               }
               className="w-full accent-indigo-600"
             />
-            <p className="text-[9px] text-gray-400 dark:text-gray-500">
+            <p className="text-[9px] text-gray-500 dark:text-gray-400">
               {visibleEvents.length} événement{visibleEvents.length !== 1 ? "s" : ""} dans la zone
             </p>
           </div>
@@ -541,7 +541,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
       {/* Panneau de navigation DOM-TOM */}
       <div className="absolute bottom-7 left-2 z-[1000]">
         <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-lg shadow-md px-2 py-1.5">
-          <p className="text-[9px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-1">DOM-TOM</p>
+          <p className="text-[9px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">DOM-TOM</p>
           <div className="flex flex-wrap gap-1 max-w-[200px]">
             {DOM_TOM.map((t) => {
               const territoryEvents = events.filter((e) => e.lieu_code_insee?.startsWith(t.code) ?? false);

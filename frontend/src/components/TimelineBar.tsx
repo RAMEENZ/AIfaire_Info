@@ -76,7 +76,7 @@ export default function TimelineBar({
           className={`text-[10px] font-semibold px-2 py-0.5 rounded transition-colors ${
             mode === "live"
               ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300"
-              : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-500"
+              : "text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:text-gray-500"
           }`}
         >
           ● Live
@@ -86,7 +86,7 @@ export default function TimelineBar({
           className={`text-[10px] font-semibold px-2 py-0.5 rounded transition-colors ${
             mode === "history"
               ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
-              : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-500"
+              : "text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:text-gray-500"
           }`}
         >
           ⏪ Historique
@@ -138,7 +138,7 @@ export default function TimelineBar({
 
       {mode === "live" && buckets.length === 0 && (
         <div style={{ height: 28 }} className="flex items-center">
-          <span className="text-[10px] text-gray-300 dark:text-gray-600 italic">
+          <span className="text-[10px] text-gray-500 dark:text-gray-400 italic">
             Chargement de l'historique…
           </span>
         </div>

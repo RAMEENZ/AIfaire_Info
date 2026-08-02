@@ -5,7 +5,7 @@ import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
-import { CATEGORY_CONFIG, SOURCE_LABELS, API_BASE_URL } from "@/lib/constants";
+import { CATEGORY_CONFIG, SOURCE_LABELS, API_BASE_URL, readableTextColor } from "@/lib/constants";
 import type { StatsData } from "@/lib/api";
 
 function BarChart({ data, colorFn }: { data: [string, number][]; colorFn?: (key: string) => string }) {
@@ -25,7 +25,7 @@ function BarChart({ data, colorFn }: { data: [string, number][]; colorFn?: (key:
                 className="h-full rounded-full flex items-center justify-end pr-1.5 transition-all duration-500"
                 style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: color }}
               >
-                <span className="text-white text-[9px] font-semibold whitespace-nowrap">
+                <span className="text-[9px] font-semibold whitespace-nowrap" style={{ color: readableTextColor(color) }}>
                   {count}
                 </span>
               </div>
@@ -96,13 +96,13 @@ export default function StatsPage() {
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-8">
         {loading && (
-          <div className="text-center py-16 text-gray-400">Chargement…</div>
+          <div className="text-center py-16 text-gray-500 dark:text-gray-400">Chargement…</div>
         )}
 
         {error && (
           <div className="text-center py-16 text-red-500">
             <p className="font-medium mb-1">Erreur de chargement</p>
-            <p className="text-sm text-gray-400">{error}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>
           </div>
         )}
 
@@ -156,7 +156,7 @@ export default function StatsPage() {
             {/* By source */}
             <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
-                Par source <span className="font-normal text-gray-400">(top 15)</span>
+                Par source <span className="font-normal text-gray-500 dark:text-gray-400">(top 15)</span>
               </h2>
               <BarChart data={sourceEntries} />
             </section>

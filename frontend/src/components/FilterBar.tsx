@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { ALL_CATEGORIES, API_BASE_URL, CATEGORY_CONFIG } from "@/lib/constants";
+import { ALL_CATEGORIES, API_BASE_URL, CATEGORY_CONFIG, readableTextColor } from "@/lib/constants";
 import { Categorie, EventFilters } from "@/lib/types";
 import type { TrendItem } from "@/lib/api";
 
@@ -116,7 +116,7 @@ export default function FilterBar({
             {activeFilterCount}
           </span>
         )}
-        <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">{mobileOpen ? "▲" : "▼"}</span>
+        <span aria-hidden="true" className="text-gray-500 dark:text-gray-400">{mobileOpen ? "▲" : "▼"}</span>
       </button>
 
       {/* Contenu des filtres : toujours visible en desktop, repliable en mobile */}
@@ -146,11 +146,15 @@ export default function FilterBar({
               className={`relative text-xs px-2.5 py-1.5 md:px-2 md:py-1 rounded border transition-colors flex items-center gap-1 ${
                 active
                   ? "text-white border-transparent"
-                  : "bg-white dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700 hover:border-gray-400"
+                  : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-400"
               }`}
               style={
                 active
-                  ? { backgroundColor: config.color, borderColor: config.color }
+                  ? {
+                      backgroundColor: config.color,
+                      borderColor: config.color,
+                      color: readableTextColor(config.color),
+                    }
                   : undefined
               }
             >

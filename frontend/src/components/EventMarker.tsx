@@ -115,7 +115,7 @@ export default function EventMarker({ event, isSelected, onSelect }: EventMarker
           {event.resume_ia && (
             <div className="px-3 pb-2">
               <p className="text-gray-700 dark:text-gray-200 leading-snug">{event.resume_ia}</p>
-              <span className="text-xs text-gray-400 dark:text-gray-500 italic mt-0.5 block">résumé automatique</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 italic mt-0.5 block">résumé automatique</span>
             </div>
           )}
 

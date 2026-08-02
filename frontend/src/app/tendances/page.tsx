@@ -5,7 +5,7 @@ import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
-import { CATEGORY_CONFIG, API_BASE_URL } from "@/lib/constants";
+import { CATEGORY_CONFIG, API_BASE_URL, readableTextColor } from "@/lib/constants";
 import { DEPT_CODE_TO_NAME } from "@/lib/departments";
 
 // Ligne brute de /api/stats/history : agrégat jour × catégorie × département
@@ -51,7 +51,7 @@ function StackedDailyChart({ rows }: { rows: HistoryRow[] }) {
 
   if (days.length === 0) {
     return (
-      <p className="text-xs text-gray-400 py-8 text-center">
+      <p className="text-xs text-gray-500 dark:text-gray-400 py-8 text-center">
         Pas encore d&apos;historique — les agrégats se remplissent chaque nuit à 3h00.
       </p>
     );
@@ -99,7 +99,7 @@ function StackedDailyChart({ rows }: { rows: HistoryRow[] }) {
           })}
         </svg>
       </div>
-      <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+      <div className="flex justify-between text-[10px] text-gray-500 dark:text-gray-400 mt-1">
         <span>{format(parseISO(days[0]), "d MMM yyyy", { locale: fr })}</span>
         <span>{format(parseISO(days[days.length - 1]), "d MMM yyyy", { locale: fr })}</span>
       </div>
@@ -130,7 +130,7 @@ function HorizontalBars({
                 backgroundColor: colorFn?.(key) ?? "#3B82F6",
               }}
             >
-              <span className="text-white text-[9px] font-semibold whitespace-nowrap">{count}</span>
+              <span className="text-[9px] font-semibold whitespace-nowrap" style={{ color: readableTextColor(colorFn?.(key) ?? "#3B82F6") }}>{count}</span>
             </div>
           </div>
         </div>
@@ -224,11 +224,11 @@ export default function TendancesPage() {
         {error && (
           <div className="text-center py-16 text-red-500">
             <p className="font-medium mb-1">Erreur de chargement</p>
-            <p className="text-sm text-gray-400">{error}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>
           </div>
         )}
 
-        {!rows && !error && <div className="text-center py-16 text-gray-400">Chargement…</div>}
+        {!rows && !error && <div className="text-center py-16 text-gray-500 dark:text-gray-400">Chargement…</div>}
 
         {rows && (
           <>
@@ -265,19 +265,19 @@ export default function TendancesPage() {
 
             <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
-                Par catégorie <span className="font-normal text-gray-400">(cumul sur la période)</span>
+                Par catégorie <span className="font-normal text-gray-500 dark:text-gray-400">(cumul sur la période)</span>
               </h2>
               <HorizontalBars data={totalByCat} colorFn={catColor} />
             </section>
 
             <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
-                Départements les plus actifs <span className="font-normal text-gray-400">(top 15)</span>
+                Départements les plus actifs <span className="font-normal text-gray-500 dark:text-gray-400">(top 15)</span>
               </h2>
               {topDepts.length > 0 ? (
                 <HorizontalBars data={topDepts} />
               ) : (
-                <p className="text-xs text-gray-400">Pas encore de données localisées.</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Pas encore de données localisées.</p>
               )}
             </section>
           </>

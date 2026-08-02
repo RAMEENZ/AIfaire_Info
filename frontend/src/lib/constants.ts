@@ -32,6 +32,30 @@ export const GRAVITE_CONFIG: Record<
   3: { label: "Urgence", color: "#EF4444" },
 };
 
+/**
+ * Couleur de texte lisible sur un fond donné (noir ou blanc selon la
+ * luminance relative, formule WCAG). Les couleurs vives de catégorie et de
+ * gravité — ambre, orange — offrent un contraste insuffisant avec du blanc
+ * (2,1:1 pour l'ambre alors que 4,5:1 est requis) : le calcul garantit la
+ * lisibilité quelles que soient les couleurs, y compris futures.
+ */
+export function readableTextColor(hexBackground: string): string {
+  const hex = hexBackground.replace("#", "");
+  const full = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex;
+  const channel = (v: number) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  const r = channel(parseInt(full.slice(0, 2), 16));
+  const g = channel(parseInt(full.slice(2, 4), 16));
+  const b = channel(parseInt(full.slice(4, 6), 16));
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  // Contraste avec le blanc vs avec le quasi-noir : on garde le meilleur.
+  const contrastWhite = 1.05 / (luminance + 0.05);
+  const contrastBlack = (luminance + 0.05) / 0.05;
+  return contrastWhite >= contrastBlack ? "#FFFFFF" : "#111827";
+}
+
 export const SOURCE_LABELS: Record<string, string> = {
   meteo_france: "Météo-France",
   vigicrues: "Vigicrues",

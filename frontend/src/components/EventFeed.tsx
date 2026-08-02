@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
-import { ALL_CATEGORIES, CATEGORY_CONFIG, GRAVITE_CONFIG, SOURCE_LABELS } from "@/lib/constants";
+import { ALL_CATEGORIES, CATEGORY_CONFIG, GRAVITE_CONFIG, SOURCE_LABELS, readableTextColor } from "@/lib/constants";
 import { SORT_OPTIONS, SortMode, sortComparator } from "@/lib/sortEvents";
 import { Categorie, Event } from "@/lib/types";
 
@@ -104,7 +104,7 @@ function ShareButton({ eventId }: { eventId: string }) {
       onClick={handleShare}
       title="Copier le lien vers cet événement"
       aria-label="Copier le lien vers cet événement"
-      className="text-gray-400 dark:text-gray-500 hover:text-blue-500 transition-colors flex-shrink-0"
+      className="text-gray-500 dark:text-gray-400 hover:text-blue-500 transition-colors flex-shrink-0"
     >
       {copied ? (
         <span className="text-green-500 text-[10px] font-semibold">✓</span>
@@ -176,8 +176,8 @@ function EventCard({
           </span>
         )}
         <span
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-white text-xs font-medium"
-          style={{ backgroundColor: catConfig?.color ?? "#6B7280" }}
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium"
+          style={{ backgroundColor: catConfig?.color ?? "#6B7280", color: readableTextColor(catConfig?.color ?? "#6B7280") }}
         >
           {catConfig?.icon}{" "}
           <span className="hidden sm:inline">{catConfig?.label ?? event.categorie}</span>
@@ -185,8 +185,8 @@ function EventCard({
 
         {event.gravite >= 1 && (
           <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded text-white text-xs font-medium"
-            style={{ backgroundColor: GRAVITE_CONFIG[event.gravite]?.color ?? "#6B7280" }}
+            className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium"
+            style={{ backgroundColor: GRAVITE_CONFIG[event.gravite]?.color ?? "#6B7280", color: readableTextColor(GRAVITE_CONFIG[event.gravite]?.color ?? "#6B7280") }}
           >
             {GRAVITE_CONFIG[event.gravite]?.label}
           </span>
@@ -260,7 +260,7 @@ function EventCard({
         )}
       </div>
 
-      <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-gray-400 dark:text-gray-500">
+      <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="inline-block px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium shrink-0 truncate max-w-[120px]">
             {sourceLabel}
@@ -300,7 +300,7 @@ function EventCard({
                 href={dup.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-shrink-0 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                className="flex-shrink-0 text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 title="Ouvrir l'article"
                 onClick={(ev) => ev.stopPropagation()}
               >
@@ -337,7 +337,7 @@ function AlertBanner({ events, onSelect }: { events: Event[]; onSelect?: (e: Eve
           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
         {totalUrgent} alerte{totalUrgent > 1 ? "s" : ""} importante{totalUrgent > 1 ? "s" : ""}
-        {totalUrgent > 2 && <span className="font-normal opacity-70"> (les plus graves)</span>}
+        {totalUrgent > 2 && <span className="font-normal"> (les plus graves)</span>}
       </p>
       <ul className="space-y-1">
         {urgent.map((e, i) => (
@@ -358,7 +358,7 @@ function AlertBanner({ events, onSelect }: { events: Event[]; onSelect?: (e: Eve
               href={e.source_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-shrink-0 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+              className="flex-shrink-0 text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               title="Ouvrir l'article"
               onClick={(ev) => ev.stopPropagation()}
             >
@@ -387,7 +387,7 @@ function CategoryFilterBar({
   return (
     <div className="px-2 py-1.5 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wide">Catégories</span>
+        <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wide">Catégories</span>
         {activeCategories.size > 0 && (
           <button onClick={onClear} className="text-[10px] text-blue-500 hover:underline">
             Effacer
@@ -644,7 +644,7 @@ export default function EventFeed({
               </button>
             )}
             {collapsed.length > 0 && (
-              <span className="text-xs text-gray-400 dark:text-gray-500">{collapsed.length}</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">{collapsed.length}</span>
             )}
             <select
               value={sortMode}
@@ -662,7 +662,7 @@ export default function EventFeed({
           </div>
         </div>
         <div className="relative mb-1.5 md:mb-2">
-          <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 dark:text-gray-500 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 dark:text-gray-400 pointer-events-none" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -741,7 +741,7 @@ export default function EventFeed({
             </svg>
             <div className="text-center">
               <p className="text-sm font-medium text-red-600 dark:text-red-400 mb-1">Serveur inaccessible</p>
-              <p className="text-xs text-gray-400 dark:text-gray-500">Vérifiez que le backend est en ligne</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Vérifiez que le backend est en ligne</p>
             </div>
             {onRetry && (
               <button
@@ -770,7 +770,7 @@ export default function EventFeed({
         )}
 
         {!isLoading && !error && sorted.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-32 text-sm text-gray-400 dark:text-gray-500 gap-1">
+          <div className="flex flex-col items-center justify-center h-32 text-sm text-gray-500 dark:text-gray-400 gap-1">
             {searchLower || hasActiveFilters ? (
               <>
                 <span>Aucun résultat pour ces filtres</span>
@@ -809,7 +809,7 @@ export default function EventFeed({
                 className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
               >
                 Charger {Math.min(PAGE_SIZE, collapsed.length - visibleCount)} de plus
-                <span className="text-gray-400 dark:text-gray-500 ml-1">({visibleCount} / {collapsed.length})</span>
+                <span className="text-gray-500 dark:text-gray-400 ml-1">({visibleCount} / {collapsed.length})</span>
               </button>
             ) : (
               <button
@@ -819,7 +819,7 @@ export default function EventFeed({
               >
                 {loadingMore ? "Chargement…" : "Charger plus d'événements"}
                 {totalAvailable > 0 && (
-                  <span className="text-gray-400 dark:text-gray-500 ml-1">
+                  <span className="text-gray-500 dark:text-gray-400 ml-1">
                     ({events.length} / {totalAvailable})
                   </span>
                 )}
