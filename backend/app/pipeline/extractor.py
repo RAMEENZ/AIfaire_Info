@@ -107,10 +107,23 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "transport":    ["sncf", "grève des transports", "perturbation trafic", "retard train",
                      "ratp", "autoroute", "accident de la route", "bouchon",
                      "circulation perturbée", "axe coupé", "route barrée", "fermeture autoroute",
-                     "grève sncf", "trafic ferroviaire", "train supprimé", "rer", "transilien"],
+                     "grève sncf", "trafic ferroviaire", "train supprimé", "rer", "transilien",
+                     "déviation", "travaux routiers", "carambolage", "collision",
+                     "poids lourd", "tramway", "ligne de bus", "aéroport", "vol annulé",
+                     "gare routière", "péage", "sécurité routière", "permis de conduire",
+                     "accident mortel sur la route", "piéton renversé"],
+    # Inclut la chronique judiciaire et les faits divers, qui forment une part
+    # importante de la presse régionale et tombaient jusqu'ici dans le
+    # fourre-tout « actualite ».
     "ordre_public": ["manifestation", "émeute", "violence urbaine", "attentat", "terrorisme",
                      "incendie criminel", "fusillade", "agression", "cambriolage", "braquage",
-                     "prise d'otage", "mort suspecte", "homicide", "tir"],
+                     "prise d'otage", "mort suspecte", "homicide", "tir",
+                     "procès", "tribunal", "cour d'assises", "condamné", "condamnation",
+                     "garde à vue", "mis en examen", "parquet", "réquisitions",
+                     "interpellation", "interpellé", "gendarmerie", "commissariat",
+                     "police municipale", "stupéfiants", "trafic de drogue",
+                     "violences conjugales", "escroquerie", "vol aggravé", "détention provisoire",
+                     "plainte", "enquête judiciaire", "délinquance", "rodéo urbain"],
     "incendie":     ["incendie de forêt", "feu de forêt", "feux de forêt", "départ de feu",
                      "sapeur-pompier", "pompiers", "SDIS", "DFCI", "hectares brûlés",
                      "pyromane", "incendie criminel", "brûlis"],
@@ -140,8 +153,16 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
                      "banque centrale", "taux d'intérêt", "licenciement", "plan social",
                      "faillite", "résultats financiers", "pouvoir d'achat", "déficit",
                      "dette publique", "budget de l'état", "croissance économique",
-                     "marché de l'emploi", "entreprise en difficulté"],
-    "politique":    ["gouvernement", "assemblée nationale", "sénat", "élection", "ministre",
+                     "marché de l'emploi", "entreprise en difficulté",
+                     "redressement judiciaire", "liquidation judiciaire", "usine",
+                     "recrutement", "créations d'emplois", "chiffre d'affaires",
+                     "commerçant", "artisan", "zone d'activité", "agriculteur",
+                     "agriculture", "viticulture", "récolte", "exploitation agricole",
+                     "immobilier", "prix de l'immobilier", "start-up", "chambre de commerce"],
+    "politique":    ["conseil municipal", "conseil départemental", "conseil régional",
+                     "intercommunalité", "communauté de communes", "municipales",
+                     "préfet", "délibération", "budget municipal", "adjoint au maire",
+                     "gouvernement", "assemblée nationale", "sénat", "élection", "ministre",
                      "président de la république", "réforme", "motion de censure", "remaniement",
                      "député", "parti politique", "scrutin", "campagne électorale",
                      "conseil des ministres", "premier ministre", "élysée", "matignon",
@@ -149,7 +170,10 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
     "culture":      ["festival", "cinéma", "musée", "exposition", "concert", "théâtre",
                      "spectacle", "littérature", "roman", "album", "patrimoine", "césars",
                      "festival de cannes", "œuvre d'art", "vernissage", "biennale",
-                     "saison culturelle", "scène nationale"],
+                     "saison culturelle", "scène nationale",
+                     "médiathèque", "bibliothèque", "carnaval", "brocante", "vide-grenier",
+                     "kermesse", "fête de la musique", "fête votive", "salon du livre",
+                     "conférence", "opéra", "chorale", "cirque", "danse"],
 }
 
 GRAVITY_KEYWORDS: dict[int, list[str]] = {
@@ -578,11 +602,30 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
                 # contiennent des villes (« Paris FC », « AS Monaco », « OGC Nice »)
                 # → faux pins. Le département issu de l'URL reste fiable (sport local).
                 is_sport = extraction.get("categorie") == "sport"
-                _topo = None if is_sport else toponym_from_title(item.get("titre", ""))
-                if not _topo and loc:
-                    _topo = loc["lieu_nom"]
-                if _topo:
-                    updated["lieu_nom"] = _topo
+                # Commune nommée dans le titre : la table locale couvre 35 000
+                # communes là où la liste de toponymes n'en connaît que ~70
+                # (grandes villes). Garde-fous dans commune_from_text :
+                # population ≥ 3 000, nom propre, liste noire d'homonymes.
+                commune = None
+                if not is_sport:
+                    from app.communes_db import commune_from_text
+                    commune = commune_from_text(item.get("titre", ""))
+                if commune:
+                    updated["lieu_nom"] = commune["nom"]
+                    updated["lieu_lat"] = commune["lat"]
+                    updated["lieu_lon"] = commune["lon"]
+                    updated["lieu_code_insee"] = commune["code_insee"]
+                    updated["lieu_niveau"] = "commune"
+                    # Sous le 0.9 d'un code INSEE lu dans l'URL : ici le nom est
+                    # déduit d'un texte, donc un cran moins sûr.
+                    updated["lieu_confiance_geo"] = 0.75
+                    updated["skip_geocoding"] = True
+                else:
+                    _topo = None if is_sport else toponym_from_title(item.get("titre", ""))
+                    if not _topo and loc:
+                        _topo = loc["lieu_nom"]
+                    if _topo:
+                        updated["lieu_nom"] = _topo
     elif not updated.get("lieu_nom") and extraction["lieu_nom"] != "national":
         updated["lieu_nom"] = extraction["lieu_nom"]
 

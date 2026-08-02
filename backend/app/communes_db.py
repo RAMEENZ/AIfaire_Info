@@ -10,6 +10,7 @@ Le fichier CSV est genere par `backend/scripts/build_communes_db.py`.
 from __future__ import annotations
 
 import csv
+import re
 import logging
 import os
 import unicodedata
@@ -148,3 +149,91 @@ def lookup_commune(name: Optional[str]) -> Optional[dict[str, Any]]:
         return None
     rec = _INDEX.get(normalize(name))
     return _as_result(rec) if rec else None
+
+
+# ── Reconnaissance d'une commune dans un texte libre ─────────────────────────
+# Un tiers des articles restaient « national » alors que leur titre nomme une
+# commune. La table locale en compte 35 000 : chercher n'importe laquelle
+# produirait surtout du bruit (« Bar », « Sec », « Nice » dans « Nice-Matin »),
+# d'où trois garde-fous : population minimale, liste noire de noms ambigus, et
+# exigence d'une majuscule initiale dans le texte d'origine (un toponyme est un
+# nom propre).
+
+# Population minimale pour qu'un nom de commune trouvé dans un texte soit
+# retenu. En dessous, le risque d'homonymie avec un mot courant dépasse le
+# gain : ces communes restent atteignables par les autres chemins (INSEE ou
+# code postal dans l'URL, extraction LLM).
+_TEXT_MATCH_MIN_POPULATION = 3000
+
+# Noms de communes qui sont AUSSI des mots courants, des prénoms ou des
+# éléments de nom propre fréquents dans la presse. Exclus de la détection en
+# texte libre (ils restent résolus par INSEE/CP/nom exact).
+_AMBIGUOUS_NAMES = frozenset({
+    "BAR", "SEC", "SAINT AMOUR", "MER", "VILLE", "PORT", "LE PORT", "MONTS",
+    "USSEL", "CHAMPAGNE", "BEAUNE", "MEDIS", "COGNAC", "MARTIN", "LAURENT",
+    "VINCENT", "JULIEN", "MAURICE", "DENIS", "FLORENT", "GERMAIN", "REMY",
+    "ORANGE", "AVORD", "CONDOM", "MARANS", "SAINT LOUIS", "LOUIS", "PIERRE",
+    "LUC", "PAUL", "CLAUDE", "ANDRE", "MICHEL", "THOMAS", "SIMON", "NOEL",
+    "BRIE", "CHABLIS", "SANCERRE", "GRAVE", "LOUPE", "CAMPAGNE", "LA MOTTE",
+    "MONACO", "LA GARDE", "LA CHAPELLE", "LES ESSARTS", "MOTTE", "GARDE",
+})
+
+# Index texte : nom normalisé -> record, restreint aux communes éligibles.
+_TEXT_INDEX: dict[str, dict[str, Any]] = {}
+_TEXT_INDEX_BUILT = False
+# Nombre maximal de mots d'un nom de commune (« Saint-Étienne-du-Rouvray »),
+# borne les n-grammes testés.
+_MAX_NAME_WORDS = 5
+
+
+def _build_text_index() -> None:
+    global _TEXT_INDEX_BUILT
+    if _TEXT_INDEX_BUILT:
+        return
+    _load()
+    _TEXT_INDEX_BUILT = True
+    for key, rec in _INDEX.items():
+        if rec["population"] < _TEXT_MATCH_MIN_POPULATION:
+            continue
+        if key in _AMBIGUOUS_NAMES:
+            continue
+        if len(key) < 4:
+            continue
+        _TEXT_INDEX[key] = rec
+
+
+def commune_from_text(text: Optional[str]) -> Optional[dict[str, Any]]:
+    """Cherche un nom de commune dans un texte libre (titre, chapô).
+
+    Ne retient que les communes d'au moins 3 000 habitants, hors liste noire,
+    et dont l'occurrence commence par une majuscule dans le texte d'origine.
+    En cas de plusieurs candidats, le nom le plus long l'emporte (« Saint-Denis
+    de la Réunion » plutôt que « Saint-Denis »). None si rien de sûr.
+    """
+    if not text:
+        return None
+    _build_text_index()
+    if not _TEXT_INDEX:
+        return None
+
+    # Les mots du texte d'origine, pour vérifier la majuscule initiale.
+    raw_words = [w for w in re.split(r"[^\w'’-]+", text) if w]
+    norm_words = [normalize(w) for w in raw_words]
+
+    best: Optional[tuple[int, dict[str, Any]]] = None
+    for i, raw in enumerate(raw_words):
+        # Un toponyme est un nom propre : première lettre en majuscule.
+        # (Écarte « la mer », « le port » en minuscules.)
+        if not raw[:1].isupper():
+            continue
+        for span in range(_MAX_NAME_WORDS, 0, -1):
+            if i + span > len(norm_words):
+                continue
+            candidate = " ".join(w for w in norm_words[i:i + span] if w)
+            if not candidate:
+                continue
+            rec = _TEXT_INDEX.get(candidate)
+            if rec and (best is None or span > best[0]):
+                best = (span, rec)
+                break
+    return _as_result(best[1]) if best else None

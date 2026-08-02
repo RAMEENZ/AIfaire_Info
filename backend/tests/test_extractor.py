@@ -53,7 +53,11 @@ def test_strip_html_collapses_whitespace():
     ("Grève SNCF : trafic ferroviaire perturbé", "transport"),
     ("Manifestation et violence urbaine en centre-ville", "ordre_public"),
     ("Alerte sanitaire : rappel de lot de listeria", "sante"),
-    ("Le conseil municipal vote son budget", "actualite"),
+    # Politique locale : classé « actualite » jusqu'en 07/2026 faute de
+    # mot-clé — c'était la limitation des règles, pas le classement souhaité.
+    ("Le conseil municipal vote son budget", "politique"),
+    # Reste sans catégorie dédiée : « actualite » est ici le bon verdict.
+    ("Le marché hebdomadaire change d'horaires", "actualite"),
 ])
 async def test_categorisation(text, expected_cat):
     result = await _rule_based_extract(text, None)
