@@ -92,6 +92,28 @@ export async function fetchMapEvents(params: {
   }));
 }
 
+// Fiches déjà récupérées, gardées d'un rendu à l'autre : les marqueurs sont
+// remontés à chaque rafraîchissement de la carte, sans ce cache la même fiche
+// serait redemandée à chaque réouverture de la bulle.
+const eventDetailCache = new Map<string, Event>();
+
+/**
+ * Fiche complète d'un événement (résumé IA, tags, champs de confiance).
+ *
+ * Nécessaire pour les marqueurs de la carte : `/events/map` omet le résumé
+ * pour alléger la charge utile, et la bulle serait sinon réduite à son titre.
+ */
+export async function fetchEventDetail(id: string): Promise<Event> {
+  const connu = eventDetailCache.get(id);
+  if (connu) return connu;
+
+  const response = await fetch(`${API_BASE_URL}/events/${id}`, { next: { revalidate: 0 } });
+  if (!response.ok) throw new Error(`Erreur API /events/${id} : ${response.status}`);
+  const event = (await response.json()) as Event;
+  eventDetailCache.set(id, event);
+  return event;
+}
+
 export async function fetchHealth(): Promise<HealthResponse> {
   const response = await fetch(`${API_BASE_URL}/health`, {
     next: { revalidate: 0 },

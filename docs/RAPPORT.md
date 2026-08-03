@@ -1,6 +1,6 @@
 # FAIRE Info — Rapport complet du projet
 
-*Agrégateur d'information géolocalisé pour la France — état au 1er juillet 2026*
+*Agrégateur d'information géolocalisé pour la France — état au 3 août 2026*
 
 ---
 
@@ -16,7 +16,7 @@ d'actualités et d'un **brief quotidien** rédigé par IA.
 - **Stack** : Python 3.13 / FastAPI (backend), Next.js 14 / Leaflet (frontend),
   PostgreSQL 16 + PostGIS (base géospatiale), Mistral AI (extraction & briefs),
   le tout orchestré par Docker Compose et exposé via un tunnel Cloudflare.
-- **Sources** : 15 connecteurs, dont un agrégateur de **~877 flux RSS** de presse
+- **Sources** : 15 connecteurs, dont un agrégateur de **~868 flux RSS** de presse
   nationale et régionale.
 - **Principe** : une chaîne de traitement (pipeline) collecte, dédoublonne,
   analyse par IA, géolocalise et stocke les événements ; l'API les sert à un
@@ -82,7 +82,7 @@ C'est le cœur du système. Pour chaque cycle d'ingestion :
 2. SÉLECTION     Presse : chaque flux fournit jusqu'à 25 articles ; on
                  dédoublonne par empreinte de titre, puis on RÉPARTIT le plafond
                  (MAX_PRESSE_ARTICLES) en round-robin ENTRE flux — pour exploiter
-                 la diversité des ~877 sources et non laisser un gros publicateur
+                 la diversité des ~868 sources et non laisser un gros publicateur
                  monopoliser.
 
 3. EXTRACTION    Pour chaque article : appel Mistral (repli Ollama local, puis
@@ -119,7 +119,7 @@ Un cycle complet prend **~1 à 2 minutes** (ex. 148 événements en ~1 min 40).
 | **Vigicrues** | Crues | API GeoJSON publique |
 | **RéNaSS / USGS FDSNWS** | Séismes | API publique |
 | ~~Enedis~~ | ~~Coupures électriques~~ | Retiré 07/2026 — dataset temps réel disparu du portail open data |
-| **Presse RSS** | Toutes catégories | **~877 flux** (presse nationale + régionale) |
+| **Presse RSS** | Toutes catégories | **~868 flux** (presse nationale + régionale) |
 | **SNCF** | Transport ferroviaire | API |
 | **Bison Futé** | Trafic routier | RSS |
 | **Incendies** | Feux | RSS régionaux |
@@ -146,10 +146,40 @@ Chaque article passe par une **extraction en cascade dégradée** (robustesse) :
 2. **Ollama local** (petit modèle) — repli si pas de Mistral.
 3. **Règles par mots-clés** — repli ultime, sans IA.
 
-L'IA renvoie 5 champs : **lieu_nom**, **categorie**, **gravité** (0=info,
-1=vigilance, 2=alerte, 3=urgence), **résumé** (1-2 phrases), **tags**. La date du
-jour (heure de Paris) est fournie au modèle pour situer les faits. Un cache
-(SHA-256 du contenu) évite de re-payer l'extraction d'un article déjà vu.
+L'IA renvoie 6 champs : **lieu_nom**, **lieu_type** (commune / departement /
+region / national), **categorie**, **gravité** (0=info, 1=vigilance, 2=alerte,
+3=urgence), **résumé** (1-2 phrases), **tags**. La date du jour (heure de Paris)
+est fournie au modèle pour situer les faits. Un cache (SHA-256 du contenu) évite
+de re-payer l'extraction d'un article déjà vu.
+
+`lieu_type` sert de raccourci : quand le modèle répond « commune », le nom est
+résolu directement dans la table locale des 35 000 communes (coordonnées + code
+INSEE, confiance 0,85, pas de géocodage réseau). C'est aussi ce qui lève les
+homonymes ville/département — Vienne, Lot, Somme, Aube.
+
+Le prompt (`extractor.SYSTEM_PROMPT`) est structuré champ par champ et porte
+trois garde-fous nés de défauts mesurés en production : « actualite » n'est
+autorisé qu'en dernier recours (le fourre-tout pesait 32 % des événements), la
+catégorie suit le **sujet** et non le secteur du métier concerné (recruter des
+infirmiers est un sujet d'emploi, pas de santé), et le résumé doit apprendre
+quelque chose que le titre ne donne pas. Quatre exemples few-shot illustrent les
+cas ambigus. Un prompt court parallèle (`SYSTEM_PROMPT_SMALL`) sert aux petits
+modèles Ollama, qui décrochent sur les longues consignes.
+
+Ce que le prompt demande, le validateur le fait respecter : catégorie hors
+taxonomie ramenée à « actualite », gravité écrêtée à [0, 3], tags dédoublonnés
+et débarrassés de ceux qui répètent le lieu, la catégorie ou n'ont aucune valeur
+de filtrage (« france », « société »), résumé tronqué à 500 caractères **sur une
+frontière de phrase** — la coupe brute laissait des moignons servis tels quels
+dans le fil.
+
+Les prompts s'essaient sur les données réelles sans rien publier :
+`python -m app.maintenance test-extraction` mesure la part de « actualite », de
+« national », le taux de `lieu_type` renseigné et les résumés qui paraphrasent
+le titre ; `test-brief` affiche le brief obtenu puis l'audite. Hors ligne,
+`tests/test_extractor_prompt.py` et `tests/test_brief_prompt.py` verrouillent ce
+que les prompts doivent contenir, et revalident chaque exemple few-shot par le
+validateur de production.
 
 ---
 
@@ -231,8 +261,9 @@ Endpoints publics (préfixe `/api`) :
 
 | Endpoint | Description |
 |---|---|
-| `GET /events` | Liste filtrée (bbox, catégories, gravité, période, dept, recherche texte, tri `gravite`/`recent`/`pertinence`…) |
-| `GET /events/{id}` | Détail d'un événement |
+| `GET /events` | Liste filtrée et **paginée** (`offset`, `has_more`), résumés tronqués à 220 car. (`?full=true` pour l'intégral) — bbox, catégories, gravité, période, dept, recherche texte, tri `gravite`/`recent`/`pertinence`… |
+| `GET /events/map` | Marqueurs de la carte : événements **localisés** uniquement, sans résumé ni tags. Indépendant de la pagination du fil |
+| `GET /events/{id}` | Détail complet d'un événement — sert aussi à compléter la bulle d'un marqueur à son ouverture |
 | `GET /events/stream` | **SSE** « En direct » (push des nouveaux événements toutes les 30 s) |
 | `GET /events/timeline` | Histogramme temporel |
 | `GET /stats`, `GET /stats/geo` | Statistiques globales / géographiques |
@@ -253,8 +284,16 @@ Swagger/ReDoc est **désactivée** par défaut.
 ## 11. Frontend (Next.js 14 + Leaflet)
 
 - **Carte de France** : marqueurs par catégorie, **clustering** (regroupement
-  au dézoom), couche de risque par département, heatmap, panneau DOM-TOM,
-  recherche de ville. Les contours départementaux viennent d'un fond GeoJSON.
+  au dézoom, déclustérisé au zoom 12), couche de risque par département,
+  heatmap, panneau DOM-TOM, recherche de ville. Les contours départementaux
+  viennent d'un fond GeoJSON. Les marqueurs sont alimentés par `/events/map`,
+  distinct du fil : la carte reste complète quelle que soit la page affichée.
+- **Bulle d'un marqueur** : titre cliquable vers l'article d'origine, badges
+  catégorie / gravité / lieu, résumé IA, tags, source et date. `/events/map`
+  n'envoyant pas le résumé, la bulle le récupère via `GET /events/{id}` **à son
+  ouverture**, avec cache mémoire et repli explicite si l'appel échoue. Charger
+  ces résumés d'avance annulerait l'allègement de la carte ; ne pas les charger
+  du tout réduisait la bulle à un titre déjà lisible sur la carte.
 - **Fil d'actualités** (colonne droite) : articles filtrables, onglets Carte /
   National, timeline, mini-statistiques.
 - **Brief du jour** : encart dépliable, avec heure de génération.
@@ -294,8 +333,11 @@ Trois tables principales :
 | **Garde-fous données** | dates futures bornées, fragments/homonymes filtrés |
 | **Santé + webhook** | pastilles d'état + alerte configurable (≥ 3 échecs) |
 | **Scheduler robuste** | marge misfire 1 h + coalesce → plus de jobs cron sautés |
-| **Auto-restart** | `restart: unless-stopped` + healthchecks Docker |
-| **CI** | 166 tests backend + tests frontend + build à chaque PR → plus de régression silencieuse |
+| **Healthcheck de fraîcheur** | `/healthz` teste le scheduler vivant *et* la fraîcheur des données — un scheduler mort dans un processus vivant était invisible (panne silencieuse de 3 jours, 07/2026) |
+| **Auto-restart** | `restart: unless-stopped` + healthchecks Docker + `autoheal` (redémarre les conteneurs *unhealthy*, ce que Docker ne fait jamais seul) |
+| **Alerte de staleness** | contrôle horaire : aucune ingestion depuis 26 h → webhook (anti-spam 12 h). Filet si le redémarrage automatique ne guérit pas |
+| **Circuit-breaker RSS** | un flux en échec chronique est mis de côté puis re-testé — plus de timeouts répétés sur les flux morts |
+| **CI** | 331 tests backend hors-ligne, 11 d'intégration (PostGIS), 22 unitaires et 18 E2E frontend, build des deux images Docker, à chaque PR |
 
 **Points de fragilité résiduels** (assumés) :
 - Le **fond de carte** (tuiles OpenStreetMap) vient d'un CDN externe : s'il
@@ -358,9 +400,18 @@ optionnelles (`MISTRAL_API_KEY`, `INGEST_API_KEY`, `CLOUDFLARE_TUNNEL_TOKEN`…)
 
 ### 15.2 Intégration continue
 
-`.github/workflows/ci.yml` : à chaque push/PR, **tests backend** (pytest,
-hors-ligne) + **typecheck/build frontend**. Le `main` n'est mis à jour que via
-PR verte.
+`.github/workflows/ci.yml` — cinq travaux à chaque push/PR :
+
+| Travail | Contenu |
+|---|---|
+| **backend** | `ruff check` + suite pytest hors-ligne (ni base ni réseau) |
+| **integration** | pytest sur un service PostGIS réel — vérifie le SQL réellement émis |
+| **frontend** | typecheck TypeScript, tests Vitest, build Next.js |
+| **e2e** | Playwright sur le build de production, API simulée ; rapport archivé en cas d'échec |
+| **docker** | build des deux images — attrape les casses de Dockerfile invisibles autrement |
+
+Les runs d'une même branche s'annulent entre eux (`concurrency`). Le `main`
+n'est mis à jour que via PR verte.
 
 ### 15.3 Sauvegardes chiffrées & vérifiées
 
@@ -376,8 +427,18 @@ PR verte.
 
 ```bash
 docker compose exec backend python -m app.maintenance backfill-locations   # re-localise l'existant
-docker compose exec backend python -m app.maintenance check-feeds          # santé des 877 flux
+docker compose exec backend python -m app.maintenance check-feeds          # santé des 868 flux
+docker compose exec backend python -m app.maintenance vapid-keys           # paire de clés Web Push
+docker compose exec backend python -m app.maintenance test-extraction      # qualité de l'extraction, sur données réelles
+docker compose exec backend python -m app.maintenance test-brief           # brief d'essai + audit, sans publication
+docker compose exec backend python -m app.maintenance clean-extractions    # répare tags et résumés déjà en base
 ```
+
+Les deux commandes `test-*` appellent le modèle mais **n'écrivent rien** :
+elles servent à juger une retouche de prompt avant de la déployer.
+`clean-extractions` fait l'inverse — aucun appel au modèle, mais elle corrige
+les données existantes (tags redondants, résumés tranchés). Elle accepte
+`--dry-run`, comme `backfill-locations`.
 
 ---
 
@@ -413,15 +474,18 @@ backend/
 │   ├── config.py          # configuration + garde-fous prod
 │   ├── categories.py      # taxonomie (source unique)
 │   ├── communes_db.py     # base communes locale (géocodage offline)
-│   ├── maintenance.py     # backfill-locations, check-feeds
-│   ├── models.py          # ORM (Event, ConnectorStatus, DailyBrief)
+│   ├── maintenance.py     # backfill-locations, check-feeds, test-*, clean-extractions
+│   ├── models.py          # ORM (Event, ConnectorStatus, DailyBrief, PushSubscription, DailyStat)
 │   ├── data/communes_geo.csv   # 35k communes + coordonnées (embarqué)
 │   ├── connectors/        # 15 connecteurs de sources
-│   ├── pipeline/          # extractor, geocoder, ingestor, brief, scheduler…
-│   └── api/routes/        # events.py, health.py
+│   ├── pipeline/          # extractor, geocoder, ingestor, brief, sanitize, push, scheduler…
+│   └── api/routes/        # events.py, health.py, push.py
+├── alembic/               # migrations (idempotentes)
 ├── scripts/               # build de la base communes (dev)
-└── tests/                 # 166 tests backend (hors-ligne)
-frontend/                  # Next.js 14 + Leaflet (+ tests Vitest : *.test.ts)
+└── tests/                 # 331 tests hors-ligne + 11 d'intégration (PostGIS)
+frontend/                  # Next.js 14 + Leaflet
+├── src/                   # composants, hooks, lib (+ tests Vitest : *.test.ts)
+└── e2e/                   # tests Playwright (API simulée, sans backend)
 deploy.sh                  # déploiement idempotent (pull→build→recreate, garde-fous)
 nginx/ · cloudflared/ · security/ · .github/workflows/ci.yml
 docker-compose.yml
@@ -445,7 +509,7 @@ docker-compose.yml
   d'ingest en temps constant.
 - 💾 **Backups** chiffrés, **intégrité vérifiée**, monitorés (alerte si stale).
 - ⏰ **Scheduler** fiabilisé (plus de jobs cron sautés).
-- ✅ **CI** GitHub Actions (166 tests backend + tests frontend Vitest + build) sur chaque PR.
+- ✅ **CI** GitHub Actions (lint, tests backend, intégration PostGIS, Vitest, E2E Playwright, build des images) sur chaque PR.
 
 ---
 
@@ -457,7 +521,10 @@ docker-compose.yml
 - **Scaling** (workers multiples + diffusion SSE partagée type `LISTEN/NOTIFY` au
   lieu du polling par connexion) si le trafic grandit.
 - **Métriques Prometheus** (format texte) en complément de `/metrics` (JSON).
-- **Notifications push** (service worker) si l'audience grandit.
+- **Marqueur explicite du brief hebdomadaire** : `generate_weekly_brief`
+  reconnaît aujourd'hui un brief de semaine à la présence du mot « semaine »
+  dans son texte, et `is_weekly` à un nombre d'événements > 100. Deux
+  heuristiques qu'une colonne dédiée remplacerait avantageusement.
 
 ### Lot UX/UI (juillet 2026)
 
@@ -512,6 +579,35 @@ docker-compose.yml
 - 🧪 **Tests frontend** (Vitest) ajoutés à la CI ; nettoyage de nommage
   (`extract_article`), dépendance `alembic` inutilisée retirée, label connecteur
   `opensky` manquant corrigé, bouton d'ingestion masqué en prod.
+
+### Lot qualité des prompts & de la carte (août 2026)
+
+- 🧠 **Prompts Mistral retravaillés** (extraction et brief). L'extraction gagne
+  un champ `lieu_type`, une table de départage des catégories, la règle
+  « classe d'après le sujet, pas d'après le secteur du métier » et quatre
+  exemples few-shot ; « actualite » n'est plus qu'un dernier recours. Le brief
+  gagne une hiérarchie explicite, l'obligation de reprendre les chiffres des
+  données, l'interdiction de citer deux fois le même fait dans deux sections et
+  une liste de formules creuses bannies.
+- ✂️ **Coupes propres** : `sanitize.truncate_clean` tronque à la frontière de
+  phrase ou de mot. `resume_ia[:500]` tranchait au caractère près et servait des
+  moignons (« La pénurie nationale att ») dans le fil puis dans le brief.
+- 🏷️ **Tags utiles** : suppression de ceux qui répètent le lieu ou la catégorie
+  (« leyme » sur un article situé à Leyme), des doublons et des mots creux.
+- 🧰 **Outils de mise au point** : `test-extraction` et `test-brief` essaient les
+  prompts sur les données réelles sans rien publier ; `clean-extractions` répare
+  les extractions déjà en base sans appeler le modèle. `audit_brief` liste hors
+  ligne les défauts d'un brief (sections manquantes, formules creuses, Markdown
+  résiduel, redites entre sections).
+- 🗺️ **Bulles de la carte réparées** : depuis l'introduction de `/events/map`
+  (payload allégé), cliquer un marqueur ne rendait que le titre — sauf pour les
+  vigilances météo, dont le titre porte toute l'information. La bulle complète
+  désormais la fiche via `GET /events/{id}` à son ouverture, avec cache et repli
+  en cas d'échec.
+- 🧪 **Simulation E2E rendue fidèle** : la fausse API renvoyait pour
+  `/events/map` un événement complet, là où le serveur omet résumé et tags —
+  d'où une régression testée verte pendant des semaines. La simulation reproduit
+  maintenant les omissions du backend, et cinq tests couvrent les bulles.
 
 ---
 

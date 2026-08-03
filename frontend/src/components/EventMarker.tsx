@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Marker, Popup } from "react-leaflet";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import type { DivIcon } from "leaflet";
 
+import { fetchEventDetail } from "@/lib/api";
 import { CATEGORY_CONFIG, GRAVITE_CONFIG, SOURCE_LABELS } from "@/lib/constants";
 import { Event } from "@/lib/types";
 
@@ -60,21 +61,48 @@ export default function EventMarker({ event, isSelected, onSelect }: EventMarker
     [event.gravite, event.categorie, isSelected]
   );
 
+  // Les marqueurs viennent de /events/map, qui omet le résumé et les tags pour
+  // alléger la charge utile. Sans complément, la bulle se réduisait à un titre
+  // que l'utilisateur venait déjà de lire sur la carte — le clic ne rapportait
+  // rien, sauf pour les vigilances météo dont le titre porte toute l'info.
+  const [detail, setDetail] = useState<Event | null>(null);
+  const [chargement, setChargement] = useState(false);
+  const [echec, setEchec] = useState(false);
+
+  const complet = detail ?? event;
+  const detailManquant = event.resume_ia === null && detail === null;
+
+  const chargerDetail = useCallback(() => {
+    if (!detailManquant || chargement) return;
+    setChargement(true);
+    setEchec(false);
+    fetchEventDetail(event.id)
+      .then(setDetail)
+      .catch(() => setEchec(true))
+      .finally(() => setChargement(false));
+  }, [detailManquant, chargement, event.id]);
+
   if (event.lieu_lat === null || event.lieu_lon === null) return null;
   if (!icon) return null;
 
-  const catConfig = CATEGORY_CONFIG[event.categorie];
-  const graviteConfig = GRAVITE_CONFIG[event.gravite] ?? GRAVITE_CONFIG[0];
+  const catConfig = CATEGORY_CONFIG[complet.categorie];
+  const graviteConfig = GRAVITE_CONFIG[complet.gravite] ?? GRAVITE_CONFIG[0];
   const sourceLabel =
-    event.source === "presse_rss" && event.auteur
-      ? event.auteur
-      : SOURCE_LABELS[event.source] ?? event.source;
+    complet.source === "presse_rss" && complet.auteur
+      ? complet.auteur
+      : SOURCE_LABELS[complet.source] ?? complet.source;
 
   return (
     <Marker
       position={[event.lieu_lat, event.lieu_lon]}
       icon={icon}
-      eventHandlers={{ click: () => onSelect?.(event) }}
+      eventHandlers={{
+        click: () => onSelect?.(event),
+        // La fiche n'est demandée qu'à l'ouverture de la bulle : charger les
+        // résumés des centaines de marqueurs affichés reviendrait à annuler
+        // l'allègement de /events/map.
+        popupopen: chargerDetail,
+      }}
     >
       <Popup minWidth={280} maxWidth={300}>
         <div className="text-sm font-sans">
@@ -86,7 +114,7 @@ export default function EventMarker({ event, isSelected, onSelect }: EventMarker
               rel="noopener noreferrer"
               className="font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-700 leading-snug block"
             >
-              {event.titre}
+              {complet.titre}
             </a>
           </div>
 
@@ -104,25 +132,44 @@ export default function EventMarker({ event, isSelected, onSelect }: EventMarker
             >
               {graviteConfig.label}
             </span>
-            {event.lieu_nom && (
+            {complet.lieu_nom && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs">
-                {event.lieu_nom}
+                {complet.lieu_nom}
               </span>
             )}
           </div>
 
-          {/* Résumé IA */}
-          {event.resume_ia && (
+          {/* Résumé IA — complété à l'ouverture pour les marqueurs de la carte */}
+          {complet.resume_ia ? (
             <div className="px-3 pb-2">
-              <p className="text-gray-700 dark:text-gray-200 leading-snug">{event.resume_ia}</p>
+              <p className="text-gray-700 dark:text-gray-200 leading-snug">{complet.resume_ia}</p>
               <span className="text-xs text-gray-500 dark:text-gray-400 italic mt-0.5 block">résumé automatique</span>
             </div>
-          )}
+          ) : chargement ? (
+            <div className="px-3 pb-2" aria-live="polite">
+              <div className="h-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse mb-1.5" />
+              <div className="h-3 w-3/4 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+              <span className="sr-only">Chargement du résumé…</span>
+            </div>
+          ) : echec ? (
+            <div className="px-3 pb-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Résumé indisponible.{" "}
+                <button
+                  type="button"
+                  onClick={chargerDetail}
+                  className="underline hover:text-blue-700 dark:hover:text-blue-300"
+                >
+                  Réessayer
+                </button>
+              </p>
+            </div>
+          ) : null}
 
           {/* Tags */}
-          {event.tags && event.tags.length > 0 && (
+          {complet.tags && complet.tags.length > 0 && (
             <div className="px-3 pb-2 flex flex-wrap gap-1">
-              {event.tags.map((tag) => (
+              {complet.tags.map((tag) => (
                 <span
                   key={tag}
                   className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs"
@@ -136,7 +183,7 @@ export default function EventMarker({ event, isSelected, onSelect }: EventMarker
           {/* Footer */}
           <div className="px-3 pb-3 border-t border-gray-100 dark:border-gray-700 pt-2 flex justify-between text-xs text-gray-500 dark:text-gray-400">
             <span>{sourceLabel}</span>
-            <span>{formatDate(event.date_publication)}</span>
+            <span>{formatDate(complet.date_publication)}</span>
           </div>
         </div>
       </Popup>

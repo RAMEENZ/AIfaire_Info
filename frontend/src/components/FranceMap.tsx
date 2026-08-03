@@ -43,7 +43,9 @@ function createClusterCustomIcon(cluster: any) {
   const fontSize = size <= 24 ? 10 : size <= 30 ? 11 : 13;
   return L.divIcon({
     className: "",
-    html: `<div style="width:${size}px;height:${size}px;background:#1d4ed8;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;font-weight:700;border:2px solid white;box-shadow:0 1px 5px rgba(0,0,0,0.35)">${count}</div>`,
+    // `faire-cluster` : repère stable pour distinguer une grappe d'un marqueur
+    // individuel (`faire-marker`), aussi bien en style qu'en test.
+    html: `<div class="faire-cluster" style="width:${size}px;height:${size}px;background:#1d4ed8;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;font-weight:700;border:2px solid white;box-shadow:0 1px 5px rgba(0,0,0,0.35)">${count}</div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });

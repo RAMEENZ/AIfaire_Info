@@ -20,8 +20,13 @@ export function makeEvent(i: number) {
     gravite: i % 4,
     lieu_nom: `Ville ${i}`,
     lieu_code_insee: `690${(i % 9) + 10}`,
-    lieu_lat: 45.75 + (i % 10) * 0.01,
-    lieu_lon: 4.85 + (i % 10) * 0.01,
+    // Répartis sur toute la France métropolitaine, et non massés sur une seule
+    // commune : au zoom national, des événements distants de quelques
+    // centaines de mètres formeraient une grappe unique et aucun marqueur
+    // individuel ne serait cliquable. Moduli premiers entre eux (6 × 7) pour
+    // 42 positions distinctes avant répétition.
+    lieu_lat: 43.5 + (i % 6) * 1.1,
+    lieu_lon: -1.5 + (i % 7) * 1.3,
     lieu_niveau: "commune",
     lieu_confiance_geo: 0.9,
     resume_ia: `Résumé de l'événement ${i}. `.repeat(3),
@@ -32,22 +37,46 @@ export function makeEvent(i: number) {
   };
 }
 
+/**
+ * Version allégée servie par /events/map : le vrai endpoint omet le résumé et
+ * les tags pour diviser la charge utile. La simulation DOIT omettre les mêmes
+ * champs — quand elle renvoyait l'événement complet, les tests validaient une
+ * bulle de carte que la production n'a jamais affichée (régression de 08/2026 :
+ * cliquer un marqueur ne donnait qu'un titre).
+ */
+export function makeMapEvent(i: number) {
+  const {
+    resume_ia: _resume,
+    tags: _tags,
+    score_confiance: _score,
+    created_at: _created,
+    date_evenement: _dateEvt,
+    lieu_confiance_geo: _confiance,
+    ...allege
+  } = makeEvent(i);
+  return allege;
+}
+
 export interface MockOptions {
   /** Nombre total d'événements côté « serveur » simulé. */
   total?: number;
   /** Brief renvoyé par /api/brief (null = aucun brief disponible). */
   briefContent?: string | null;
+  /** Fait échouer GET /events/{id} (test du repli de la bulle). */
+  failEventDetail?: boolean;
 }
 
 /** Journal des requêtes /api/events, pour vérifier la pagination. */
 export interface ApiCalls {
   events: { offset: number; limit: number; q: string | null }[];
   map: number;
+  /** Identifiants demandés via GET /events/{id} (fiches ouvertes sur la carte). */
+  detail: string[];
 }
 
 export async function mockApi(page: Page, options: MockOptions = {}): Promise<ApiCalls> {
   const total = options.total ?? 250;
-  const calls: ApiCalls = { events: [], map: 0 };
+  const calls: ApiCalls = { events: [], map: 0, detail: [] };
 
   await page.route("**/api/**", (route) => {
     const url = new URL(route.request().url());
@@ -60,10 +89,18 @@ export async function mockApi(page: Page, options: MockOptions = {}): Promise<Ap
     if (url.pathname.endsWith("/events/map")) {
       calls.map += 1;
       return json({
-        events: Array.from({ length: Math.min(total, 300) }, (_, i) => makeEvent(i)),
+        events: Array.from({ length: Math.min(total, 300) }, (_, i) => makeMapEvent(i)),
         total: Math.min(total, 300),
         generated_at: now.toISOString(),
       });
+    }
+
+    // Fiche complète, demandée à l'ouverture d'une bulle sur la carte.
+    const detail = /\/events\/(evt-\d+)$/.exec(url.pathname);
+    if (detail) {
+      calls.detail.push(detail[1]);
+      if (options.failEventDetail) return route.fulfill({ status: 500, body: "boom" });
+      return json(makeEvent(Number(detail[1].slice(4))));
     }
 
     if (url.pathname.endsWith("/events")) {

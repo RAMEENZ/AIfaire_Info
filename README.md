@@ -58,6 +58,7 @@ Pour déclencher manuellement : `POST /api/ingest/run` (clé `INGEST_API_KEY`). 
 - **Rapport de santé des flux** : `GET /api/health/feeds` liste les flux RSS en échec (compteur, dernière erreur, mis de côté ou non) — le tri des flux morts devient une lecture de quelques minutes. Complémentaire du sondage complet `python -m app.maintenance check-feeds`.
 - **Métrique de localisation** : `/api/metrics` expose `localized_pct_24h` (% d'événements géolocalisés sur 24 h) — une chute brutale signale une régression silencieuse du géocodeur ou de l'extraction LLM.
 - **Charge utile bornée** : `/events` est paginé (`offset`, `has_more`) et tronque les résumés IA à 220 caractères (`?full=true` pour le texte intégral). La réponse par défaut est passée de 451 Ko à environ un tiers ; le fil charge 200 événements puis la suite à la demande.
+- **Carte alimentée séparément** : `/events/map` renvoie les seuls événements localisés, sans résumé ni tags — la carte reste complète quelle que soit la page affichée par le fil. La bulle d'un marqueur complète la fiche via `GET /events/{id}` **à son ouverture** : le détail n'est payé que pour les marqueurs réellement consultés. Sans ce complément, cliquer un marqueur ne rendait que le titre (régression de 08/2026, invisible sur les vigilances météo dont le titre porte toute l'information).
 - **Reconnaissance de commune dans les titres** : `communes_db.commune_from_text` couvre les 35 000 communes de la table locale (contre ~70 grandes villes auparavant), avec trois garde-fous contre les homonymes — population ≥ 3 000, nom propre (majuscule), liste noire de noms ambigus (« Bar », « Le Port »…). Un faux marqueur trompant plus qu'une absence de marqueur, la détection s'abstient au moindre doute.
 - **Jeu d'évaluation hors-ligne** : `tests/test_extraction_eval.py` rejoue un corpus annoté (catégorisation, détection de commune) sans réseau ni LLM, avec des seuils de non-régression. Permet de retoucher mots-clés, prompt ou modèle sans régresser à l'aveugle.
 - **Mode hors ligne** : service worker à priorité réseau (`frontend/public/sw.js`) — cache uniquement en repli, version épinglée et purgée à l'activation, HTML jamais servi depuis le cache tant que le réseau répond. Bandeau « Hors ligne » dans l'interface.
@@ -94,6 +95,7 @@ privée ne doit jamais être commitée.
 - **Page Tendances** (`/tendances`) : historique quotidien tiré de `daily_stats` — événements par jour empilés par catégorie, cumuls par catégorie et top des départements, sur 30 j / 90 j / 1 an.
 - **Département épinglé** : un clic sur un département (carte) filtre le fil (événements du département + nationaux) ; l'épingle 📌 le mémorise entre les visites.
 - **Archive des briefs** : les briefs précédents (14 derniers) sont consultables depuis le panneau Brief (`GET /api/brief/history`).
+- **Bulles de la carte** : titre cliquable vers l'article d'origine, catégorie, gravité, lieu, résumé IA et tags. Le résumé est chargé à l'ouverture de la bulle ; en cas d'échec réseau, la bulle reste lisible et propose de réessayer plutôt que d'afficher un vide.
 
 ### Supervision externe (recommandé)
 
@@ -224,14 +226,15 @@ pytest
 ```
 
 Couvre le géocodeur (termes nationaux, articles, alias, régions, DOM-TOM),
-l'extracteur (catégorisation/gravité par règles, overrides de source) et
-le calcul de statut des connecteurs.
+l'extracteur (catégorisation/gravité par règles, overrides de source), le
+contrat des prompts Mistral (`test_extractor_prompt.py`, `test_brief_prompt.py`)
+et le calcul de statut des connecteurs.
 
 **Tests d'intégration** (vraie base PostgreSQL/PostGIS) — ignorés
 automatiquement si `TEST_DATABASE_URL` n'est pas défini ; la CI fournit un
 service PostGIS. Ils vérifient le SQL réellement émis : pagination, troncature
 des résumés, recherche, filtre spatial bbox, endpoint carte, brief local,
-upsert d'abonnement push.
+upsert d'abonnement push, et la passe de réparation `clean-extractions`.
 
 ```bash
 TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/faire_test \
@@ -265,8 +268,16 @@ npm run build && npm run test:e2e
 
 Couvre les régressions d'interface qu'aucun test unitaire ne voit — hauteur
 utile du fil et défilement effectif sur mobile, panneau de brief défilable,
-accès aux pages secondaires sur petit écran, pagination et recherche serveur —
-ainsi qu'un audit d'accessibilité automatisé (axe-core, WCAG 2 A/AA).
+accès aux pages secondaires sur petit écran, pagination et recherche serveur,
+contenu des bulles de la carte (résumé chargé à l'ouverture, repli en cas
+d'échec, absence de préchargement) — ainsi qu'un audit d'accessibilité
+automatisé (axe-core, WCAG 2 A/AA).
+
+L'API simulée (`e2e/fixtures.ts`) reproduit fidèlement les **omissions** du
+vrai backend : `/events/map` y renvoie, comme en production, des événements
+sans résumé ni tags. Une simulation plus généreuse que le serveur valide une
+interface qui n'existe pas — c'est ce qui avait laissé passer la régression des
+bulles de carte.
 
 ### Variables d'environnement backend
 
