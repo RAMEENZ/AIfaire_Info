@@ -234,7 +234,7 @@ async def test_extraction(limit: int = 15) -> dict:
     « national » là où le pipeline en localise une partie.
     """
     from app.config import settings
-    from app.pipeline.extractor import extract_article, maybe_extract
+    from app.pipeline.extractor import _looks_french, extract_article, maybe_extract
 
     if not settings.MISTRAL_API_KEY:
         print("MISTRAL_API_KEY absente : impossible d'appeler le modèle.")
@@ -255,8 +255,16 @@ async def test_extraction(limit: int = 15) -> dict:
     cats: Counter = Counter()
     tags_total = paraphrases = inacheves = sans_tags = 0
     national_modele = national_pipeline = recuperes = sans_lieu_type = 0
+    hors_llm = 0
 
     for e in rows:
+        # Le pipeline n'appelle le modèle que si l'article lui paraît français ;
+        # sinon il retombe sur l'extracteur par règles, bien plus grossier.
+        # Comparer une sortie du modèle à un résultat obtenu par règles, sans le
+        # dire, rendait ce diagnostic incompréhensible (relevé du 03/08/2026).
+        via_llm = _looks_french(e.titre, e.resume_ia or "")
+        if not via_llm:
+            hors_llm += 1
         # 1) Le modèle seul — ce que le prompt produit.
         brut = await extract_article(e.titre, e.resume_ia or "", None)
         # 2) Le pipeline complet — ce qui finit réellement sur la carte.
@@ -297,7 +305,10 @@ async def test_extraction(limit: int = 15) -> dict:
         rattrape = "  ← récupéré par le pipeline" if modele_national and not final_national else ""
         print(f"  catégorie {brut['categorie']:<12} lieu {lieu_final} "
               f"({brut.get('lieu_type') or 'type non fourni'})  gravité {brut['gravite']}{rattrape}")
-        if lieu_final != brut["lieu_nom"]:
+        if not via_llm:
+            print("            ⚠ jugé non français : le pipeline n'appelle PAS le modèle "
+                  "sur cet article, il retombe sur les règles")
+        elif lieu_final != brut["lieu_nom"]:
             print(f"            (le modèle disait « {brut['lieu_nom']} »)")
         print(f"  tags      {', '.join(brut['tags']) or '(aucun)'}")
         print(textwrap.fill(resume, width=96,
@@ -309,6 +320,8 @@ async def test_extraction(limit: int = 15) -> dict:
         return f"{100 * k / n:.0f} %"
 
     print(f"\n=== Bilan sur {n} articles ===")
+    print(f"  écartés du modèle (jugés non FR): {pct(hors_llm)}"
+          + ("   ← extraction par règles, bien plus grossière" if hors_llm else ""))
     print(f"  « actualite » (fourre-tout)     : {pct(cats['actualite'])}")
     print(f"  « national » selon le modèle    : {pct(national_modele)}")
     print(f"  « national » APRÈS pipeline     : {pct(national_pipeline)}"
@@ -323,7 +336,7 @@ async def test_extraction(limit: int = 15) -> dict:
     for cat, k in cats.most_common():
         print(f"  {cat:<14} {k}")
     return {
-        "categories": dict(cats), "n": n,
+        "categories": dict(cats), "n": n, "hors_llm": hors_llm,
         "national_modele": national_modele, "national_pipeline": national_pipeline,
     }
 

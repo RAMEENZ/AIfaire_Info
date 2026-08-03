@@ -643,19 +643,71 @@ SOURCE_CAT_OVERRIDES: dict[str, str] = {
 
 
 _FRANCE_HINTS_RE = re.compile(
-    r"\b(france|français|française|paris|lyon|marseille|bordeaux|toulouse|nantes|"
-    r"lille|strasbourg|rennes|montpellier|nice|grenoble|metz|nancy|caen|rouen|"
-    r"bretagne|normandie|alsace|occitanie|provence|île-de-france|préfet|mairie|"
-    r"sncf|ratp|edf|enedis|météo-france|insee|sénat|élysée|gouvernement français|"
-    r"départem|région|commune|arrondissement)\b",
+    r"\b(france|français|française|franco-\w+|hexagone|paris|lyon|marseille|bordeaux|"
+    r"toulouse|nantes|lille|strasbourg|rennes|montpellier|nice|grenoble|metz|nancy|"
+    r"caen|rouen|bretagne|normandie|alsace|occitanie|provence|île-de-france|"
+    r"préfet|préfecture|mairie|maire|conseil municipal|"
+    r"sncf|ratp|edf|enedis|météo-france|insee|sénat|élysée|matignon|"
+    r"assemblée nationale|gendarmerie|igpn|macron|premier ministre|"
+    r"gouvernement français|départem|région|commune|arrondissement)\b",
+    re.IGNORECASE,
+)
+
+
+# Marqueurs d'un article dont le SUJET est à l'étranger. Volontairement courte
+# et sans ambiguïté : elle ne sert qu'à écarter ce qui est manifestement
+# hors-scope pour une carte de France.
+_FOREIGN_FOCUS_RE = re.compile(
+    r"\b(ukraine|ukrainien|russie|russe|moscou|kiev|kyiv|"
+    r"états-unis|etats-unis|américain|washington|new york|"
+    r"gaza|israël|israel|palestin|liban|iran|irak|syrie|"
+    r"chine|chinois|pékin|pekin|taïwan|taiwan|inde|japon|tokyo|corée|coree|"
+    r"brésil|bresil|argentine|mexique|venezuela|"
+    r"allemagne|berlin|espagne|madrid|italie|rome|portugal|lisbonne|"
+    r"royaume-uni|londres|angleterre|écosse|irlande|"
+    r"belgique|bruxelles|suisse|genève|geneve|pays-bas|amsterdam|"
+    r"canada|australie|maroc|algérie|algerie|tunisie|sénégal|senegal|"
+    r"afghanistan|soudan|éthiopie|ethiopie|nigeria|turquie|grèce|grece)\b",
     re.IGNORECASE,
 )
 
 
 def _looks_french(titre: str, description: str) -> bool:
-    """Heuristique rapide : l'article mentionne-t-il la France ou une entité française ?"""
+    """L'article relève-t-il de l'actualité française ?
+
+    Sert à épargner un appel au modèle sur les dépêches internationales, qui
+    finiraient de toute façon en « national ».
+
+    L'implantation d'origine exigeait un indice français EXPLICITE — « france »,
+    « paris », « préfet », une vingtaine de grandes villes — et concluait
+    « étranger » par défaut. Elle écartait donc massivement ce qui fait le cœur
+    du produit : « Le chef d'état-major d'Épinal suspendu », « Corte : un
+    incendie se déclare à proximité d'habitations » et « Situation signalée à
+    Carreau Z'ananas » étaient tous jugés non français (relevé du 03/08/2026) et
+    n'atteignaient jamais le modèle — l'information locale parle de petites
+    communes, précisément celles qu'aucune liste de grandes villes ne contient.
+
+    On raisonne maintenant dans le bon sens : le corpus EST de la presse
+    française, donc le doute profite au français. Seul un marqueur étranger net,
+    sans le moindre indice français, fait renoncer à l'extraction.
+    """
     text = titre + " " + (description or "")[:300]
-    return bool(_FRANCE_HINTS_RE.search(text))
+
+    if _FRANCE_HINTS_RE.search(text):
+        return True
+    # Une commune française nommée dans le titre vaut tous les indices : c'est
+    # la table des 35 000, pas une liste de vingt métropoles.
+    from app.communes_db import commune_from_text
+    if commune_from_text(titre):
+        return True
+    # Le marqueur étranger doit être dans le TITRE, qui dit le sujet. Cité dans
+    # le corps, il n'est souvent qu'une comparaison ou un élément de contexte.
+    # L'asymétrie commande la prudence : se tromper vers « français » coûte un
+    # appel au modèle, se tromper vers « étranger » dégrade un article local.
+    if _FOREIGN_FOCUS_RE.search(titre):
+        return False
+    # Aucun indice dans un sens ni dans l'autre : presse française par défaut.
+    return True
 
 
 # Plafond de gravité déterministe pour la presse. Le petit modèle local

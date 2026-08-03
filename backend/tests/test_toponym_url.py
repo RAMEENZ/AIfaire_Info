@@ -73,3 +73,41 @@ def test_url_department_when_slug_not_a_commune():
 def test_url_no_location():
     assert location_from_url("https://www.lemonde.fr/politique/article/2026/x") is None
     assert location_from_url("https://x.fr/article-12345-truc") is None  # 12345 = CP inexistant
+
+
+# ── Majuscule exigée : département vs mot courant ───────────────────────────
+
+MOTS_COURANTS_HOMONYMES = [
+    ("Vacances en juillet : plus près, moins cher… et loin des canicules !", "cher"),
+    ("Le prix du lot était trop élevé", "lot"),
+    ("La somme récoltée dépasse les attentes", "somme"),
+    ("Il fait plus froid dans le nord du pays", "nord"),
+    ("Une aube nouvelle pour le quartier", "aube"),
+    ("La manche du tournoi a été serrée", "manche"),
+]
+
+
+@pytest.mark.parametrize("titre,mot", MOTS_COURANTS_HOMONYMES)
+def test_un_mot_courant_en_minuscules_nest_pas_un_departement(titre, mot):
+    """Beaucoup de départements portent le nom d'un mot français courant. La
+    comparaison en minuscules géolocalisait « moins cher » dans le Cher
+    (relevé du 03/08/2026) : un faux marqueur, le pire des résultats."""
+    from app.pipeline.toponym import toponym_from_title
+    assert toponym_from_title(titre) is None, f"« {mot} » pris pour un département"
+
+
+NOMS_PROPRES = [
+    ("Le Cher sous la pluie : plusieurs routes coupées", "Cher"),
+    ("Incendie dans le Var : 200 hectares brûlés", "Var"),
+    ("Crue de la Somme : vigilance orange maintenue", "Somme"),
+    ("Le Nord placé en vigilance jaune", "Nord"),
+    ("Grève des transports en Île-de-France", "Île-de-France"),
+    ("Marché de Noël à Strasbourg : record d'affluence", "Strasbourg"),
+]
+
+
+@pytest.mark.parametrize("titre,attendu", NOMS_PROPRES)
+def test_le_departement_capitalise_est_toujours_reconnu(titre, attendu):
+    """Le garde-fou ne doit pas devenir un filtre à faux négatifs."""
+    from app.pipeline.toponym import toponym_from_title
+    assert toponym_from_title(titre) == attendu

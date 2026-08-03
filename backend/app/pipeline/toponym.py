@@ -12,10 +12,15 @@ from urllib.parse import urlparse
 from app.geo_data import DEPT_CODE_TO_NAME
 
 
-def _norm(s: str) -> str:
+def _unaccent(s: str) -> str:
+    """Retire accents et apostrophes typographiques, CONSERVE la casse."""
     s = s.replace("’", "'").replace("ʼ", "'").replace("´", "'").replace("`", "'")
-    s = unicodedata.normalize("NFD", s.lower())
+    s = unicodedata.normalize("NFD", s)
     return "".join(c for c in s if unicodedata.category(c) != "Mn")
+
+
+def _norm(s: str) -> str:
+    return _unaccent(s).lower()
 
 
 # Villes ambiguës (Tours, Cannes, Vannes, Valence = aussi mots courants) exclues.
@@ -45,12 +50,27 @@ _KEYS = sorted(_TOPONYMS, key=len, reverse=True)
 
 
 def toponym_from_title(titre: str) -> str | None:
+    """Département, région ou grande ville nommé dans un titre. None si aucun.
+
+    La correspondance exige une MAJUSCULE initiale dans le titre d'origine.
+    Beaucoup de départements portent le nom d'un mot français courant — Cher,
+    Var, Aube, Lot, Nord, Somme, Ain, Orne, Gers, Creuse, Indre, Manche — et la
+    comparaison en minuscules les confondait : « Vacances en juillet : plus près,
+    moins cher… » était géolocalisé dans le Cher (relevé du 03/08/2026). Un nom
+    de lieu dans un titre est un nom propre ; l'exiger écarte l'adjectif sans
+    rien perdre du toponyme.
+
+    Limite assumée : un titre entièrement en capitales échappe à ce critère.
+    """
     if not titre:
         return None
-    text = " " + _norm(titre) + " "
+    # Casse conservée : c'est elle qui distingue le nom propre du mot courant.
+    text = " " + _unaccent(titre) + " "
     for key in _KEYS:
-        if re.search(r"(?<![\w'-])" + re.escape(key) + r"(?![\w'-])", text):
-            return _TOPONYMS[key]
+        motif = r"(?<![\w'-])" + re.escape(key) + r"(?![\w'-])"
+        for m in re.finditer(motif, text, re.IGNORECASE):
+            if text[m.start()].isupper():
+                return _TOPONYMS[key]
     return None
 
 

@@ -146,6 +146,18 @@ Chaque article passe par une **extraction en cascade dégradée** (robustesse) :
 2. **Ollama local** (petit modèle) — repli si pas de Mistral.
 3. **Règles par mots-clés** — repli ultime, sans IA.
 
+Un aiguillage précède la cascade : `_looks_french` décide si l'article mérite un
+appel au modèle, pour épargner les dépêches internationales qui finiraient en
+« national » de toute façon. Il raisonne dans le sens du corpus — la presse
+française — et **le doute profite au français** : seul un marqueur étranger net
+dans le titre, sans aucun indice français, fait renoncer. L'implantation
+d'origine exigeait l'inverse (un indice français explicite parmi une vingtaine
+de métropoles) et écartait donc l'information locale, celle qui parle de petites
+communes : « Le chef d'état-major d'Épinal suspendu », « Corte : un incendie se
+déclare » n'atteignaient jamais le modèle (relevé du 03/08/2026). L'asymétrie
+commande ce choix — se tromper vers « français » coûte un appel, se tromper vers
+« étranger » dégrade durablement un article local.
+
 L'IA renvoie 6 champs : **lieu_nom**, **lieu_type** (commune / departement /
 region / national), **categorie**, **gravité** (0=info, 1=vigilance, 2=alerte,
 3=urgence), **résumé** (1-2 phrases), **tags**. La date du jour (heure de Paris)
