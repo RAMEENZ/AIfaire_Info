@@ -841,16 +841,31 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
                 updated["lieu_confiance_geo"] = 0.9
                 updated["skip_geocoding"] = True  # coords exactes, pas de re-géocodage
             else:
-                # Pas de devinette par le TITRE pour le sport : les noms de clubs
-                # contiennent des villes (« Paris FC », « AS Monaco », « OGC Nice »)
-                # → faux pins. Le département issu de l'URL reste fiable (sport local).
-                is_sport = extraction.get("categorie") == "sport"
+                # Deux cas où l'on s'interdit de DEVINER le lieu depuis le texte.
+                #
+                # 1. Le sport : les noms de clubs contiennent des villes
+                #    (« Paris FC », « AS Monaco », « OGC Nice ») → faux pins.
+                # 2. Le modèle AFFIRME une portée nationale (lieu_type =
+                #    "national"). C'est une conclusion prise en ayant lu
+                #    l'article entier, quand un lieu_nom vide n'est qu'une
+                #    absence d'information. La contredire par une expression
+                #    régulière sur le titre produit des contresens : « Incendies.
+                #    Le Var inquiet […] en Grèce » se voyait planté dans le Var
+                #    alors que l'article traitait des feux de Gironde (relevé du
+                #    03/08/2026).
+                #
+                # Le repli par URL, lui, reste appliqué dans les deux cas : un
+                # code INSEE ou postal dans le chemin est un fait, pas une
+                # devinette.
+                sans_devinette_textuelle = (
+                    extraction.get("categorie") == "sport" or _lieu_type == "national"
+                )
                 # Commune nommée dans le titre : la table locale couvre 35 000
                 # communes là où la liste de toponymes n'en connaît que ~70
                 # (grandes villes). Garde-fous dans commune_from_text :
                 # population ≥ 3 000, nom propre, liste noire d'homonymes.
                 commune = None
-                if not is_sport:
+                if not sans_devinette_textuelle:
                     from app.communes_db import commune_from_text
                     commune = commune_from_text(item.get("titre", ""))
                 if commune:
@@ -864,7 +879,10 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
                     updated["lieu_confiance_geo"] = 0.75
                     updated["skip_geocoding"] = True
                 else:
-                    _topo = None if is_sport else toponym_from_title(item.get("titre", ""))
+                    _topo = (
+                        None if sans_devinette_textuelle
+                        else toponym_from_title(item.get("titre", ""))
+                    )
                     if not _topo and loc:
                         _topo = loc["lieu_nom"]
                     if _topo:

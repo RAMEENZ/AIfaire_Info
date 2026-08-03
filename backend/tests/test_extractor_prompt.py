@@ -312,3 +312,71 @@ def test_le_prompt_interdit_de_commenter_l_article(prompt):
     local. » Le résumé doit rapporter le fait, pas le texte qui le rapporte."""
     assert '"l\'article"' in prompt or "\"l'article\"" in prompt
     assert "Rapporte LE FAIT" in prompt
+
+
+# ── L'affirmation « national » du modèle prime sur les devinettes textuelles ──
+
+async def test_national_affirme_par_le_modele_nest_pas_contredit_par_le_titre(monkeypatch):
+    """Relevé le 03/08/2026 : « Incendies. Le Var inquiet […] en Grèce » se
+    voyait planté dans le Var alors que l'article traitait des feux de Gironde.
+    Le modèle avait lu l'article entier et conclu « national » ; une expression
+    régulière sur le titre l'a contredit."""
+    async def _extraction(*args, **kwargs):
+        return {
+            "lieu_nom": "national", "lieu_type": "national", "categorie": "incendie",
+            "resume_ia": "Des milliers d'habitants évacués en Gironde ont pu rentrer.",
+            "gravite": 1, "tags": ["évacuation"],
+        }
+
+    monkeypatch.setattr(extractor, "extract_article", _extraction)
+    monkeypatch.setattr(extractor.settings, "FETCH_FULL_ARTICLES", False)
+    extractor._extract_cache.clear()
+
+    out = await extractor.maybe_extract({
+        "source": "presse_rss",
+        "titre": "Incendies. Le Var inquiet face aux vents violents, le feu redouble en Grèce",
+        "description": "", "source_url": "https://example.com/sans-indice",
+    })
+    assert out["lieu_nom"] == "national"
+
+
+async def test_national_sans_lieu_type_reste_rattrapable_par_le_titre(monkeypatch):
+    """Le garde-fou ne vaut que pour une AFFIRMATION. Un lieu_type absent n'est
+    qu'une absence d'information : le repli par le titre garde tout son sens,
+    c'est lui qui a fait passer la localisation de 66 % à 80 %."""
+    async def _extraction(*args, **kwargs):
+        return {
+            "lieu_nom": "national", "lieu_type": "", "categorie": "culture",
+            "resume_ia": "Une exposition ouvre ses portes.", "gravite": 0, "tags": ["expo"],
+        }
+
+    monkeypatch.setattr(extractor, "extract_article", _extraction)
+    monkeypatch.setattr(extractor.settings, "FETCH_FULL_ARTICLES", False)
+    extractor._extract_cache.clear()
+
+    out = await extractor.maybe_extract({
+        "source": "presse_rss", "titre": "Marché de Noël à Strasbourg : record d'affluence",
+        "description": "", "source_url": "https://example.com/x",
+    })
+    assert out["lieu_nom"] == "Strasbourg"
+
+
+async def test_le_repli_par_url_sapplique_meme_si_le_modele_affirme_national(monkeypatch):
+    """Un code INSEE ou postal dans le chemin de l'URL est un fait, pas une
+    devinette : il reste appliqué là où l'inférence textuelle est écartée."""
+    async def _extraction(*args, **kwargs):
+        return {
+            "lieu_nom": "national", "lieu_type": "national", "categorie": "actualite",
+            "resume_ia": "Un fait divers.", "gravite": 0, "tags": ["divers"],
+        }
+
+    monkeypatch.setattr(extractor, "extract_article", _extraction)
+    monkeypatch.setattr(extractor.settings, "FETCH_FULL_ARTICLES", False)
+    extractor._extract_cache.clear()
+
+    out = await extractor.maybe_extract({
+        "source": "presse_rss", "titre": "Un fait divers sans lieu dans le titre",
+        "description": "",
+        "source_url": "https://www.leparisien.fr/essonne-91/un-fait-divers",
+    })
+    assert out["lieu_nom"] == "Essonne"
