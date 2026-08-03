@@ -124,6 +124,75 @@ def test_aucun_tag_creux_ne_survit_a_la_liste_noire():
     assert out["tags"] == []
 
 
+def test_un_tag_qui_repete_le_lieu_est_ecarte():
+    """Observé en production : lieu_nom « Leyme » et tag « leyme ». Le lieu est
+    déjà un champ ; le répéter en tag ne fait filtrer personne."""
+    out = _validate_extraction({
+        "lieu_nom": "Leyme", "categorie": "culture",
+        "tags": ["opéra", "leyme", "puccini"],
+    })
+    assert out["tags"] == ["opéra", "puccini"]
+
+
+def test_le_tag_du_lieu_est_ecarte_malgre_accents_et_traits_dunion():
+    out = _validate_extraction({
+        "lieu_nom": "Mont-de-Marsan", "categorie": "incendie",
+        "tags": ["mont de marsan", "parking", "véhicules"],
+    })
+    assert out["tags"] == ["parking", "véhicules"]
+
+
+def test_un_tag_qui_repete_la_categorie_est_ecarte():
+    out = _validate_extraction({
+        "lieu_nom": "Vénissieux", "categorie": "ordre_public",
+        "tags": ["ordre public", "cambriolage", "interpellation"],
+    })
+    assert out["tags"] == ["cambriolage", "interpellation"]
+
+
+def test_les_tags_en_double_sont_fusionnes():
+    out = _validate_extraction({"tags": ["Grève", "grève", "GRÈVE", "sncf"]})
+    assert out["tags"] == ["grève", "sncf"]
+
+
+def test_un_tag_proche_du_lieu_sans_etre_le_lieu_est_conserve():
+    """Le filtre ne doit pas mordre sur les quartiers ou les lieux-dits, qui eux
+    apportent une précision que le champ lieu ne porte pas."""
+    out = _validate_extraction({
+        "lieu_nom": "Mont-de-Marsan", "categorie": "incendie",
+        "tags": ["quartier du peyrouat", "parking"],
+    })
+    assert "quartier du peyrouat" in out["tags"]
+
+
+# ── Troncature des résumés ──────────────────────────────────────────────────
+
+def test_le_resume_long_est_coupe_a_la_derniere_phrase_complete():
+    """`[:500]` tranchait au caractère près et laissait des moignons du genre
+    « La pénurie nationale att » servis tels quels dans le fil."""
+    phrase = "Un incendie a détruit un entrepôt et mobilisé quarante pompiers toute la nuit. "
+    out = _validate_extraction({"resume_ia": phrase * 10})["resume_ia"]
+    assert len(out) <= 500
+    assert out.endswith(".")
+    assert not out.endswith("…")
+    # Aucun mot tronqué : le texte reste un multiple entier de la phrase.
+    assert out.count("pompiers") == out.count("incendie")
+
+
+def test_le_resume_sans_ponctuation_est_coupe_au_mot():
+    """Repli quand aucune phrase complète ne tient dans le budget : on coupe au
+    mot et on le signale par une ellipse, jamais au milieu d'un mot."""
+    out = _validate_extraction({"resume_ia": "mot " * 300})["resume_ia"]
+    assert len(out) <= 501  # 500 + l'ellipse
+    assert out.endswith("…")
+    assert not out.endswith("mo…")
+
+
+def test_le_resume_court_est_intact():
+    texte = "Trois blessés dans une collision à Colmar."
+    assert _validate_extraction({"resume_ia": texte})["resume_ia"] == texte
+
+
 @pytest.mark.parametrize("valeur,attendu", [
     ("commune", "commune"),
     ("Commune", "commune"),

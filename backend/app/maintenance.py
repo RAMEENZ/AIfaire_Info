@@ -5,15 +5,19 @@
     docker compose exec backend python -m app.maintenance vapid-keys
     docker compose exec backend python -m app.maintenance test-brief [--hours 24]
     docker compose exec backend python -m app.maintenance test-extraction [--limit 15]
+    docker compose exec backend python -m app.maintenance clean-extractions [--dry-run]
 
 Les deux commandes `test-*` servent à juger les prompts sur les données
 réelles : elles appellent le modèle mais n'écrivent RIEN en base.
+`clean-extractions` fait l'inverse : aucun appel au modèle, mais elle répare
+les extractions déjà stockées (tags redondants, résumés coupés).
 
 Placé dans le package `app` (et non dans scripts/) car l'image Docker ne copie
 que `app/` — un script sous scripts/ ne serait pas présent en production.
 """
 import asyncio
 import sys
+import textwrap
 from collections import Counter
 from typing import Optional
 
@@ -236,37 +240,109 @@ async def test_extraction(limit: int = 15) -> dict:
 
     cats: Counter = Counter()
     lieux: Counter = Counter()
-    tags_total = paraphrases = 0
+    tags_total = paraphrases = inacheves = sans_tags = 0
 
     for e in rows:
         res = await extract_article(e.titre, e.resume_ia or "", None)
+        resume = res["resume_ia"]
         cats[res["categorie"]] += 1
         lieux[res.get("lieu_type") or ("national" if res["lieu_nom"] == "national" else "?")] += 1
         tags_total += len(res["tags"])
+        if not res["tags"]:
+            sans_tags += 1
         # Un résumé qui reprend le titre mot pour mot n'apporte rien : le prompt
         # l'interdit explicitement, on vérifie que la consigne passe.
         mots_titre = set(e.titre.lower().split())
-        mots_resume = set(res["resume_ia"].lower().split())
+        mots_resume = set(resume.lower().split())
         if mots_titre and len(mots_titre & mots_resume) / len(mots_titre) > 0.8:
             paraphrases += 1
+        # Un résumé qui ne se termine pas par une ponctuation forte a été coupé
+        # quelque part — c'est le défaut qu'on ne voit pas en lisant en diagonale.
+        if resume and resume[-1] not in ".!?…»\"":
+            inacheves += 1
 
-        print(f"\n— {e.titre[:100]}")
+        # Titre et résumé affichés ENTIERS : une coupe d'affichage ferait passer
+        # un résumé sain pour un résumé tronqué (elle l'a déjà fait).
+        print(f"\n— {e.titre}")
         print(f"  catégorie {res['categorie']:<12} lieu {res['lieu_nom']} "
               f"({res.get('lieu_type') or 'type non fourni'})  gravité {res['gravite']}")
         print(f"  tags      {', '.join(res['tags']) or '(aucun)'}")
-        print(f"  résumé    {res['resume_ia'][:180]}")
+        print(textwrap.fill(resume, width=96,
+                            initial_indent="  résumé    ", subsequent_indent="            "))
 
     n = len(rows)
+
+    def pct(k: int) -> str:
+        return f"{100 * k / n:.0f} %"
+
     print(f"\n=== Bilan sur {n} articles ===")
-    print(f"  « actualite » (fourre-tout) : {100 * cats['actualite'] / n:.0f} %")
-    print(f"  « national » (hors carte)   : {100 * lieux['national'] / n:.0f} %")
-    print(f"  lieu_type renseigné         : {100 * (n - lieux['?']) / n:.0f} %")
-    print(f"  tags par article            : {tags_total / n:.1f}")
-    print(f"  résumés paraphrasant le titre : {100 * paraphrases / n:.0f} %")
+    print(f"  « actualite » (fourre-tout)   : {pct(cats['actualite'])}")
+    print(f"  « national » (hors carte)     : {pct(lieux['national'])}")
+    print(f"  lieu_type renseigné           : {pct(n - lieux['?'])}")
+    print(f"  tags par article              : {tags_total / n:.1f}")
+    print(f"  articles sans aucun tag       : {pct(sans_tags)}")
+    print(f"  résumés paraphrasant le titre : {pct(paraphrases)}")
+    print(f"  résumés coupés en cours       : {pct(inacheves)}")
     print("\nRépartition des catégories :")
     for cat, k in cats.most_common():
         print(f"  {cat:<14} {k}")
     return {"categories": dict(cats), "n": n}
+
+
+async def clean_extractions(dry_run: bool = False) -> dict:
+    """Répare les extractions déjà en base, sans rappeler le modèle.
+
+    Deux défauts se sont accumulés avant leur correction dans le pipeline :
+    des résumés coupés au caractère près (« La pénurie nationale att ») et des
+    tags qui répètent le lieu ou la catégorie. Les deux sont réparables de
+    façon déterministe à partir de ce qui est stocké — une ré-extraction
+    coûterait un appel LLM par article et ne serait pas reproductible.
+    """
+    from app.pipeline.extractor import _clean_tags
+    from app.pipeline.sanitize import last_complete_sentence
+
+    tags_nettoyes = resumes_repares = resumes_irreparables = 0
+
+    async with AsyncSessionLocal() as session:
+        rows = (await session.execute(select(Event))).scalars().all()
+        print(f"{len(rows)} événements à examiner…")
+
+        for e in rows:
+            propres = _clean_tags(list(e.tags or []), e.lieu_nom or "", e.categorie or "")
+            if propres != list(e.tags or []):
+                tags_nettoyes += 1
+                if not dry_run:
+                    e.tags = propres
+
+            resume = (e.resume_ia or "").strip()
+            # Un résumé qui ne s'achève pas sur une ponctuation forte a été
+            # tranché. On le ramène à sa dernière phrase complète — à condition
+            # qu'il en reste l'essentiel, sinon on préfère un texte imparfait à
+            # un texte amputé de moitié.
+            if resume and resume[-1] not in ".!?…»\"":
+                repare = last_complete_sentence(resume)
+                if repare and len(repare) >= len(resume) // 2:
+                    resumes_repares += 1
+                    if not dry_run:
+                        e.resume_ia = repare
+                else:
+                    resumes_irreparables += 1
+
+        if not dry_run:
+            await session.commit()
+
+    mode = "SIMULATION — rien écrit" if dry_run else "appliqué"
+    print(f"[{mode}] {tags_nettoyes} listes de tags élaguées, "
+          f"{resumes_repares} résumés ramenés à leur dernière phrase complète, "
+          f"{resumes_irreparables} résumés coupés laissés tels quels "
+          f"(aucune phrase complète à isoler, ou la réparation en aurait ôté plus "
+          f"de la moitié)")
+    return {
+        "tags_nettoyes": tags_nettoyes,
+        "resumes_repares": resumes_repares,
+        "resumes_irreparables": resumes_irreparables,
+        "dry_run": dry_run,
+    }
 
 
 def _arg_int(argv: list[str], nom: str, defaut: int) -> int:
@@ -297,6 +373,9 @@ def _main(argv: list[str]) -> int:
         return 0
     if cmd == "test-extraction":
         asyncio.run(test_extraction(limit=_arg_int(argv, "--limit", 15)))
+        return 0
+    if cmd == "clean-extractions":
+        asyncio.run(clean_extractions(dry_run="--dry-run" in argv))
         return 0
     print(__doc__)
     return 2

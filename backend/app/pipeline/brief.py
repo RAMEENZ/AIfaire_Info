@@ -52,17 +52,13 @@ def _missing_sections(content: str) -> list[str]:
 
 
 def _truncate_words(text: str, limit: int) -> str:
-    """Tronque sur une frontière de mot, jamais au milieu.
+    """Tronque la matière soumise au modèle sur une frontière de mot.
 
     La coupe brute à 200 caractères pouvait laisser un mot — ou un nombre —
-    tranché en deux dans la matière soumise au modèle, qui n'a alors aucun
-    moyen de savoir si « 3 0 » valait 30 ou 3 000.
+    tranché en deux, et le modèle n'a alors aucun moyen de savoir si « 3 0 »
+    valait 30 ou 3 000.
     """
-    text = " ".join(text.split())
-    if len(text) <= limit:
-        return text
-    coupe = text[:limit].rsplit(" ", 1)[0]
-    return (coupe or text[:limit]).rstrip(" ,;:–-") + "…"
+    return truncate_clean(text, limit)
 
 
 _VIGILANCE_CATS = frozenset({"meteo", "crue", "seisme"})
@@ -117,6 +113,7 @@ from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models import DailyBrief, Event
 from app.pipeline.sanitize import sanitize_markdown as _sanitize_brief
+from app.pipeline.sanitize import truncate_clean
 
 logger = logging.getLogger(__name__)
 

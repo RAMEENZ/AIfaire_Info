@@ -221,3 +221,88 @@ async def test_events_stats_history_vide_sans_agregat(client):
     r = await client.get("/api/stats/history?days=30")
     assert r.status_code == 200
     assert r.json()["stats"] == []
+
+
+async def test_clean_extractions_repare_tags_et_resumes(client, monkeypatch):
+    """La commande de réparation agit sur des données réelles : on la vérifie
+    sur une vraie base, pas sur des objets simulés.
+
+    Deux défauts corrigés dans le pipeline avaient déjà écrit en base : tags
+    redondants avec le lieu/la catégorie, et résumés tranchés au caractère près.
+    """
+    from app.maintenance import clean_extractions
+    from app.models import Event
+    from sqlalchemy import select
+
+    now = datetime.now(timezone.utc)
+    resume_coupe = (
+        "Le département peine à recruter des maîtres-nageurs sauveteurs pour "
+        "surveiller les bassins cet été. La pénurie nationale att"
+    )
+    async with client.session_factory() as session:
+        session.add(Event(
+            id="repair-1", source="presse_rss",
+            source_url=f"https://example.com/r-{uuid.uuid4()}",
+            titre="Recrutement sous tension", date_publication=now,
+            categorie="economie", gravite=0,
+            lieu_nom="Leyme", lieu_niveau="commune", lieu_confiance_geo=0.9,
+            tags=["leyme", "economie", "recrutement", "recrutement", "piscine"],
+            resume_ia=resume_coupe, score_confiance=1.0, created_at=now,
+        ))
+        await session.commit()
+
+    # `clean_extractions` ouvre sa propre session : on la branche sur la base
+    # de test, sinon elle viserait la base de production.
+    import app.maintenance as maintenance
+    monkeypatch.setattr(maintenance, "AsyncSessionLocal", client.session_factory)
+
+    simulation = await clean_extractions(dry_run=True)
+    assert simulation["tags_nettoyes"] == 1
+    assert simulation["resumes_repares"] == 1
+    async with client.session_factory() as session:
+        intact = (await session.execute(select(Event).where(Event.id == "repair-1"))).scalar_one()
+        assert intact.resume_ia == resume_coupe, "le mode simulation ne doit rien écrire"
+
+    await clean_extractions(dry_run=False)
+
+    async with client.session_factory() as session:
+        repare = (await session.execute(select(Event).where(Event.id == "repair-1"))).scalar_one()
+    # Le lieu, la catégorie et le doublon sont partis ; le reste est conservé.
+    assert repare.tags == ["recrutement", "piscine"]
+    # Le résumé s'arrête à sa dernière phrase complète, sans moignon.
+    assert repare.resume_ia.endswith("cet été.")
+    assert "att" not in repare.resume_ia[-10:]
+
+
+async def test_clean_extractions_laisse_intact_ce_qui_est_sain(client, monkeypatch):
+    """Une passe de réparation qui abîme les données saines est pire que le
+    défaut qu'elle corrige : elle doit être idempotente et sans effet ici."""
+    from app.maintenance import clean_extractions
+    from app.models import Event
+    from sqlalchemy import select
+
+    now = datetime.now(timezone.utc)
+    async with client.session_factory() as session:
+        session.add(Event(
+            id="sain-1", source="presse_rss",
+            source_url=f"https://example.com/s-{uuid.uuid4()}",
+            titre="Incendie maîtrisé", date_publication=now,
+            categorie="incendie", gravite=1,
+            lieu_nom="Colmar", lieu_niveau="commune", lieu_confiance_geo=0.9,
+            tags=["entrepôt", "pompiers"],
+            resume_ia="Un entrepôt a brûlé cette nuit, sans faire de blessé.",
+            score_confiance=1.0, created_at=now,
+        ))
+        await session.commit()
+
+    import app.maintenance as maintenance
+    monkeypatch.setattr(maintenance, "AsyncSessionLocal", client.session_factory)
+
+    bilan = await clean_extractions(dry_run=False)
+    assert bilan == {"tags_nettoyes": 0, "resumes_repares": 0,
+                     "resumes_irreparables": 0, "dry_run": False}
+
+    async with client.session_factory() as session:
+        e = (await session.execute(select(Event).where(Event.id == "sain-1"))).scalar_one()
+    assert e.tags == ["entrepôt", "pompiers"]
+    assert e.resume_ia == "Un entrepôt a brûlé cette nuit, sans faire de blessé."

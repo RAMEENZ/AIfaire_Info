@@ -126,7 +126,20 @@ sections manquantes, formules creuses, Markdown résiduel, redites entre
 sections. `test-extraction` rejoue l'extraction sur les derniers articles et
 mesure ce qui compte — part de « actualite » (le fourre-tout), part de
 « national » (hors carte), `lieu_type` renseigné, nombre de tags, résumés qui
-ne font que paraphraser le titre.
+paraphrasent le titre, résumés coupés en cours de phrase.
+
+Une troisième commande répare les extractions **déjà en base**, sans appeler le
+modèle (tags qui répètent le lieu ou la catégorie, résumés tranchés par
+l'ancienne coupe à 500 caractères) :
+
+```bash
+docker compose exec backend python -m app.maintenance clean-extractions --dry-run
+docker compose exec backend python -m app.maintenance clean-extractions
+```
+
+Les textes sont désormais tronqués sur une frontière de phrase ou de mot
+(`sanitize.truncate_clean`) : une coupe au caractère près laissait des moignons
+du genre « La pénurie nationale att » dans le fil, puis dans le brief du soir.
 
 Côté non-régression, `tests/test_brief_prompt.py` et
 `tests/test_extractor_prompt.py` verrouillent hors ligne ce que les prompts

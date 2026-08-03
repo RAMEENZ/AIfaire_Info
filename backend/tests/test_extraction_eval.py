@@ -66,6 +66,14 @@ CAS_CATEGORIE: list[tuple[str, str | None]] = [
     ("Le conseil régional finance la rénovation du lycée", "politique"),
     ("Liquidation judiciaire : la scierie ferme ses portes", "economie"),
     ("Chiffre d'affaires en hausse pour la coopérative", "economie"),
+    # Emploi : classé d'après le sujet, pas d'après le secteur du métier.
+    # « Le recrutement de maîtres-nageurs sous tension » sortait en « sante »
+    # côté LLM (relevé du 03/08/2026) ; la règle et le prompt disent economie.
+    ("Le recrutement de maîtres-nageurs sous tension", "economie"),
+    ("L'hôpital peine à recruter des infirmiers", "economie"),
+    ("Vingt-six employés au chômage technique après le sinistre", "economie"),
+    # …mais l'accès aux soins reste un sujet de santé.
+    ("Désert médical : la commune cherche un médecin", "sante"),
     ("Un piéton renversé sur la départementale", "transport"),
     ("Vol annulé à l'aéroport après une panne technique", "transport"),
     ("Le tramway sera prolongé jusqu'à la zone d'activité", "transport"),

@@ -4,6 +4,7 @@ import html as _html
 import json
 import logging
 import re
+import unicodedata
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -20,7 +21,7 @@ from app.categories import (
 )
 from app.config import settings
 from app.pipeline.geocoder import geocode
-from app.pipeline.sanitize import sanitize_markdown
+from app.pipeline.sanitize import sanitize_markdown, truncate_clean
 
 logger = logging.getLogger(__name__)
 
@@ -77,17 +78,32 @@ Départage des cas fréquents :
 - Incendie de forêt ou d'habitation → "incendie" (même si l'origine est criminelle)
 - Accident de la route, travaux, trafic, train, avion → "transport"
 - Vie municipale, élections, préfecture, budget public → "politique"
-- Entreprise, emploi, commerce, agriculture, immobilier → "economie"
-- Hôpital, épidémie, rappel de produit, médecine → "sante"
+- Entreprise, commerce, agriculture, immobilier → "economie"
+- Hôpital, épidémie, rappel de produit, médecine, alerte sanitaire → "sante"
 - Festival, musée, patrimoine, spectacle, sport de loisir associatif → "culture"
 - Compétition sportive, club, match, championnat → "sport"
+
+Classe d'après le SUJET de l'article, pas d'après le secteur de la personne dont
+il parle. Deux pièges récurrents :
+- Emploi, recrutement, pénurie de main-d'œuvre, salaires, plan social → toujours
+  "economie", même quand le métier concerné relève de la santé, du sport ou de
+  l'enseignement. Recruter des infirmiers ou des maîtres-nageurs est un sujet
+  d'emploi, pas un sujet médical ou sportif.
+- Un texte de loi, une délibération, un budget public → "politique", même quand
+  il porte sur l'industrie, la santé ou les transports.
 
 ═══ resume_ia ═══
 1 à 2 phrases factuelles, en français, qui répondent à : quoi, où, qui, avec quelle conséquence.
 - N'écris PAS une paraphrase du titre : apporte l'information que le titre ne donne pas
   (chiffres, circonstances, suites).
+  Épreuve à passer : si ton résumé, lu seul, n'apprend rien de plus que le titre, il est raté.
+  Recommence en cherchant dans le texte un chiffre, une date, une cause ou une conséquence.
+- Ne commence pas en recopiant les mots du titre.
 - Aucune formule d'accroche ni de teasing ("on vous explique", "voici pourquoi").
-- Si le texte est trop pauvre pour un vrai résumé, reformule sobrement le fait principal.
+- Termine par une phrase complète, point final compris. Mieux vaut une phrase entière
+  que deux dont la seconde s'arrête au milieu.
+- Si le texte est trop pauvre pour un vrai résumé, reformule sobrement le fait principal
+  en une phrase, et arrête-toi là — n'étire pas, ne suppose pas.
 
 ═══ gravite ═══
 Mesure l'impact réel sur la population, pas l'émotion suscitée.
@@ -102,9 +118,11 @@ En cas d'hésitation entre deux niveaux, choisis le plus bas.
 
 ═══ tags ═══
 3 à 5 mots-clés thématiques, en minuscules, sans accent superflu ni doublon.
-- Ne répète ni lieu_nom ni categorie.
+- Ne répète NI lieu_nom NI categorie, ni aucune de leurs variantes : sur un article
+  situé à Leyme, "leyme" est un tag inutile — le lieu est déjà un champ.
 - Interdits car sans valeur de filtrage : "france", "actualité", "info", "news", "société".
 - Préfère le concret : "grève", "canicule", "rappel produit", "conseil municipal".
+- Un bon tag est celui qu'un lecteur taperait pour retrouver ce type d'article.
 
 ═══ FORMAT ═══
 Réponds UNIQUEMENT par un objet JSON valide, sans texte avant ni après :
@@ -113,13 +131,16 @@ Réponds UNIQUEMENT par un objet JSON valide, sans texte avant ni après :
 Exemples :
 
 Article : "Incendie dans un entrepôt de Vénissieux : 40 pompiers mobilisés, aucun blessé"
-{"lieu_nom": "Vénissieux", "lieu_type": "commune", "categorie": "incendie", "resume_ia": "Un entrepôt de Vénissieux a pris feu dans la nuit, mobilisant 40 pompiers. Le sinistre n'a fait aucun blessé.", "gravite": 1, "tags": ["incendie", "entrepôt", "pompiers"]}
+{"lieu_nom": "Vénissieux", "lieu_type": "commune", "categorie": "incendie", "resume_ia": "Un entrepôt de Vénissieux a pris feu dans la nuit, mobilisant 40 pompiers. Le sinistre n'a fait aucun blessé.", "gravite": 1, "tags": ["entrepôt", "pompiers", "sinistre"]}
 
 Article : "Le conseil municipal vote le budget 2027 à l'unanimité"
 {"lieu_nom": "national", "lieu_type": "national", "categorie": "politique", "resume_ia": "Le conseil municipal a adopté son budget 2027 à l'unanimité.", "gravite": 0, "tags": ["conseil municipal", "budget", "vote"]}
 
 Article : "Guerre en Ukraine : nouvelle frappe sur Kharkiv"
 {"lieu_nom": "national", "lieu_type": "national", "categorie": "actualite", "resume_ia": "Une nouvelle frappe a visé la ville de Kharkiv, en Ukraine.", "gravite": 0, "tags": ["ukraine", "frappe", "conflit"]}
+
+Article : "Le recrutement de maîtres-nageurs sous tension dans le Tarn-et-Garonne"
+{"lieu_nom": "Tarn-et-Garonne", "lieu_type": "departement", "categorie": "economie", "resume_ia": "Le département peine à recruter des maîtres-nageurs sauveteurs pour surveiller ses bassins cet été. La pénurie de diplômés touche l'ensemble du pays.", "gravite": 0, "tags": ["recrutement", "pénurie", "piscine"]}
 """
 
 # Prompt allégé pour les petits modèles locaux (qwen2.5:1.5b, phi3:mini…).
@@ -136,16 +157,21 @@ Champs :
 - lieu_type : "commune", "departement", "region" ou "national".
 - categorie : UN SEUL parmi : __CATEGORIES_PLAIN__
   N'utilise "actualite" que si aucune autre ne convient.
-  Repères : fait divers/justice → ordre_public ; route/train → transport ; mairie/élection → politique ;
-  entreprise/emploi → economie ; feu → incendie ; festival/musée → culture ; match/club → sport.
+  Repères : fait divers/justice → ordre_public ; route/train → transport ; mairie/élection/loi → politique ;
+  entreprise/emploi/recrutement → economie ; feu → incendie ; festival/musée → culture ; match/club → sport.
+  Classe d'après le sujet, pas d'après le métier : recruter des infirmiers ou des
+  maîtres-nageurs est un sujet d'emploi (economie), pas de santé ni de sport.
 - resume_ia : 1 phrase factuelle qui apporte plus que le titre (chiffres, circonstances).
+  Si elle ne fait que redire le titre, elle est inutile. Termine-la par un point.
 - gravite : 0=info (la plupart), 1=vigilance, 2=alerte officielle, 3=urgence nationale (très rare).
   En cas de doute, prends le plus bas.
-- tags : 3 à 5 mots-clés en minuscules, concrets, sans "france" ni "actualité".
+- tags : 3 à 5 mots-clés en minuscules, concrets, sans "france" ni "actualité",
+  et sans redire le lieu ni la catégorie.
 
 Exemples :
-{"lieu_nom": "Vénissieux", "lieu_type": "commune", "categorie": "incendie", "resume_ia": "Un entrepôt a brûlé cette nuit, mobilisant 40 pompiers, sans faire de blessé.", "gravite": 1, "tags": ["incendie", "entrepôt", "pompiers"]}
+{"lieu_nom": "Vénissieux", "lieu_type": "commune", "categorie": "incendie", "resume_ia": "Un entrepôt a brûlé cette nuit, mobilisant 40 pompiers, sans faire de blessé.", "gravite": 1, "tags": ["entrepôt", "pompiers"]}
 {"lieu_nom": "national", "lieu_type": "national", "categorie": "politique", "resume_ia": "Le conseil municipal a adopté son budget 2027 à l'unanimité.", "gravite": 0, "tags": ["conseil municipal", "budget"]}
+{"lieu_nom": "Tarn-et-Garonne", "lieu_type": "departement", "categorie": "economie", "resume_ia": "Le département peine à recruter des maîtres-nageurs pour surveiller ses bassins cet été.", "gravite": 0, "tags": ["recrutement", "pénurie", "piscine"]}
 """
 
 # Injection de la liste canonique des catégories (source unique : app.categories)
@@ -206,7 +232,10 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
                      "intoxication", "rappel de lot", "listeria", "salmonelle", "grippe",
                      "gastro-entérite", "dépistage", "vaccination", "variole du singe",
                      "ansm", "médicament", "dispositif médical", "alerte sanitaire",
-                     "crise sanitaire", "canicule sanitaire", "surveillance épidémique"],
+                     "crise sanitaire", "canicule sanitaire", "surveillance épidémique",
+                     # Accès aux soins : c'est bien un sujet de santé, à distinguer
+                     # du recrutement d'un soignant, qui relève de l'emploi.
+                     "désert médical", "déserts médicaux", "accès aux soins"],
     "sport":        ["football", "rugby", "tennis", "basket", "handball", "cyclisme",
                      "ligue 1", "ligue des champions", "coupe de france", "roland-garros",
                      "jeux olympiques", "tour de france", "formule 1", "grand prix",
@@ -221,7 +250,13 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
                      "recrutement", "créations d'emplois", "chiffre d'affaires",
                      "commerçant", "artisan", "zone d'activité", "agriculteur",
                      "agriculture", "viticulture", "récolte", "exploitation agricole",
-                     "immobilier", "prix de l'immobilier", "start-up", "chambre de commerce"],
+                     "immobilier", "prix de l'immobilier", "start-up", "chambre de commerce",
+                     # Emploi : un sujet d'embauche reste économique même quand le
+                     # métier relève de la santé ou du sport (maîtres-nageurs,
+                     # infirmiers). Le classement suit le sujet, pas le secteur.
+                     "recruter", "embauche", "embaucher", "main-d'œuvre",
+                     "pénurie de personnel", "offre d'emploi", "poste vacant",
+                     "salaire", "syndicat", "chômage technique", "apprentissage"],
     "politique":    ["conseil municipal", "conseil départemental", "conseil régional",
                      "intercommunalité", "communauté de communes", "municipales",
                      "préfet", "délibération", "budget municipal", "adjoint au maire",
@@ -289,6 +324,44 @@ _USELESS_TAGS = frozenset({
 _LIEU_TYPES = frozenset({"commune", "departement", "region", "national"})
 
 
+def _tag_key(valeur: str) -> str:
+    """Forme canonique d'un tag, pour comparer « Leyme », « leyme » et « LEYME »,
+    ou « ordre public » et « ordre_public »."""
+    decompose = unicodedata.normalize("NFD", valeur.lower())
+    sans_accent = "".join(c for c in decompose if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9]", "", sans_accent)
+
+
+_USELESS_TAG_KEYS = frozenset(_tag_key(t) for t in _USELESS_TAGS)
+
+
+def _clean_tags(raw_tags: Any, lieu_nom: str, categorie: str) -> list[str]:
+    """Normalise, dédoublonne et élague les tags renvoyés par le modèle.
+
+    Le prompt interdit déjà de répéter le lieu ou la catégorie et de produire
+    des mots-clés creux — mais le modèle le fait quand même (« leyme » sur un
+    article dont lieu_nom vaut « Leyme »). Un tag qui reprend une information
+    déjà portée par un autre champ n'aide à filtrer personne.
+    """
+    if not isinstance(raw_tags, list):
+        return []
+    exclus = {_tag_key(lieu_nom), _tag_key(categorie)} | _USELESS_TAG_KEYS
+    tags: list[str] = []
+    vus: set[str] = set()
+    for brut in raw_tags:
+        if not brut or not str(brut).strip():
+            continue
+        tag = str(brut).strip().lower()
+        cle = _tag_key(tag)
+        if not cle or cle in exclus or cle in vus:
+            continue
+        vus.add(cle)
+        tags.append(tag)
+        if len(tags) == 5:
+            break
+    return tags
+
+
 def _validate_extraction(raw: dict) -> dict[str, Any]:
     """Normalize and validate a raw extraction dict from any AI backend."""
     _raw_lieu = raw.get("lieu_nom")
@@ -305,27 +378,23 @@ def _validate_extraction(raw: dict) -> dict[str, Any]:
         categorie = DEFAULT_CATEGORY
 
     _raw_resume = raw.get("resume_ia")
-    resume_ia = sanitize_markdown(
-        str(_raw_resume).strip() if _raw_resume and _raw_resume != "null" else ""
-    )[:500]
+    # Coupe à la dernière phrase complète : `[:500]` tranchait au caractère près
+    # et laissait des moignons (« La pénurie nationale att ») directement servis
+    # dans le fil et repris tels quels dans le brief du soir.
+    resume_ia = truncate_clean(
+        sanitize_markdown(
+            str(_raw_resume).strip() if _raw_resume and _raw_resume != "null" else ""
+        ),
+        500,
+        prefer_sentence=True,
+    )
 
     try:
         gravite = max(0, min(3, int(raw.get("gravite", 0))))
     except (TypeError, ValueError):
         gravite = 0
 
-    raw_tags = raw.get("tags", [])
-    if isinstance(raw_tags, list):
-        tags = [
-            t for t in (str(x).strip().lower() for x in raw_tags if x and str(x).strip())
-            # Tags sans valeur de filtrage : ils ne discriminent rien puisque
-            # tout le corpus est de l'actualité française. Le prompt les
-            # interdit ; on filtre aussi côté serveur, le modèle en produisant
-            # encore par habitude.
-            if t not in _USELESS_TAGS
-        ][:5]
-    else:
-        tags = []
+    tags = _clean_tags(raw.get("tags", []), lieu_nom, categorie)
 
     # lieu_type : facultatif (les modèles anciens ou petits peuvent l'omettre).
     # Sert au géocodeur à lever les homonymies ville/département (« Vienne »).
