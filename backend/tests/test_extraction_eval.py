@@ -56,9 +56,27 @@ CAS_CATEGORIE: list[tuple[str, str | None]] = [
     ("Remaniement : trois ministres quittent le gouvernement", "politique"),
     # Sport
     ("Ligue 1 : victoire à domicile en fin de match", "sport"),
+    # Chronique locale — les cas qui alimentaient le fourre-tout « actualite »
+    # avant l'enrichissement des mots-clés (07/2026).
+    ("Rodéo urbain : le conducteur interpellé après une course-poursuite", "ordre_public"),
+    ("Violences conjugales : le compagnon placé en détention provisoire", "ordre_public"),
+    ("Un homme mis en examen après la découverte du corps", "ordre_public"),
+    ("La communauté de communes vote une hausse de la taxe", "politique"),
+    ("Le préfet interdit les rassemblements ce week-end", "politique"),
+    ("Le conseil régional finance la rénovation du lycée", "politique"),
+    ("Liquidation judiciaire : la scierie ferme ses portes", "economie"),
+    ("Chiffre d'affaires en hausse pour la coopérative", "economie"),
+    ("Un piéton renversé sur la départementale", "transport"),
+    ("Vol annulé à l'aéroport après une panne technique", "transport"),
+    ("Le tramway sera prolongé jusqu'à la zone d'activité", "transport"),
+    ("Le vide-grenier du quartier attend 80 exposants", "culture"),
+    ("Carnaval : le char de la reine ouvrira le défilé", "culture"),
+    ("Dépistage gratuit organisé à la médiathèque", "sante"),
     # Sans catégorie dédiée : « actualite » est le bon verdict
     ("Le marché hebdomadaire change d'horaires", None),
     ("Un nouveau rond-point sera inauguré samedi", None),
+    ("Le nouveau boulanger s'installe place du village", None),
+    ("La fête des voisins réunit trois immeubles", None),
 ]
 
 # Titres → commune attendue (None = aucune détection ne doit avoir lieu).
@@ -69,11 +87,15 @@ CAS_COMMUNE: list[tuple[str, str | None]] = [
     ("Trafic perturbé à Bar-le-Duc ce matin", "Bar-le-Duc"),
     ("Les pompiers mobilisés à Perpignan", "Perpignan"),
     ("Marché de Noël à Strasbourg : record d'affluence", "Strasbourg"),
+    ("Une plainte déposée à Aix-en-Provence", "Aix-en-Provence"),
+    ("Le chantier avance à Clermont-Ferrand", "Clermont-Ferrand"),
     # Pièges : mots courants, noms de médias, entités non communales
     ("La mer est agitée sur le port ce matin", None),
     ("Réunion publique à la mairie demain soir", None),
     ("Grève des transports en Île-de-France", None),
     ("Le conseil départemental vote son budget", None),
+    ("Les Champs-Élysées fermés à la circulation", None),
+    ("Le tribunal de Grande Instance a tranché", None),
 ]
 
 
@@ -90,6 +112,10 @@ def _categorise(titre: str) -> str:
 # ── Seuils de non-régression (relevés le 30/07/2026) ────────────────────────
 SEUIL_CATEGORIE = 0.80
 SEUIL_COMMUNE = 0.80
+# Part maximale d'articles qui MÉRITENT une catégorie précise mais retombent
+# quand même sur « actualite ». C'est la mesure directe du fourre-tout : en
+# production il pesait 32 % des événements avant l'enrichissement des mots-clés.
+TAUX_REPLI_ACTUALITE_MAX = 0.15
 
 
 def test_categorisation_par_regles_au_dessus_du_seuil():
@@ -107,6 +133,28 @@ def test_categorisation_par_regles_au_dessus_du_seuil():
         f"Catégorisation à {score:.0%} (seuil {SEUIL_CATEGORIE:.0%}).\n"
         + "\n".join(erreurs)
     )
+
+
+def test_le_repli_sur_actualite_reste_marginal():
+    """Un score de catégorisation correct peut masquer un fourre-tout : se
+    tromper de catégorie et renoncer à en donner une ne coûtent pas la même
+    chose à l'utilisateur. Les filtres du site ne servent à rien si tout finit
+    dans « actualite » — on mesure donc ce repli séparément."""
+    a_categoriser = [(t, c) for t, c in CAS_CATEGORIE if c is not None]
+    replis = [t for t, _ in a_categoriser if _categorise(t) == "actualite"]
+    taux = len(replis) / len(a_categoriser)
+    assert taux <= TAUX_REPLI_ACTUALITE_MAX, (
+        f"{taux:.0%} des articles catégorisables retombent sur « actualite » "
+        f"(plafond {TAUX_REPLI_ACTUALITE_MAX:.0%}) :\n" + "\n".join(replis)
+    )
+
+
+def test_actualite_reste_possible_quand_aucune_categorie_ne_convient():
+    """Le garde-fou symétrique : à force d'ajouter des mots-clés, on finirait
+    par coller une catégorie précise à tout, y compris à ce qui n'en a pas."""
+    sans_categorie = [t for t, c in CAS_CATEGORIE if c is None]
+    forces = [(t, _categorise(t)) for t in sans_categorie if _categorise(t) != "actualite"]
+    assert not forces, f"catégorie imposée à tort : {forces}"
 
 
 def test_detection_commune_au_dessus_du_seuil():

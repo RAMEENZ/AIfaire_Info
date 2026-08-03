@@ -2,6 +2,12 @@
 
     docker compose exec backend python -m app.maintenance backfill-locations [--dry-run]
     docker compose exec backend python -m app.maintenance check-feeds [--verbose]
+    docker compose exec backend python -m app.maintenance vapid-keys
+    docker compose exec backend python -m app.maintenance test-brief [--hours 24]
+    docker compose exec backend python -m app.maintenance test-extraction [--limit 15]
+
+Les deux commandes `test-*` servent à juger les prompts sur les données
+réelles : elles appellent le modèle mais n'écrivent RIEN en base.
 
 Placé dans le package `app` (et non dans scripts/) car l'image Docker ne copie
 que `app/` — un script sous scripts/ ne serait pas présent en production.
@@ -9,6 +15,7 @@ que `app/` — un script sous scripts/ ne serait pas présent en production.
 import asyncio
 import sys
 from collections import Counter
+from typing import Optional
 
 from sqlalchemy import select
 
@@ -164,6 +171,116 @@ def generate_vapid_keys() -> dict:
     return {"public_key": public_key}
 
 
+async def test_brief(hours: int = 24) -> Optional[str]:
+    """Génère un brief sur les données réelles, l'affiche et l'audite — SANS
+    l'enregistrer. Sert à juger une retouche de prompt avant de la déployer."""
+    from app.config import settings
+    from app.pipeline.brief import _generate_text, audit_brief, build_brief_prompts
+
+    if not settings.MISTRAL_API_KEY:
+        print("MISTRAL_API_KEY absente : impossible d'appeler le modèle.")
+        return None
+
+    built = await build_brief_prompts(hours)
+    if built is None:
+        print(f"Aucun événement sur les dernières {hours} h : rien à résumer.")
+        return None
+    system_prompt, user_prompt, event_count = built
+
+    print(f"=== Matière : {event_count} événements sur {hours} h ===")
+    print(f"prompt système : {len(system_prompt)} caractères")
+    print(f"prompt données : {len(user_prompt)} caractères\n")
+
+    content = await _generate_text(system_prompt, user_prompt)
+    if not content:
+        print("Échec de l'appel au modèle (voir les logs).")
+        return None
+
+    print("=== Brief produit (NON enregistré) ===")
+    print(content)
+
+    constats = audit_brief(content)
+    print("\n=== Audit automatique ===")
+    if constats:
+        for c in constats:
+            print(f"  ⚠ {c}")
+    else:
+        print("  Aucun défaut détecté (sections, formules creuses, formatage, redites).")
+    mots = len(content.split())
+    print(f"  {mots} mots — environ {max(1, round(mots / 200))} min de lecture")
+    return content
+
+
+async def test_extraction(limit: int = 15) -> dict:
+    """Rejoue l'extraction sur les derniers articles de presse et mesure ce qui
+    compte : part de « actualite », part de « national », qualité des tags et
+    des résumés. Ne modifie aucun événement existant."""
+    from app.config import settings
+    from app.pipeline.extractor import extract_article
+
+    if not settings.MISTRAL_API_KEY:
+        print("MISTRAL_API_KEY absente : impossible d'appeler le modèle.")
+        return {}
+
+    async with AsyncSessionLocal() as session:
+        rows = (await session.execute(
+            select(Event)
+            .where(Event.source == "presse_rss")
+            .order_by(Event.date_publication.desc())
+            .limit(limit)
+        )).scalars().all()
+
+    if not rows:
+        print("Aucun article de presse en base.")
+        return {}
+
+    cats: Counter = Counter()
+    lieux: Counter = Counter()
+    tags_total = paraphrases = 0
+
+    for e in rows:
+        res = await extract_article(e.titre, e.resume_ia or "", None)
+        cats[res["categorie"]] += 1
+        lieux[res.get("lieu_type") or ("national" if res["lieu_nom"] == "national" else "?")] += 1
+        tags_total += len(res["tags"])
+        # Un résumé qui reprend le titre mot pour mot n'apporte rien : le prompt
+        # l'interdit explicitement, on vérifie que la consigne passe.
+        mots_titre = set(e.titre.lower().split())
+        mots_resume = set(res["resume_ia"].lower().split())
+        if mots_titre and len(mots_titre & mots_resume) / len(mots_titre) > 0.8:
+            paraphrases += 1
+
+        print(f"\n— {e.titre[:100]}")
+        print(f"  catégorie {res['categorie']:<12} lieu {res['lieu_nom']} "
+              f"({res.get('lieu_type') or 'type non fourni'})  gravité {res['gravite']}")
+        print(f"  tags      {', '.join(res['tags']) or '(aucun)'}")
+        print(f"  résumé    {res['resume_ia'][:180]}")
+
+    n = len(rows)
+    print(f"\n=== Bilan sur {n} articles ===")
+    print(f"  « actualite » (fourre-tout) : {100 * cats['actualite'] / n:.0f} %")
+    print(f"  « national » (hors carte)   : {100 * lieux['national'] / n:.0f} %")
+    print(f"  lieu_type renseigné         : {100 * (n - lieux['?']) / n:.0f} %")
+    print(f"  tags par article            : {tags_total / n:.1f}")
+    print(f"  résumés paraphrasant le titre : {100 * paraphrases / n:.0f} %")
+    print("\nRépartition des catégories :")
+    for cat, k in cats.most_common():
+        print(f"  {cat:<14} {k}")
+    return {"categories": dict(cats), "n": n}
+
+
+def _arg_int(argv: list[str], nom: str, defaut: int) -> int:
+    """Lit `--nom N` dans argv ; retourne `defaut` si absent ou illisible."""
+    if nom in argv:
+        i = argv.index(nom)
+        if i + 1 < len(argv):
+            try:
+                return int(argv[i + 1])
+            except ValueError:
+                pass
+    return defaut
+
+
 def _main(argv: list[str]) -> int:
     cmd = argv[1] if len(argv) > 1 else ""
     if cmd == "vapid-keys":
@@ -174,6 +291,12 @@ def _main(argv: list[str]) -> int:
         return 0
     if cmd == "check-feeds":
         asyncio.run(check_feeds(verbose="--verbose" in argv))
+        return 0
+    if cmd == "test-brief":
+        asyncio.run(test_brief(hours=_arg_int(argv, "--hours", 24)))
+        return 0
+    if cmd == "test-extraction":
+        asyncio.run(test_extraction(limit=_arg_int(argv, "--limit", 15)))
         return 0
     print(__doc__)
     return 2

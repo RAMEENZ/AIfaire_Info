@@ -108,6 +108,31 @@ ingestion réussie).
 
 Généré à **9h00, 13h00 et 20h00** (heure Paris) par Mistral, en trois volets distincts : **Alertes & vigilances**, **Actualité générale** et **En régions** (faits ancrés dans différents territoires).
 
+Les titres de section sont un contrat avec l'interface (`DailyBrief.tsx` les reconnaît par égalité exacte) : si le modèle en oublie un, le brief est régénéré une fois avec un rappel ciblé. Le prompt (`build_brief_system_prompt`) impose une hiérarchie (le fait le plus important d'abord), la reprise des chiffres présents dans les données, l'interdiction de citer deux fois le même fait dans deux sections, et une liste de formules creuses bannies. Les jours creux, il demande explicitement d'écrire court plutôt que de meubler.
+
+### Mise au point des prompts
+
+Les prompts (extraction d'articles et rédaction du brief) se jugent sur ce
+qu'ils produisent. Deux commandes les essaient sur les données réelles **sans
+rien écrire en base** :
+
+```bash
+docker compose exec backend python -m app.maintenance test-brief [--hours 24]
+docker compose exec backend python -m app.maintenance test-extraction [--limit 15]
+```
+
+`test-brief` affiche le brief obtenu puis un audit automatique (`audit_brief`) :
+sections manquantes, formules creuses, Markdown résiduel, redites entre
+sections. `test-extraction` rejoue l'extraction sur les derniers articles et
+mesure ce qui compte — part de « actualite » (le fourre-tout), part de
+« national » (hors carte), `lieu_type` renseigné, nombre de tags, résumés qui
+ne font que paraphraser le titre.
+
+Côté non-régression, `tests/test_brief_prompt.py` et
+`tests/test_extractor_prompt.py` verrouillent hors ligne ce que les prompts
+doivent contenir, et `tests/test_extraction_eval.py` mesure sur corpus annoté
+le taux de repli sur « actualite ».
+
 ## Sécurité
 
 Architecture : tout le trafic entre via Cloudflare Tunnel — aucun port web exposé directement.
