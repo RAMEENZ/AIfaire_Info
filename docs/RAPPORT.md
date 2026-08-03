@@ -157,6 +157,13 @@ résolu directement dans la table locale des 35 000 communes (coordonnées + cod
 INSEE, confiance 0,85, pas de géocodage réseau). C'est aussi ce qui lève les
 homonymes ville/département — Vienne, Lot, Somme, Aube.
 
+Et c'est un **détecteur d'hallucination** : si le modèle annonce une commune que
+la table des 35 000 ne connaît pas (« Nauxion », relevé le 03/08/2026),
+l'événement retombe en « national » au lieu d'être confié au géocodeur. Chercher
+un nom qui n'existe pas invite une correspondance floue de l'API externe, donc un
+marqueur au mauvais endroit — plus trompeur qu'un événement laissé hors carte.
+Le repli par URL peut ensuite le relocaliser correctement.
+
 Le prompt (`extractor.SYSTEM_PROMPT`) est structuré champ par champ et porte
 trois garde-fous nés de défauts mesurés en production : « actualite » n'est
 autorisé qu'en dernier recours (le fourre-tout pesait 32 % des événements), la

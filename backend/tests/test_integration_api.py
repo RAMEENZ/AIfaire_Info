@@ -300,9 +300,58 @@ async def test_clean_extractions_laisse_intact_ce_qui_est_sain(client, monkeypat
 
     bilan = await clean_extractions(dry_run=False)
     assert bilan == {"tags_nettoyes": 0, "resumes_repares": 0,
-                     "resumes_irreparables": 0, "dry_run": False}
+                     "resumes_irreparables": 0, "points_ajoutes": 0,
+                     "dry_run": False}
 
     async with client.session_factory() as session:
         e = (await session.execute(select(Event).where(Event.id == "sain-1"))).scalar_one()
     assert e.tags == ["entrepôt", "pompiers"]
     assert e.resume_ia == "Un entrepôt a brûlé cette nuit, sans faire de blessé."
+
+
+async def test_clean_extractions_distingue_troncature_et_point_manquant(client, monkeypatch):
+    """Deux causes d'absence de ponctuation finale, deux traitements.
+
+    Le premier relevé en production comptait 125 résumés « irréparables » : la
+    plupart n'étaient pas tranchés du tout, il leur manquait seulement le point.
+    Les tronquer aurait détruit de l'information pour corriger une virgule.
+    """
+    from app.maintenance import clean_extractions
+    from app.models import Event
+    from sqlalchemy import select
+
+    now = datetime.now(timezone.utc)
+    # a) Tranché par l'ancienne coupe à 500 caractères.
+    phrase = "Un incendie a détruit un entrepôt et mobilisé quarante pompiers. "
+    tranche = (phrase * 9)[:500]
+    # b) Résumé entier, sans point final.
+    entier = "Trois blessés dans une collision à Colmar"
+
+    async with client.session_factory() as session:
+        for eid, resume in (("coupe-1", tranche), ("point-1", entier)):
+            session.add(Event(
+                id=eid, source="presse_rss",
+                source_url=f"https://example.com/{eid}-{uuid.uuid4()}",
+                titre=eid, date_publication=now, categorie="incendie", gravite=1,
+                lieu_nom="Colmar", lieu_niveau="commune", lieu_confiance_geo=0.9,
+                tags=[], resume_ia=resume, score_confiance=1.0, created_at=now,
+            ))
+        await session.commit()
+
+    import app.maintenance as maintenance
+    monkeypatch.setattr(maintenance, "AsyncSessionLocal", client.session_factory)
+
+    bilan = await clean_extractions(dry_run=False)
+    assert bilan["resumes_repares"] == 1
+    assert bilan["points_ajoutes"] == 1
+
+    async with client.session_factory() as session:
+        rows = {
+            e.id: e.resume_ia for e in
+            (await session.execute(select(Event))).scalars().all()
+        }
+    # Le tronqué perd sa phrase incomplète…
+    assert rows["coupe-1"].endswith("pompiers.")
+    assert len(rows["coupe-1"]) < 500
+    # …l'entier ne perd rien, il gagne son point.
+    assert rows["point-1"] == "Trois blessés dans une collision à Colmar."

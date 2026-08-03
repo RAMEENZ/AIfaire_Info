@@ -252,3 +252,63 @@ async def test_lieu_type_commune_resout_directement_les_coordonnees(monkeypatch)
     assert out["skip_geocoding"] is True
     assert out["lieu_code_insee"] == "68066"
     assert out["lieu_lat"] == pytest.approx(48.07, abs=0.1)
+
+
+async def test_commune_inventee_par_le_modele_retombe_sur_national(monkeypatch):
+    """Relevé en production le 03/08/2026 : le modèle a annoncé la commune
+    « Nauxion », qui n'existe pas. Laisser le géocodeur chercher un nom inventé
+    invite une correspondance floue de l'API externe, donc un marqueur au mauvais
+    endroit — plus trompeur qu'un événement laissé hors carte."""
+    async def _extraction(*args, **kwargs):
+        return {
+            "lieu_nom": "Nauxion", "lieu_type": "commune", "categorie": "culture",
+            "resume_ia": "Un chœur local se produit.", "gravite": 0, "tags": ["chorale"],
+        }
+
+    monkeypatch.setattr(extractor, "extract_article", _extraction)
+    monkeypatch.setattr(extractor.settings, "FETCH_FULL_ARTICLES", False)
+    extractor._extract_cache.clear()
+
+    out = await extractor.maybe_extract({
+        "source": "presse_rss", "titre": "Choeur de Nauxion : 8 hommes au grand coeur",
+        "description": "", "source_url": "https://example.com/b",
+    })
+
+    assert out["lieu_nom"] == "national"
+    # Aucune coordonnée fabriquée au passage.
+    assert not out.get("skip_geocoding")
+
+
+async def test_une_vraie_commune_nest_pas_ecartee_par_le_garde_fou(monkeypatch):
+    """Le garde-fou ne doit pas devenir un filtre à faux négatifs : les communes
+    réelles, y compris à graphie composée, passent."""
+    async def _extraction(*args, **kwargs):
+        return {
+            "lieu_nom": "Montaigu-de-Quercy", "lieu_type": "commune",
+            "categorie": "culture", "resume_ia": "Un festival s'y tient.",
+            "gravite": 0, "tags": ["festival"],
+        }
+
+    async def _geocode_interdit(lieu):  # pragma: no cover - ne doit pas être appelé
+        raise AssertionError("le géocodeur ne devait pas être sollicité")
+
+    monkeypatch.setattr(extractor, "extract_article", _extraction)
+    monkeypatch.setattr(extractor, "geocode", _geocode_interdit)
+    monkeypatch.setattr(extractor.settings, "FETCH_FULL_ARTICLES", False)
+    extractor._extract_cache.clear()
+
+    out = await extractor.maybe_extract({
+        "source": "presse_rss", "titre": "Un rendez-vous musical à Montaigu-de-Quercy",
+        "description": "", "source_url": "https://example.com/c",
+    })
+
+    assert out["lieu_nom"] == "Montaigu-de-Quercy"
+    assert out["lieu_code_insee"] == "82117"
+
+
+@pytest.mark.parametrize("prompt", [SYSTEM_PROMPT], ids=["complet"])
+def test_le_prompt_interdit_de_commenter_l_article(prompt):
+    """Relevé en production : « L'article met en avant leur engagement artistique
+    local. » Le résumé doit rapporter le fait, pas le texte qui le rapporte."""
+    assert '"l\'article"' in prompt or "\"l'article\"" in prompt
+    assert "Rapporte LE FAIT" in prompt

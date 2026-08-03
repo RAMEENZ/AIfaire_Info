@@ -66,6 +66,8 @@ Ordre de préférence : commune > département > région > "national".
 ═══ lieu_type ═══
 Nature du lieu ci-dessus : "commune", "departement", "region" ou "national".
 Sert à lever les homonymies (Vienne la ville ≠ la Vienne le département).
+N'annonce "commune" que si tu es sûr du nom exact : une commune que tu n'aurais
+pas su écrire correctement vaut mieux déclarée "national" qu'inventée.
 
 ═══ categorie ═══
 Une seule valeur parmi : __CATEGORIES_QUOTED__
@@ -99,6 +101,9 @@ il parle. Deux pièges récurrents :
   Épreuve à passer : si ton résumé, lu seul, n'apprend rien de plus que le titre, il est raté.
   Recommence en cherchant dans le texte un chiffre, une date, une cause ou une conséquence.
 - Ne commence pas en recopiant les mots du titre.
+- Rapporte LE FAIT, jamais le texte qui le rapporte. N'écris ni "l'article",
+  ni "le papier", ni "l'auteur", ni "selon ce reportage" : le lecteur veut
+  l'information, pas un commentaire sur sa mise en forme.
 - Aucune formule d'accroche ni de teasing ("on vous explique", "voici pourquoi").
 - Termine par une phrase complète, point final compris. Mieux vaut une phrase entière
   que deux dont la seconde s'arrête au milieu.
@@ -754,6 +759,19 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
                 updated["lieu_niveau"] = "commune"
                 updated["lieu_confiance_geo"] = 0.85
                 updated["skip_geocoding"] = True
+            else:
+                # Le modèle affirme une commune que la table des 35 000 ne connaît
+                # pas : c'est presque toujours un lieu inventé ou mal lu
+                # (« Nauxion », relevé le 03/08/2026). Laisser le géocodeur
+                # chercher un nom qui n'existe pas invite une correspondance floue
+                # de l'API externe — donc un marqueur au mauvais endroit. Or un
+                # faux marqueur trompe le lecteur, là où un événement « national »
+                # reste simplement hors carte. On préfère renoncer.
+                logger.info(
+                    "Commune inconnue '%s' annoncée par le modèle — repli national",
+                    updated["lieu_nom"],
+                )
+                updated["lieu_nom"] = "national"
         # Repli : LLM = "national" mais le lieu est récupérable. Beaucoup
         # d'articles locaux étaient classés « national » faute d'extraction LLM
         # alors que l'info est gratuite dans l'URL (code INSEE/postal/département).

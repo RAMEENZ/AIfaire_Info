@@ -25,6 +25,11 @@ from sqlalchemy import select
 
 from app.database import AsyncSessionLocal
 from app.models import Event
+
+# Longueur à laquelle l'ancienne troncature `resume_ia[:500]` coupait, au
+# caractère près. Sert à distinguer un résumé tranché d'un résumé simplement
+# privé de son point final (voir clean_extractions).
+_LIMITE_RESUME_HISTORIQUE = 500
 from app.pipeline.geocoder import geocode
 from app.pipeline.toponym import location_from_url
 
@@ -218,9 +223,18 @@ async def test_brief(hours: int = 24) -> Optional[str]:
 async def test_extraction(limit: int = 15) -> dict:
     """Rejoue l'extraction sur les derniers articles de presse et mesure ce qui
     compte : part de « actualite », part de « national », qualité des tags et
-    des résumés. Ne modifie aucun événement existant."""
+    des résumés. Ne modifie aucun événement existant.
+
+    Le pipeline complet (`maybe_extract`) est rejoué, pas seulement l'appel au
+    modèle : le repli par URL (code INSEE, code postal, département), les
+    surcharges par source et le raccourci `lieu_type` récupèrent une partie des
+    articles que le modèle rend « national ». Mesurer le modèle seul donnait un
+    taux de non-localisation nettement plus sombre que la réalité affichée sur
+    la carte — le premier relevé du 03/08/2026 annonçait ainsi 33 % de
+    « national » là où le pipeline en localise une partie.
+    """
     from app.config import settings
-    from app.pipeline.extractor import extract_article
+    from app.pipeline.extractor import extract_article, maybe_extract
 
     if not settings.MISTRAL_API_KEY:
         print("MISTRAL_API_KEY absente : impossible d'appeler le modèle.")
@@ -239,34 +253,53 @@ async def test_extraction(limit: int = 15) -> dict:
         return {}
 
     cats: Counter = Counter()
-    lieux: Counter = Counter()
     tags_total = paraphrases = inacheves = sans_tags = 0
+    national_modele = national_pipeline = recuperes = sans_lieu_type = 0
 
     for e in rows:
-        res = await extract_article(e.titre, e.resume_ia or "", None)
-        resume = res["resume_ia"]
-        cats[res["categorie"]] += 1
-        lieux[res.get("lieu_type") or ("national" if res["lieu_nom"] == "national" else "?")] += 1
-        tags_total += len(res["tags"])
-        if not res["tags"]:
+        # 1) Le modèle seul — ce que le prompt produit.
+        brut = await extract_article(e.titre, e.resume_ia or "", None)
+        # 2) Le pipeline complet — ce qui finit réellement sur la carte.
+        final = await maybe_extract({
+            "source": e.source,
+            "titre": e.titre,
+            "description": e.resume_ia or "",
+            "source_url": e.source_url,
+            "auteur": e.auteur,
+        })
+
+        resume = brut["resume_ia"]
+        cats[brut["categorie"]] += 1
+        tags_total += len(brut["tags"])
+        if not brut["tags"]:
             sans_tags += 1
-        # Un résumé qui reprend le titre mot pour mot n'apporte rien : le prompt
-        # l'interdit explicitement, on vérifie que la consigne passe.
+        if not brut.get("lieu_type"):
+            sans_lieu_type += 1
+
+        modele_national = brut["lieu_nom"] == "national"
+        final_national = (final.get("lieu_nom") or "national") == "national"
+        national_modele += modele_national
+        national_pipeline += final_national
+        if modele_national and not final_national:
+            recuperes += 1
+
         mots_titre = set(e.titre.lower().split())
         mots_resume = set(resume.lower().split())
         if mots_titre and len(mots_titre & mots_resume) / len(mots_titre) > 0.8:
             paraphrases += 1
-        # Un résumé qui ne se termine pas par une ponctuation forte a été coupé
-        # quelque part — c'est le défaut qu'on ne voit pas en lisant en diagonale.
         if resume and resume[-1] not in ".!?…»\"":
             inacheves += 1
 
         # Titre et résumé affichés ENTIERS : une coupe d'affichage ferait passer
         # un résumé sain pour un résumé tronqué (elle l'a déjà fait).
         print(f"\n— {e.titre}")
-        print(f"  catégorie {res['categorie']:<12} lieu {res['lieu_nom']} "
-              f"({res.get('lieu_type') or 'type non fourni'})  gravité {res['gravite']}")
-        print(f"  tags      {', '.join(res['tags']) or '(aucun)'}")
+        lieu_final = final.get("lieu_nom") or "national"
+        rattrape = "  ← récupéré par le pipeline" if modele_national and not final_national else ""
+        print(f"  catégorie {brut['categorie']:<12} lieu {lieu_final} "
+              f"({brut.get('lieu_type') or 'type non fourni'})  gravité {brut['gravite']}{rattrape}")
+        if lieu_final != brut["lieu_nom"]:
+            print(f"            (le modèle disait « {brut['lieu_nom']} »)")
+        print(f"  tags      {', '.join(brut['tags']) or '(aucun)'}")
         print(textwrap.fill(resume, width=96,
                             initial_indent="  résumé    ", subsequent_indent="            "))
 
@@ -276,17 +309,23 @@ async def test_extraction(limit: int = 15) -> dict:
         return f"{100 * k / n:.0f} %"
 
     print(f"\n=== Bilan sur {n} articles ===")
-    print(f"  « actualite » (fourre-tout)   : {pct(cats['actualite'])}")
-    print(f"  « national » (hors carte)     : {pct(lieux['national'])}")
-    print(f"  lieu_type renseigné           : {pct(n - lieux['?'])}")
-    print(f"  tags par article              : {tags_total / n:.1f}")
-    print(f"  articles sans aucun tag       : {pct(sans_tags)}")
-    print(f"  résumés paraphrasant le titre : {pct(paraphrases)}")
-    print(f"  résumés coupés en cours       : {pct(inacheves)}")
+    print(f"  « actualite » (fourre-tout)     : {pct(cats['actualite'])}")
+    print(f"  « national » selon le modèle    : {pct(national_modele)}")
+    print(f"  « national » APRÈS pipeline     : {pct(national_pipeline)}"
+          f"   ← ce qui compte : hors carte")
+    print(f"  récupérés par le repli URL      : {recuperes}")
+    print(f"  lieu_type renseigné             : {pct(n - sans_lieu_type)}")
+    print(f"  tags par article                : {tags_total / n:.1f}")
+    print(f"  articles sans aucun tag         : {pct(sans_tags)}")
+    print(f"  résumés paraphrasant le titre   : {pct(paraphrases)}")
+    print(f"  résumés coupés en cours         : {pct(inacheves)}")
     print("\nRépartition des catégories :")
     for cat, k in cats.most_common():
         print(f"  {cat:<14} {k}")
-    return {"categories": dict(cats), "n": n}
+    return {
+        "categories": dict(cats), "n": n,
+        "national_modele": national_modele, "national_pipeline": national_pipeline,
+    }
 
 
 async def clean_extractions(dry_run: bool = False) -> dict:
@@ -301,7 +340,7 @@ async def clean_extractions(dry_run: bool = False) -> dict:
     from app.pipeline.extractor import _clean_tags
     from app.pipeline.sanitize import last_complete_sentence
 
-    tags_nettoyes = resumes_repares = resumes_irreparables = 0
+    tags_nettoyes = resumes_repares = resumes_irreparables = points_ajoutes = 0
 
     async with AsyncSessionLocal() as session:
         rows = (await session.execute(select(Event))).scalars().all()
@@ -315,32 +354,49 @@ async def clean_extractions(dry_run: bool = False) -> dict:
                     e.tags = propres
 
             resume = (e.resume_ia or "").strip()
-            # Un résumé qui ne s'achève pas sur une ponctuation forte a été
-            # tranché. On le ramène à sa dernière phrase complète — à condition
-            # qu'il en reste l'essentiel, sinon on préfère un texte imparfait à
-            # un texte amputé de moitié.
-            if resume and resume[-1] not in ".!?…»\"":
-                repare = last_complete_sentence(resume)
-                if repare and len(repare) >= len(resume) // 2:
-                    resumes_repares += 1
-                    if not dry_run:
-                        e.resume_ia = repare
-                else:
-                    resumes_irreparables += 1
+            if not resume or resume[-1] in ".!?…»\"":
+                continue
+
+            # Absence de ponctuation finale : deux causes très différentes, qu'il
+            # serait trompeur de traiter pareil. Ce qui les sépare n'est pas la
+            # longueur mais la STRUCTURE — un texte tranché garde une phrase
+            # entière suivie d'un moignon, un texte simplement mal ponctué n'a
+            # qu'une seule phrase, complète.
+            phrase_entiere = last_complete_sentence(resume)
+
+            if phrase_entiere and len(phrase_entiere) >= len(resume) // 2:
+                # « … cet été. La pénurie nationale att » → on jette le moignon.
+                resumes_repares += 1
+                if not dry_run:
+                    e.resume_ia = phrase_entiere
+            elif phrase_entiere or len(resume) >= _LIMITE_RESUME_HISTORIQUE - 10:
+                # Soit la réparation ôterait plus de la moitié du texte, soit le
+                # résumé bute contre l'ancienne limite sans contenir une seule
+                # phrase complète : rien à sauver proprement, on n'y touche pas.
+                resumes_irreparables += 1
+            else:
+                # « Trois blessés dans une collision à Colmar » → une phrase
+                # entière à qui il ne manque que son point. La tronquer
+                # détruirait de l'information pour corriger une ponctuation.
+                points_ajoutes += 1
+                if not dry_run:
+                    e.resume_ia = resume + "."
 
         if not dry_run:
             await session.commit()
 
     mode = "SIMULATION — rien écrit" if dry_run else "appliqué"
-    print(f"[{mode}] {tags_nettoyes} listes de tags élaguées, "
-          f"{resumes_repares} résumés ramenés à leur dernière phrase complète, "
-          f"{resumes_irreparables} résumés coupés laissés tels quels "
-          f"(aucune phrase complète à isoler, ou la réparation en aurait ôté plus "
-          f"de la moitié)")
+    print(f"\n[{mode}]")
+    print(f"  {tags_nettoyes} listes de tags élaguées (lieu, catégorie, doublons)")
+    print(f"  {resumes_repares} résumés tranchés ramenés à leur dernière phrase complète")
+    print(f"  {resumes_irreparables} résumés tranchés laissés tels quels "
+          f"(la réparation en aurait ôté plus de la moitié)")
+    print(f"  {points_ajoutes} résumés entiers auxquels il ne manquait que le point final")
     return {
         "tags_nettoyes": tags_nettoyes,
         "resumes_repares": resumes_repares,
         "resumes_irreparables": resumes_irreparables,
+        "points_ajoutes": points_ajoutes,
         "dry_run": dry_run,
     }
 

@@ -126,13 +126,22 @@ docker compose exec backend python -m app.maintenance test-extraction [--limit 1
 `test-brief` affiche le brief obtenu puis un audit automatique (`audit_brief`) :
 sections manquantes, formules creuses, Markdown résiduel, redites entre
 sections. `test-extraction` rejoue l'extraction sur les derniers articles et
-mesure ce qui compte — part de « actualite » (le fourre-tout), part de
-« national » (hors carte), `lieu_type` renseigné, nombre de tags, résumés qui
-paraphrasent le titre, résumés coupés en cours de phrase.
+mesure ce qui compte — part de « actualite » (le fourre-tout), `lieu_type`
+renseigné, nombre de tags, résumés qui paraphrasent le titre, résumés coupés en
+cours de phrase.
+
+Elle rejoue le **pipeline complet**, pas seulement l'appel au modèle, et
+rapporte deux taux de « national » : celui du modèle seul, et celui qui subsiste
+après les replis (code INSEE ou postal de l'URL, toponyme du titre, raccourci
+`lieu_type`). Seul le second dit ce qui reste hors carte — ne mesurer que le
+modèle donnait un tableau nettement plus sombre que la réalité.
 
 Une troisième commande répare les extractions **déjà en base**, sans appeler le
-modèle (tags qui répètent le lieu ou la catégorie, résumés tranchés par
-l'ancienne coupe à 500 caractères) :
+modèle : tags qui répètent le lieu ou la catégorie, et résumés sans ponctuation
+finale. Elle distingue deux cas que la structure du texte sépare — un résumé
+*tranché* garde une phrase entière suivie d'un moignon (on jette le moignon), un
+résumé *mal ponctué* n'a qu'une seule phrase complète (on ajoute le point plutôt
+que d'amputer) :
 
 ```bash
 docker compose exec backend python -m app.maintenance clean-extractions --dry-run
