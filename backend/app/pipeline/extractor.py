@@ -824,6 +824,20 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
                     updated["lieu_nom"],
                 )
                 updated["lieu_nom"] = "national"
+        elif updated["lieu_nom"] != "national":
+            # Même principe, pour les cas que le test ci-dessus laissait passer.
+            # Il ne se déclenchait que si le modèle DÉCLARAIT lui-même une
+            # commune : lieu_type absent ou inattendu, et le nom partait au
+            # géocodage sans avoir été vérifié par personne. Or la BAN répond
+            # toujours quelque chose (Kiev → Quiévy, Gaza → Gazaupouy), et son
+            # score ne permet pas de trier — voir est_lieu_connu.
+            from app.pipeline.toponym import est_lieu_connu
+            if not est_lieu_connu(updated["lieu_nom"]):
+                logger.info(
+                    "Lieu inconnu '%s' (lieu_type=%r) — repli national",
+                    updated["lieu_nom"], _lieu_type or None,
+                )
+                updated["lieu_nom"] = "national"
         # Repli : LLM = "national" mais le lieu est récupérable. Beaucoup
         # d'articles locaux étaient classés « national » faute d'extraction LLM
         # alors que l'info est gratuite dans l'URL (code INSEE/postal/département).

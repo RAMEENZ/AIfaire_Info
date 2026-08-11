@@ -116,3 +116,46 @@ def test_source_overrides_table_contains_known_authorities():
     assert SOURCE_CAT_OVERRIDES["ansm"] == "sante"
     assert SOURCE_CAT_OVERRIDES["vigicrues"] == "crue"
     assert SOURCE_CAT_OVERRIDES["météo-france"] == "meteo"
+
+
+# --- Garde-fou des lieux inventés ---------------------------------------
+
+async def _extraction_factice(monkeypatch, lieu_nom, lieu_type):
+    """Force le retour du modèle, pour éprouver le seul garde-fou."""
+    async def fake_extract(titre, description=None, full_text=None):
+        return {
+            "categorie": "actualite", "gravite": 0, "lieu_nom": lieu_nom,
+            "lieu_type": lieu_type, "resume_ia": "Un résumé.", "tags": [],
+        }
+    monkeypatch.setattr(extractor, "extract_article", fake_extract)
+    monkeypatch.setattr(extractor, "_has_ai", True, raising=False)
+    return await maybe_extract({
+        "source": "presse_rss", "titre": "Un fait divers", "description": "",
+        "auteur": "Test", "source_url": "https://exemple.fr/article",
+    })
+
+
+async def test_lieu_etranger_sans_lieu_type_rabattu_sur_national(monkeypatch):
+    """Le garde-fou ne se déclenchait QUE si le modèle déclarait « commune ».
+
+    Sans ce champ, « Kiev » partait au géocodage : la BAN répondait Quiévy
+    (Nord) et l'article se retrouvait épinglé en France (relevé du 11/08/2026).
+    """
+    result = await _extraction_factice(monkeypatch, "Kiev", None)
+    assert result["lieu_nom"] == "national"
+
+
+async def test_lieu_invente_sans_lieu_type_rabattu_sur_national(monkeypatch):
+    result = await _extraction_factice(monkeypatch, "Locodole", "")
+    assert result["lieu_nom"] == "national"
+
+
+async def test_commune_reelle_sans_lieu_type_conservee(monkeypatch):
+    """Le garde-fou ne doit pas coûter les lieux légitimes."""
+    result = await _extraction_factice(monkeypatch, "Gravelines", None)
+    assert result["lieu_nom"] == "Gravelines"
+
+
+async def test_departement_sans_lieu_type_conserve(monkeypatch):
+    result = await _extraction_factice(monkeypatch, "Morbihan", None)
+    assert result["lieu_nom"] == "Morbihan"

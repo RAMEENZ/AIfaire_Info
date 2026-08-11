@@ -114,6 +114,7 @@ from app.database import AsyncSessionLocal
 from app.models import DailyBrief, Event
 from app.pipeline.sanitize import sanitize_markdown as _sanitize_brief
 from app.pipeline.sanitize import truncate_clean
+from app.pipeline.toponym import _norm as _sans_accent
 
 logger = logging.getLogger(__name__)
 
@@ -265,14 +266,51 @@ def split_sections(content: str) -> dict[str, str]:
     return {titre: "\n".join(corps) for titre, corps in sections.items()}
 
 
-def audit_brief(content: str) -> list[str]:
+_MOT_RE_PROPRE = re.compile(r"[A-Za-zÀ-ÿ][\wÀ-ÿ'’-]*")
+
+
+def _noms_propres_hors_source(content: str, user_prompt: str) -> list[str]:
+    """Noms propres du brief qu'on ne retrouve pas dans la matière fournie.
+
+    Un brief ne doit rien contenir qui ne vienne des événements transmis. Le
+    prompt utilisateur EST cette matière : un nom propre absent de ce texte n'a
+    donc pu qu'être inventé. Relevé le 11/08/2026 : « À Locodole près de Dole »
+    — « Locodole » n'existe ni dans la table des 35 000 communes ni dans la BAN,
+    et l'audit d'alors répondait « aucun défaut ».
+
+    Le premier mot de chaque phrase est ignoré : sa majuscule est syntaxique et
+    ne dit rien d'un nom propre. Heuristique volontairement bruyante plutôt que
+    silencieuse — c'est un outil de diagnostic, où un faux positif se lit en
+    deux secondes quand une fabrication non détectée s'imprime dans le brief.
+    """
+    reference = _sans_accent(user_prompt)
+    suspects: list[str] = []
+    for phrase in re.split(r"(?<=[.!?…])\s+|\n+", content):
+        mots = _MOT_RE_PROPRE.findall(phrase)
+        # mots[0] : majuscule de début de phrase, non significative.
+        for mot in mots[1:]:
+            if len(mot) < 4 or not mot[0].isupper():
+                continue
+            if _sans_accent(mot) not in reference and mot not in suspects:
+                suspects.append(mot)
+    return suspects
+
+
+def audit_brief(content: str, user_prompt: str | None = None) -> list[str]:
     """Défauts détectables sans LLM dans un brief généré.
 
     Sert au diagnostic (`python -m app.maintenance test-brief`) : plutôt que de
     relire à l'œil, on liste ce que le prompt n'a pas réussi à empêcher.
     Retourne une liste de constats en clair, vide si le brief est propre.
+
+    `user_prompt` — la matière transmise au modèle — active en plus la
+    détection des noms propres inventés. Sans lui, l'audit ne juge que la forme.
     """
     constats: list[str] = []
+
+    if user_prompt:
+        for nom in _noms_propres_hors_source(content, user_prompt):
+            constats.append(f"nom propre absent de la matière fournie : « {nom} »")
 
     for titre in _missing_sections(content):
         constats.append(f"section absente ou mal orthographiée : « {titre} »")
@@ -416,9 +454,19 @@ async def build_brief_prompts(hours: int = 24) -> Optional[tuple[str, str, dict[
     # En régions = localisés, dédupliqués à un événement par lieu pour maximiser
     # la diversité géographique, en excluant ce qui est déjà cité ailleurs.
     cited_ids = alert_ids | {e.id for e in news}
+    # Même hiérarchie que pour l'actualité générale : gravité d'abord, récence
+    # ensuite. Trié par la seule récence, ce volet remontait l'anecdote publiée
+    # tard avant le fait notable publié le matin — relevé le 11/08/2026, où une
+    # collecte de sang précédait une attaque au couteau contre des policiers.
+    # Les événements de gravité ≥ 2 étant déjà partis en alertes, l'arbitrage
+    # se joue ici entre gravité 1 (incidents) et 0 (agenda, services).
+    regional_ordonne = sorted(
+        regional_all,
+        key=lambda e: (-(e.gravite or 0), -e.date_publication.timestamp()),
+    )
     regional: list[Event] = []
     seen_lieux: set[str] = set()
-    for e in regional_all:
+    for e in regional_ordonne:
         if e.id in cited_ids:
             continue
         lieu_key = (e.lieu_nom or "").strip().lower()

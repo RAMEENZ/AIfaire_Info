@@ -226,3 +226,59 @@ def test_audit_ne_crie_pas_au_recoupement_sur_des_mots_courants():
         "En régions\n\nÀ Colmar, plusieurs commerces rouvrent pendant la saison.\n"
     )
     assert not [c for c in audit_brief(banal) if "recoupement" in c]
+
+
+# ── Détection des noms propres inventés ─────────────────────────────────────
+
+def test_audit_repere_un_lieu_invente():
+    """Le cas réel du 11/08/2026 : « Locodole » n'était dans aucune donnée."""
+    from app.pipeline.brief import audit_brief
+
+    brief = (
+        "Alertes & vigilances\n\nRien à signaler.\n\n"
+        "Actualité générale\n\nÀ Nanterre, le théâtre des Amandiers ferme.\n\n"
+        "En régions\n\nÀ Locodole près de Dole, une collecte de sang a eu lieu."
+    )
+    matiere = (
+        "- (Nanterre) Le théâtre des Amandiers ferme.\n"
+        "- (Dole) Une collecte de sang a eu lieu."
+    )
+    constats = audit_brief(brief, matiere)
+    assert any("Locodole" in c for c in constats)
+    # Les noms propres réellement fournis ne doivent pas être signalés.
+    assert not any("Nanterre" in c or "Amandiers" in c or "Dole" in c for c in constats)
+
+
+def test_audit_sans_matiere_ne_juge_que_la_forme():
+    """Sans le prompt, l'audit ne peut pas savoir ce qui a été fourni."""
+    from app.pipeline.brief import audit_brief
+
+    brief = (
+        "Alertes & vigilances\n\nRien.\n\nActualité générale\n\n"
+        "À Locodole, rien.\n\nEn régions\n\nRien."
+    )
+    assert not any("Locodole" in c for c in audit_brief(brief))
+
+
+def test_audit_ignore_la_majuscule_de_debut_de_phrase():
+    """« Dix-neuf départements… » ouvre une phrase : sa majuscule est syntaxique."""
+    from app.pipeline.brief import audit_brief
+
+    brief = (
+        "Alertes & vigilances\n\nDix-neuf départements sont en vigilance.\n\n"
+        "Actualité générale\n\nRien.\n\nEn régions\n\nRien."
+    )
+    constats = audit_brief(brief, "- Vigilance orange sur des départements.")
+    assert not any("Dix-neuf" in c for c in constats)
+
+
+def test_audit_insensible_aux_accents():
+    """Un nom fourni accentué et rendu sans accent reste un nom fourni."""
+    from app.pipeline.brief import audit_brief
+
+    brief = (
+        "Alertes & vigilances\n\nRien.\n\nActualité générale\n\n"
+        "Un incident a eu lieu a Saint-Etienne-du-Rouvray.\n\nEn régions\n\nRien."
+    )
+    constats = audit_brief(brief, "- (Saint-Étienne-du-Rouvray) Un incident.")
+    assert not any("Rouvray" in c for c in constats)

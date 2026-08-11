@@ -416,3 +416,45 @@ async def test_build_brief_prompts_sans_matiere(client, monkeypatch):
     monkeypatch.setattr(brief_mod, "AsyncSessionLocal", client.session_factory)
 
     assert await build_brief_prompts(hours=24) is None
+
+
+async def test_regions_priorise_la_gravite_sur_la_recence(client, monkeypatch):
+    """« En régions » hiérarchise comme « Actualité générale », pas par récence.
+
+    Portée exacte du tri : un événement de gravité 1 part d'ordinaire en
+    actualité générale, qui trie déjà par gravité. Le volet régional puise en
+    revanche dans une requête distincte, plus large (80 lignes contre 60) : les
+    localisés au-delà des 60 plus récents ne sont jamais passés par ce tri.
+    C'est ce vivier-là que la récence seule desservait — l'anecdote récente y
+    précédait le fait notable plus ancien.
+    """
+    from app.models import Event
+    from app.pipeline.brief import build_brief_prompts
+
+    now = datetime.now(timezone.utc)
+    async with client.session_factory() as session:
+        for i in range(70):
+            session.add(Event(
+                id=f"reg-{i}", source="presse_rss",
+                source_url=f"https://example.com/reg-{i}-{uuid.uuid4()}",
+                titre=f"Fait {i}",
+                date_publication=now - timedelta(minutes=i),
+                categorie="incendie",
+                # Le seul fait notable est aussi le PLUS ANCIEN : hors des 60
+                # plus récents, donc invisible au tri de l'actualité générale.
+                gravite=1 if i == 69 else 0,
+                lieu_nom=f"Commune {i}", lieu_niveau="commune",
+                lieu_confiance_geo=0.9, tags=[],
+                resume_ia=f"Résumé {i}.", score_confiance=1.0, created_at=now,
+            ))
+        await session.commit()
+
+    import app.pipeline.brief as brief_mod
+    monkeypatch.setattr(brief_mod, "AsyncSessionLocal", client.session_factory)
+
+    _system, user_prompt, repartition = await build_brief_prompts(hours=24)
+
+    assert repartition["En régions"] == 8
+    # Trié par la seule récence, « Commune 69 » tombait hors des huit retenues.
+    volet = user_prompt.split("EN RÉGIONS")[-1] if "EN RÉGIONS" in user_prompt else user_prompt
+    assert "Commune 69" in volet

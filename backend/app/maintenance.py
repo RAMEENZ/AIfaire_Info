@@ -213,7 +213,9 @@ async def test_brief(hours: int = 24) -> Optional[str]:
     print("=== Brief produit (NON enregistré) ===")
     print(content)
 
-    constats = audit_brief(content)
+    # La matière est transmise à l'audit : elle seule permet de repérer un nom
+    # propre que le modèle a inventé plutôt que lu dans les événements.
+    constats = audit_brief(content, user_prompt)
     print("\n=== Audit automatique ===")
     if constats:
         for c in constats:

@@ -48,6 +48,42 @@ for _name in list(DEPT_CODE_TO_NAME.values()) + _REGIONS + _MAJOR_CITIES:
     _TOPONYMS.setdefault(_norm(_name), _name)
 _KEYS = sorted(_TOPONYMS, key=len, reverse=True)
 
+# « Paris 15e », « Lyon 3e arrondissement », « Marseille 8e » : la table des
+# communes ignore les arrondissements, mais la ville de rattachement s'y trouve.
+_ARRONDISSEMENT_RE = re.compile(
+    r"\s+\d{1,2}\s*(?:e|er|ème|eme)?\s*(?:arrondissement)?\s*$", re.I
+)
+
+
+def est_lieu_connu(nom: str | None) -> bool:
+    """Le nom correspond-il à un lieu français réel — commune, département,
+    région ou grande ville ?
+
+    Sert de garde-fou AVANT géocodage. La BAN est un moteur de correspondance
+    floue sans notion de « pas de réponse » : interrogée sur un nom étranger ou
+    inventé, elle renvoie la commune la plus ressemblante, et le pipeline
+    l'acceptait telle quelle. Relevé le 11/08/2026 : Kiev → Quiévy (Nord),
+    Gaza → Gazaupouy, Milan → Millançay, Barcelone → Barcelonne. Le score
+    renvoyé ne permet pas de trancher — « Gaza » obtient 0,838 quand
+    « Paris 15e », parfaitement légitime, n'obtient que 0,869.
+
+    La vérification locale, elle, est exacte : sur l'échantillon de calibrage,
+    15 noms étrangers ou inventés sur 15 sont rejetés, et 28 lieux français
+    légitimes sur 29 conservés. Seule perte : « Boulogne » seul, ambigu entre
+    Billancourt et sur-Mer — un lieu qu'il vaut mieux ne pas placer du tout.
+    """
+    if not nom:
+        return False
+    nom = nom.strip()
+    if not nom:
+        return False
+    from app.communes_db import lookup_commune
+
+    for candidat in (nom, _ARRONDISSEMENT_RE.sub("", nom)):
+        if _norm(candidat) in _TOPONYMS or lookup_commune(candidat) is not None:
+            return True
+    return False
+
 
 def toponym_from_title(titre: str) -> str | None:
     """Département, région ou grande ville nommé dans un titre. None si aucun.
