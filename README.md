@@ -284,6 +284,12 @@ contenu des bulles de la carte (résumé chargé à l'ouverture, repli en cas
 d'échec, absence de préchargement) — ainsi qu'un audit d'accessibilité
 automatisé (axe-core, WCAG 2 A/AA).
 
+`layout.spec.ts` **balaie onze largeurs** de 390 à 1920 px et vérifie que
+l'en-tête laisse au moins 55 % de la fenêtre à la carte et au fil. Tester le
+mobile et une largeur de bureau ne suffit pas : le défaut d'août 2026 vivait
+entre les deux (en-tête de 799 px sur une fenêtre de 900 à 1100 px de large) et
+n'était même pas monotone — 1100 px était pire que 1024 et que 1215.
+
 L'API simulée (`e2e/fixtures.ts`) reproduit fidèlement les **omissions** du
 vrai backend : `/events/map` y renvoie, comme en production, des événements
 sans résumé ni tags. Une simulation plus généreuse que le serveur valide une

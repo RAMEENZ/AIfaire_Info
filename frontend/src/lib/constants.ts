@@ -6,7 +6,12 @@ export const CATEGORY_CONFIG: Record<
 > = {
   meteo: { label: "Météo", color: "#3B82F6", icon: "⛈", letter: "M" },
   crue: { label: "Crue", color: "#06B6D4", icon: "🌊", letter: "C" },
-  seisme: { label: "Séisme", color: "#8B5CF6", icon: "🌍", letter: "S" },
+  // Violet clair volontairement : #8B5CF6 tombait pile au point de bascule
+  // (4,19 avec le texte sombre, 4,23 avec le blanc) — les deux sous le seuil
+  // WCAG AA de 4,5 pour du texte de 12 px. Le violet foncé étant déjà pris par
+  // « Nucléaire », on éclaircit : 6,5 avec le texte sombre, et les deux
+  // catégories restent distinguables au premier coup d'œil.
+  seisme: { label: "Séisme", color: "#A78BFA", icon: "🌍", letter: "S" },
   energie: { label: "Énergie", color: "#F59E0B", icon: "⚡", letter: "E" },
   sante: { label: "Santé", color: "#10B981", icon: "🏥", letter: "Sa" },
   transport: { label: "Transport", color: "#6B7280", icon: "🚆", letter: "T" },

@@ -466,16 +466,26 @@ export default function HomePage() {
           <span className="text-blue-700 dark:text-blue-300 font-black text-xl tracking-tight">FAIRE</span>
           <span className="text-gray-500 dark:text-gray-400 text-sm font-medium hidden sm:inline">Info</span>
         </div>
-        <FilterBar
-          filters={filters}
-          onCategoriesChange={handleCategoriesChange}
-          onGraviteChange={handleGraviteChange}
-          onDepuisHeuresChange={handleDepuisHeuresChange}
-          onRefresh={refreshEvents}
-          onResetFilters={handleResetFilters}
-          isLoading={eventsLoading}
-          eventCounts={eventCounts}
-        />
+        {/* À partir de md, les filtres occupent leur PROPRE ligne, sous la barre
+            d'outils (`order-last` + `w-full`). Sans cela, ils étaient le seul
+            élément flexible de l'en-tête et absorbaient toute la compression :
+            écrasés à une centaine de pixels, leurs seize pastilles s'empilaient
+            une par ligne. À 1100 px de large, l'en-tête atteignait 799 px de
+            haut sur une fenêtre de 900 — il ne restait que 72 px à la carte et
+            au fil (mesuré le 03/08/2026). `contents` laisse le mobile
+            inchangé : le bouton « Filtres » y reste en ligne avec le logo. */}
+        <div className="contents md:block md:w-full md:order-last">
+          <FilterBar
+            filters={filters}
+            onCategoriesChange={handleCategoriesChange}
+            onGraviteChange={handleGraviteChange}
+            onDepuisHeuresChange={handleDepuisHeuresChange}
+            onRefresh={refreshEvents}
+            onResetFilters={handleResetFilters}
+            isLoading={eventsLoading}
+            eventCounts={eventCounts}
+          />
+        </div>
         {maxGravite >= 2 && (
           <span
             className="hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold motion-safe:animate-pulse"
