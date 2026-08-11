@@ -29,6 +29,16 @@ class Settings(BaseSettings):
 
     SCHEDULER_TIMEZONE: str = "Europe/Paris"
 
+    # Heures des ingestions complètes (heure locale du fuseau ci-dessus).
+    # Par défaut 07h, 12h, 17h, 22h : un passage toutes les 5 heures à partir
+    # de 7 h du matin. Le cycle ne peut pas se poursuivre à l'identique la nuit
+    # — 24 n'est pas divisible par 5, la série dériverait de jour en jour et
+    # perdrait son ancrage matinal. Les quatre passages diurnes couvrent donc
+    # la journée, et les sources d'alerte (météo, crues, séismes) restent
+    # relevées toutes les heures par HOURLY_ALERT_INGESTION, y compris la nuit.
+    # Format : heures séparées par des virgules, ex. "7,12,17,22" ou "6,11,16,21,2".
+    INGEST_HOURS: str = "7,12,17,22"
+
     MAX_EVENTS_LIMIT: int = 1000
     DEFAULT_EVENTS_LIMIT: int = 500
     DEFAULT_SINCE_HOURS: int = 48

@@ -62,3 +62,55 @@ test("le fil se remplit et affiche des cartes lisibles", async ({ page }) => {
   await expect(cards.first()).toBeVisible();
   expect(await cards.count()).toBeGreaterThan(3);
 });
+
+test("le bouton Actualiser ne casse pas le fil", async ({ page }) => {
+  // `mutate` de SWR prend les DONNÉES en premier argument : branché tel quel
+  // sur onClick, il recevait l'événement de clic et rangeait un MouseEvent à la
+  // place de la réponse de l'API. Le rendu cassait au premier accès à
+  // `.events` — « can't access property "length", P.events is undefined »
+  // (signalé le 11/08/2026).
+  const erreurs: string[] = [];
+  page.on("pageerror", (e) => erreurs.push(e.message));
+
+  const calls = await mockApi(page, { total: 30 });
+  await page.goto("/");
+  await expect(page.locator("article").first()).toBeVisible();
+
+  const avant = calls.events.length;
+  await page.getByRole("button", { name: /Actualiser/i }).click();
+
+  // Une vraie requête est repartie…
+  await expect.poll(() => calls.events.length).toBeGreaterThan(avant);
+  // …le fil est toujours là, et rien n'a explosé.
+  await expect(page.locator("article").first()).toBeVisible();
+  expect(erreurs).toEqual([]);
+
+  // Le compteur de l'en-tête ne doit jamais afficher « undefined » : c'est ce
+  // que donnait un `total` absent. (SWR revalide dans la foulée, si bien que ce
+  // test seul ne distingue pas le correctif de fond des garde-fous défensifs —
+  // c'est le test suivant, sur une réponse malformée, qui épingle la cause.)
+  const entete = await page.locator("header").innerText();
+  expect(entete).not.toContain("undefined");
+  expect(entete).not.toContain("NaN");
+  await expect(page.locator("header")).toContainText(/\d+ événements/);
+});
+
+test("une réponse sans champ « events » est rejetée au lieu de casser le rendu", async ({ page }) => {
+  const erreurs: string[] = [];
+  page.on("pageerror", (e) => erreurs.push(e.message));
+
+  await mockApi(page, { total: 30 });
+  await page.goto("/");
+  await expect(page.locator("article").first()).toBeVisible();
+
+  // Un intermédiaire renvoie un 200 au corps inattendu.
+  await page.route("**/api/events?*", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: '{"detail":"oops"}' })
+  );
+  await page.getByRole("button", { name: /Actualiser/i }).click();
+  await page.waitForTimeout(1000);
+
+  // SWR conserve les données précédentes : le fil reste affiché, pas d'erreur.
+  await expect(page.locator("article").first()).toBeVisible();
+  expect(erreurs).toEqual([]);
+});

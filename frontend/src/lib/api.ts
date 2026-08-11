@@ -54,7 +54,15 @@ export async function fetchEvents(params: FetchEventsParams = {}): Promise<Event
     throw new Error(`Erreur API /events : ${response.status} ${response.statusText}`);
   }
 
-  return response.json() as Promise<EventsResponse>;
+  // Une réponse 200 au corps inattendu (page d'erreur d'un intermédiaire,
+  // réponse de repli d'un service worker) passait pour des données valides et
+  // ne cassait qu'au premier accès à `.events`, loin d'ici. On échoue au point
+  // d'entrée : SWR conserve alors les données précédentes et affiche l'erreur.
+  const data = (await response.json()) as unknown;
+  if (!data || !Array.isArray((data as EventsResponse).events)) {
+    throw new Error("Réponse /events inattendue : champ « events » absent");
+  }
+  return data as EventsResponse;
 }
 
 /** Réponse allégée de /events/map : les champs absents sont complétés par des

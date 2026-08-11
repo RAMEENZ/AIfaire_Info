@@ -39,7 +39,7 @@ _Enedis (coupures d'électricité) a été retiré en 07/2026 : le portail open 
 [Sources] → [Connectors] → [Extractor IA / règles] → [Geocoder BAN] → [Dédup] → [PostgreSQL+PostGIS] → [API FastAPI] → [Next.js + Leaflet]
 ```
 
-Ingestions automatiques : **7h00, 12h00, 19h00** (heure Paris), plus un **passage horaire léger** (à :30) des sources d'alerte temps réel — météo, crues, séismes — sans coût LLM (`HOURLY_ALERT_INGESTION`).  
+Ingestions automatiques : **7h00, 12h00, 17h00, 22h00** (heure Paris) — un passage toutes les 5 heures à partir de 7 h. Les heures sont configurables (`INGEST_HOURS`, défaut `7,12,17,22`) ; le cycle ne se poursuit pas la nuit, 24 n'étant pas divisible par 5 la série dériverait de jour en jour et perdrait son ancrage matinal. S'y ajoute un **passage horaire léger** (à :30) des sources d'alerte temps réel — météo, crues, séismes — sans coût LLM (`HOURLY_ALERT_INGESTION`), qui couvre donc aussi la nuit.  
 Purge quotidienne : **3h00** — TTL variable par source : 36h météo/vigicrues, 72h presse, 30j séismes. Juste avant la purge, les comptes quotidiens (jour × catégorie × département) sont figés dans `daily_stats` (exposés par `GET /api/stats/history`) : les tendances longues survivent à la purge.
 
 Pour déclencher manuellement : `POST /api/ingest/run` (clé `INGEST_API_KEY`). Le bouton "Ingérer" de la StatusBar est réservé au dev/local (l'endpoint étant protégé par clé en production) : il est masqué par défaut et s'active via `NEXT_PUBLIC_ENABLE_INGEST_BUTTON=true`.
@@ -290,6 +290,13 @@ mobile et une largeur de bureau ne suffit pas : le défaut d'août 2026 vivait
 entre les deux (en-tête de 799 px sur une fenêtre de 900 à 1100 px de large) et
 n'était même pas monotone — 1100 px était pire que 1024 et que 1215.
 
+L'en-tête est structuré en **deux bandes** — identité/outils/état d'un côté,
+filtres de l'autre — plutôt qu'en une ligne unique où tout se dispute la place.
+Mêlés aux boutons, les filtres étaient le seul élément compressible et
+absorbaient tout le manque de place. Deux bandes le rendent structurellement
+impossible : chacune dispose de la largeur entière et se replie pour son propre
+compte, sans seuil de largeur ni `order`.
+
 L'API simulée (`e2e/fixtures.ts`) reproduit fidèlement les **omissions** du
 vrai backend : `/events/map` y renvoie, comme en production, des événements
 sans résumé ni tags. Une simulation plus généreuse que le serveur valide une
@@ -310,6 +317,7 @@ bulles de carte.
 | `INGEST_API_KEY` | _(vide)_ | Clé POST `/api/ingest/run` (vide = pas d'auth, dev uniquement) |
 | `ENABLE_DOCS` | `false` | Swagger `/docs` — mettre `true` en local pour explorer l'API |
 | `SCHEDULER_TIMEZONE` | `Europe/Paris` | Timezone APScheduler |
+| `INGEST_HOURS` | `7,12,17,22` | Heures des ingestions complètes (heure locale). Valeurs illisibles ou hors 0-23 ignorées, repli sur le défaut |
 | `DEFAULT_SINCE_HOURS` | `48` | Fenêtre d'affichage par défaut |
 | `MAX_PRESSE_ARTICLES` | `120` | Plafond articles presse traités par cycle (chacun passe par le LLM) |
 | `FETCH_FULL_ARTICLES` | `true` | Fetch du contenu complet avant extraction IA (désactiver si bande passante limitée) |

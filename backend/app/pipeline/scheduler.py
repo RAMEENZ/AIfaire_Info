@@ -14,6 +14,43 @@ logger = logging.getLogger(__name__)
 
 _scheduler: AsyncIOScheduler | None = None
 
+# Repli si INGEST_HOURS est vide ou illisible : mieux vaut un rythme par défaut
+# qu'un ordonnanceur muet, qui laisserait le site se figer sans bruit.
+_INGEST_HOURS_DEFAUT = (7, 12, 17, 22)
+
+
+def ingest_hours() -> tuple[int, ...]:
+    """Heures d'ingestion complète, lues dans INGEST_HOURS.
+
+    Dédoublonnées et triées : deux fois la même heure créerait deux tâches
+    APScheduler de même identifiant, dont la seconde écraserait la première.
+    Toute valeur hors 0-23 est ignorée avec une trace, plutôt que de faire
+    échouer le démarrage — une faute de frappe dans le .env ne doit pas
+    empêcher le backend de tourner.
+    """
+    heures: set[int] = set()
+    for morceau in (settings.INGEST_HOURS or "").split(","):
+        morceau = morceau.strip()
+        if not morceau:
+            continue
+        try:
+            heure = int(morceau)
+        except ValueError:
+            logger.warning("INGEST_HOURS : « %s » n'est pas un nombre, ignoré", morceau)
+            continue
+        if 0 <= heure <= 23:
+            heures.add(heure)
+        else:
+            logger.warning("INGEST_HOURS : %d hors de 0-23, ignoré", heure)
+
+    if not heures:
+        logger.warning(
+            "INGEST_HOURS inutilisable (%r) — repli sur %s",
+            settings.INGEST_HOURS, _INGEST_HOURS_DEFAUT,
+        )
+        return _INGEST_HOURS_DEFAUT
+    return tuple(sorted(heures))
+
 
 async def _run_ingestion_job() -> None:
     logger.info("Scheduled ingestion triggered at %s", datetime.now(timezone.utc).isoformat())
@@ -100,17 +137,14 @@ def get_scheduler() -> AsyncIOScheduler:
             },
         )
 
-        # Trois ingestions par jour : 07h00, 12h00 et 19h00.
-        for hour, job_id, label in [
-            (7,  "ingest_morning", "Morning ingestion (07h00)"),
-            (12, "ingest_midday",  "Midday ingestion (12h00)"),
-            (19, "ingest_evening", "Evening ingestion (19h00)"),
-        ]:
+        # Ingestions complètes : heures lues dans INGEST_HOURS (défaut 07h, 12h,
+        # 17h, 22h — un passage toutes les 5 heures à partir de 7 h).
+        for hour in ingest_hours():
             _scheduler.add_job(
                 _run_ingestion_job,
                 trigger=CronTrigger(hour=hour, minute=0, timezone=settings.SCHEDULER_TIMEZONE),
-                id=job_id,
-                name=label,
+                id=f"ingest_{hour:02d}h",
+                name=f"Ingestion complète ({hour:02d}h00)",
                 replace_existing=True,
                 max_instances=1,
                 coalesce=True,
@@ -189,8 +223,11 @@ def get_next_ingest_time() -> str | None:
     if _scheduler is None or not _scheduler.running:
         return None
     earliest = None
-    for jid in ("ingest_morning", "ingest_midday", "ingest_evening"):
-        j = _scheduler.get_job(jid)
+    # Les identifiants suivent INGEST_HOURS : on les redérive au lieu de les
+    # figer, sinon un changement d'horaire ferait taire cette information sans
+    # que rien ne le signale (la StatusBar afficherait « prochaine MàJ : — »).
+    for hour in ingest_hours():
+        j = _scheduler.get_job(f"ingest_{hour:02d}h")
         if j and j.next_run_time:
             if earliest is None or j.next_run_time < earliest:
                 earliest = j.next_run_time

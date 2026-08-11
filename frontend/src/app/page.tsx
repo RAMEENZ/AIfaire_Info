@@ -187,12 +187,30 @@ export default function HomePage() {
     data: eventsData,
     isLoading: eventsLoading,
     error: eventsError,
-    mutate: refreshEvents,
+    mutate: mutateEvents,
   } = useSWR(swrKey, () => fetchEvents(buildParams(0)), {
     refreshInterval: historyDate ? 0 : REFRESH_INTERVAL,
     revalidateOnFocus: false,
     keepPreviousData: true,
   });
+
+  /**
+   * Rafraîchissement sans argument.
+   *
+   * `mutate` de SWR prend en premier paramètre les DONNÉES à substituer. Passé
+   * tel quel à `onClick`, React lui transmet l'événement de clic : SWR range
+   * alors un objet MouseEvent à la place de la réponse de l'API, et le premier
+   * accès à `.events` casse le rendu (« can't access property "length",
+   * P.events is undefined »).
+   *
+   * TypeScript ne peut pas l'attraper : une fonction déclarée `() => void`
+   * reste assignable à un gestionnaire d'événement. On neutralise donc le
+   * problème ici, à la source, plutôt que dans chaque composant qui reçoit ce
+   * rappel — sans quoi il faudrait y penser à chaque nouveau bouton.
+   */
+  const refreshEvents = useCallback(() => {
+    void mutateEvents();
+  }, [mutateEvents]);
 
   // Pages suivantes chargées à la demande, empilées sous la première.
   const [extraEvents, setExtraEvents] = useState<Event[]>([]);
@@ -206,7 +224,9 @@ export default function HomePage() {
     setMoreError(false);
   }, [swrKeyStr]);
 
-  const loadedCount = (eventsData?.events.length ?? 0) + extraEvents.length;
+  // `?.` jusqu'au bout : une réponse dépourvue de `events` ne doit pas casser
+  // le rendu, même si `fetchEvents` la rejette désormais en amont.
+  const loadedCount = (eventsData?.events?.length ?? 0) + extraEvents.length;
   const hasMore = Boolean(eventsData) && loadedCount < (eventsData?.total ?? 0);
 
   const handleLoadMore = useCallback(async () => {
@@ -460,31 +480,31 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col h-app overflow-hidden bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="flex flex-wrap items-center gap-2 px-3 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm z-10 flex-shrink-0">
+      {/*
+        En-tête en DEUX BANDES distinctes, et non une seule ligne où tout se
+        dispute la place :
+          1. identité + outils + état — des éléments courts, qui tiennent
+             ensemble et se replient naturellement ;
+          2. les filtres — seize pastilles, deux groupes de boutons : un bloc
+             qui a besoin de toute la largeur pour se déployer.
+
+        Les mêler faisait des filtres le seul élément compressible : ils
+        absorbaient tout le manque de place et s'écrasaient en une colonne
+        d'une pastille par ligne. À 1100 px, l'en-tête atteignait 799 px de
+        haut sur une fenêtre de 900 (mesuré le 03/08/2026).
+
+        Deux bandes séparées rendent cela structurellement impossible : chaque
+        bande dispose de la largeur entière et se replie pour son propre
+        compte. Aucun seuil de largeur, aucun `order` ni `contents` — la
+        disposition découle de ce que les éléments SONT, pas d'une correction
+        appliquée à partir d'une certaine taille d'écran.
+      */}
+      <header className="flex flex-col gap-1.5 px-3 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm z-10 flex-shrink-0">
+        {/* Bande 1 — identité, outils, état */}
+        <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-2 mr-4">
           <span className="text-blue-700 dark:text-blue-300 font-black text-xl tracking-tight">FAIRE</span>
           <span className="text-gray-500 dark:text-gray-400 text-sm font-medium hidden sm:inline">Info</span>
-        </div>
-        {/* À partir de md, les filtres occupent leur PROPRE ligne, sous la barre
-            d'outils (`order-last` + `w-full`). Sans cela, ils étaient le seul
-            élément flexible de l'en-tête et absorbaient toute la compression :
-            écrasés à une centaine de pixels, leurs seize pastilles s'empilaient
-            une par ligne. À 1100 px de large, l'en-tête atteignait 799 px de
-            haut sur une fenêtre de 900 — il ne restait que 72 px à la carte et
-            au fil (mesuré le 03/08/2026). `contents` laisse le mobile
-            inchangé : le bouton « Filtres » y reste en ligne avec le logo. */}
-        <div className="contents md:block md:w-full md:order-last">
-          <FilterBar
-            filters={filters}
-            onCategoriesChange={handleCategoriesChange}
-            onGraviteChange={handleGraviteChange}
-            onDepuisHeuresChange={handleDepuisHeuresChange}
-            onRefresh={refreshEvents}
-            onResetFilters={handleResetFilters}
-            isLoading={eventsLoading}
-            eventCounts={eventCounts}
-          />
         </div>
         {maxGravite >= 2 && (
           <span
@@ -687,6 +707,23 @@ export default function HomePage() {
               ? "Chargement…"
               : ""}
           </span>
+        </div>
+        </div>
+
+        {/* Bande 2 — les filtres, sur toute la largeur. Une seule instance du
+            composant : sur mobile il n'affiche que son bouton « Filtres », qui
+            déplie le reste sur place. */}
+        <div className="flex">
+          <FilterBar
+            filters={filters}
+            onCategoriesChange={handleCategoriesChange}
+            onGraviteChange={handleGraviteChange}
+            onDepuisHeuresChange={handleDepuisHeuresChange}
+            onRefresh={refreshEvents}
+            onResetFilters={handleResetFilters}
+            isLoading={eventsLoading}
+            eventCounts={eventCounts}
+          />
         </div>
       </header>
 
