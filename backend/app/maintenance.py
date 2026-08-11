@@ -32,6 +32,7 @@ from app.models import Event
 # privé de son point final (voir clean_extractions).
 _LIMITE_RESUME_HISTORIQUE = 500
 from app.pipeline.geocoder import geocode
+from app.pipeline.toponym import _norm as _sans_accent
 from app.pipeline.toponym import location_from_url
 
 
@@ -262,6 +263,7 @@ async def test_extraction(limit: int = 15) -> dict:
     cats: Counter = Counter()
     tags_total = paraphrases = inacheves = sans_tags = 0
     national_modele = national_pipeline = recuperes = sans_lieu_type = 0
+    lieux_rejetes_perdus = lieux_rejetes_recuperes = 0
     hors_llm = 0
 
     for e in rows:
@@ -297,6 +299,18 @@ async def test_extraction(limit: int = 15) -> dict:
         national_pipeline += final_national
         if modele_national and not final_national:
             recuperes += 1
+        elif not modele_national:
+            # Le modèle a nommé un lieu. S'il ne survit pas tel quel, c'est le
+            # garde-fou qui l'a écarté faute de le trouver dans la table des
+            # communes, des départements et des régions. Deux issues, qu'il
+            # faut distinguer : le repli par URL retrouve un lieu réel, ou
+            # l'article sort de la carte. La seconde est le COÛT du garde-fou —
+            # sans ce chiffre, impossible de dire s'il est trop sévère.
+            if _sans_accent(brut["lieu_nom"]) != _sans_accent(final.get("lieu_nom") or ""):
+                if final_national:
+                    lieux_rejetes_perdus += 1
+                else:
+                    lieux_rejetes_recuperes += 1
 
         mots_titre = set(e.titre.lower().split())
         mots_resume = set(resume.lower().split())
@@ -333,7 +347,12 @@ async def test_extraction(limit: int = 15) -> dict:
     print(f"  « national » selon le modèle    : {pct(national_modele)}")
     print(f"  « national » APRÈS pipeline     : {pct(national_pipeline)}"
           f"   ← ce qui compte : hors carte")
-    print(f"  récupérés par le repli URL      : {recuperes}")
+    print(f"  récupérés par le repli URL      : {recuperes}"
+          "   ← le modèle disait « national »")
+    print(f"  lieux inconnus rattrapés        : {lieux_rejetes_recuperes}"
+          "   ← nom rejeté, lieu réel retrouvé")
+    print(f"  lieux inconnus sortis de carte  : {lieux_rejetes_perdus}"
+          "   ← COÛT du garde-fou anti-invention")
     print(f"  lieu_type renseigné             : {pct(n - sans_lieu_type)}")
     print(f"  tags par article                : {tags_total / n:.1f}")
     print(f"  articles sans aucun tag         : {pct(sans_tags)}")

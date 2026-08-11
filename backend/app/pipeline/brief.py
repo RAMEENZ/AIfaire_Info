@@ -106,13 +106,13 @@ def _aggregate_alerts(alerts: "list[Event]", fmt) -> str:
     lines.extend(singles)
     return "\n".join(lines)
 
-import httpx
 from sqlalchemy import select
 
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models import DailyBrief, Event
 from app.pipeline.sanitize import sanitize_markdown as _sanitize_brief
+from app.pipeline.mistral_client import chat as mistral_chat
 from app.pipeline.sanitize import truncate_clean
 from app.pipeline.toponym import _norm as _sans_accent
 
@@ -352,31 +352,21 @@ def audit_brief(content: str, user_prompt: str | None = None) -> list[str]:
 
 async def _generate_text(system_prompt: str, user_prompt: str) -> Optional[str]:
     """Un appel à Mistral, nettoyé du Markdown résiduel. None si l'appel échoue."""
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(
-                "https://api.mistral.ai/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.MISTRAL_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": settings.MISTRAL_MODEL,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    # Basse température : un brief se juge sur l'exactitude, pas
-                    # sur la variété de formulation.
-                    "temperature": 0.25,
-                    "max_tokens": 1000,
-                },
-            )
-            resp.raise_for_status()
-            return _sanitize_brief(resp.json()["choices"][0]["message"]["content"])
-    except Exception as exc:
-        logger.error("Brief generation failed: %s", exc)
+    contenu = await mistral_chat(
+        [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        # Basse température : un brief se juge sur l'exactitude, pas sur la
+        # variété de formulation.
+        temperature=0.25,
+        max_tokens=1000,
+        timeout=60.0,
+        etiquette="brief",
+    )
+    if not contenu:
         return None
+    return _sanitize_brief(contenu)
 
 
 async def build_brief_prompts(hours: int = 24) -> Optional[tuple[str, str, dict[str, int]]]:

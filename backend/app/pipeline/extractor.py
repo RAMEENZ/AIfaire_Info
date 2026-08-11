@@ -21,6 +21,7 @@ from app.categories import (
 )
 from app.config import settings
 from app.pipeline.geocoder import geocode
+from app.pipeline.mistral_client import chat as mistral_chat
 from app.pipeline.sanitize import sanitize_markdown, truncate_clean
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ _extract_cache: dict[str, dict[str, Any]] = {}
 _MAX_EXTRACT_CACHE = 2048
 
 _OLLAMA_SEMAPHORE = asyncio.Semaphore(2)
-_MISTRAL_SEMAPHORE = asyncio.Semaphore(10)
+_MISTRAL_SEMAPHORE = asyncio.Semaphore(settings.MISTRAL_MAX_CONCURRENCY)
 
 
 def _cache_key(titre: str, description: str) -> str:
@@ -489,31 +490,19 @@ async def _extract_with_mistral(titre: str, description: str,
     user_content = _build_user_content(titre, description, full_text)
 
     async with _MISTRAL_SEMAPHORE:
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.post(
-                    "https://api.mistral.ai/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {settings.MISTRAL_API_KEY}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": settings.MISTRAL_MODEL,
-                        "messages": [
-                            {"role": "system", "content": SYSTEM_PROMPT},
-                            {"role": "user", "content": user_content},
-                        ],
-                        "temperature": 0.1,
-                        "max_tokens": 350,
-                        "response_format": {"type": "json_object"},
-                    },
-                )
-                resp.raise_for_status()
-                raw_text = resp.json()["choices"][0]["message"]["content"].strip()
-                logger.info("Mistral OK [%s] '%s'", settings.MISTRAL_MODEL, titre[:50])
-        except Exception as exc:
-            logger.warning("Mistral extraction failed for '%s': %s", titre[:60], exc)
-            return None
+        raw_text = await mistral_chat(
+            [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            max_tokens=350,
+            temperature=0.1,
+            response_format={"type": "json_object"},
+            etiquette=f"extraction '{titre[:50]}'",
+        )
+    if not raw_text:
+        return None
+    logger.info("Mistral OK [%s] '%s'", settings.MISTRAL_MODEL, titre[:50])
 
     try:
         result = json.loads(raw_text)
@@ -657,17 +646,62 @@ _FRANCE_HINTS_RE = re.compile(
 # Marqueurs d'un article dont le SUJET est à l'étranger. Volontairement courte
 # et sans ambiguïté : elle ne sert qu'à écarter ce qui est manifestement
 # hors-scope pour une carte de France.
+# Pays et villes dont la mention SEULE (sans indice français par ailleurs)
+# signale un article étranger. Volontairement large depuis le 11/08/2026 : la
+# liste d'origine couvrait 45 entrées et ignorait presque toute l'Amérique
+# latine, l'Europe de l'Est, l'Afrique et l'Asie du Sud-Est — « Séisme en
+# Colombie : 181 morts » passait pour français et ressortait en gravité 3,
+# c'est-à-dire en notification push rouge pour un lecteur à Brest.
+#
+# Écartés délibérément, car homonymes de mots ou de lieux français : chili
+# (le piment), panama (le chapeau), malte (le malt), luxembourg (le jardin et
+# le Sénat), monaco (omniprésent dans les pages sport), niger et congo
+# (fleuves autant que pays). L'ordre de _looks_french limite de toute façon
+# les dégâts : un indice français l'emporte sur un indice étranger.
 _FOREIGN_FOCUS_RE = re.compile(
-    r"\b(ukraine|ukrainien|russie|russe|moscou|kiev|kyiv|"
-    r"états-unis|etats-unis|américain|washington|new york|"
-    r"gaza|israël|israel|palestin|liban|iran|irak|syrie|"
-    r"chine|chinois|pékin|pekin|taïwan|taiwan|inde|japon|tokyo|corée|coree|"
-    r"brésil|bresil|argentine|mexique|venezuela|"
-    r"allemagne|berlin|espagne|madrid|italie|rome|portugal|lisbonne|"
-    r"royaume-uni|londres|angleterre|écosse|irlande|"
-    r"belgique|bruxelles|suisse|genève|geneve|pays-bas|amsterdam|"
-    r"canada|australie|maroc|algérie|algerie|tunisie|sénégal|senegal|"
-    r"afghanistan|soudan|éthiopie|ethiopie|nigeria|turquie|grèce|grece)\b",
+    r"\b("
+    # Europe
+    r"ukraine|ukrainien|russie|russe|moscou|kiev|kyiv|"
+    r"allemagne|allemand|berlin|espagne|espagnol|madrid|barcelone|"
+    r"italie|italien|rome|milan|portugal|portugais|lisbonne|"
+    r"royaume-uni|londres|angleterre|britannique|écosse|ecosse|irlande|"
+    r"belgique|belge|bruxelles|suisse|genève|geneve|pays-bas|amsterdam|"
+    r"pologne|polonais|varsovie|roumanie|hongrie|budapest|tchèque|tcheque|prague|"
+    r"autriche|vienne \(autriche\)|slovaquie|slovénie|slovenie|croatie|serbie|"
+    r"bulgarie|grèce|grece|athènes|athenes|albanie|"
+    r"suède|suede|stockholm|norvège|norvege|oslo|danemark|copenhague|"
+    r"finlande|helsinki|islande|"
+    # Amériques
+    r"états-unis|etats-unis|américain|americain|washington|new york|floride|texas|"
+    r"canada|canadien|québec|quebec|montréal|montreal|"
+    r"brésil|bresil|brésilien|bresilien|argentine|argentin|mexique|mexicain|"
+    # « chili » sauf « chili con carne » : le Chili est une zone sismique
+    # majeure, trop coûteuse à ignorer pour un homonyme culinaire.
+    r"venezuela|colombie|colombien|chili(?!\s+con)|"
+    r"pérou|perou|péruvien|peruvien|bolivie|"
+    r"équateur|equateur|uruguay|paraguay|cuba|cubain|haïti|haiti|"
+    r"nicaragua|honduras|guatemala|"
+    # Proche et Moyen-Orient
+    r"gaza|israël|israel|israélien|israelien|palestin|liban|libanais|"
+    r"iran|iranien|irak|irakien|syrie|syrien|jordanie|arabie saoudite|"
+    r"émirats|emirats|qatar|yémen|yemen|"
+    # Asie
+    r"chine|chinois|pékin|pekin|shanghai|taïwan|taiwan|hong kong|"
+    r"inde|indien|new delhi|pakistan|pakistanais|bangladesh|afghanistan|"
+    r"japon|japonais|tokyo|corée|coree|coréen|coreen|séoul|seoul|"
+    r"indonésie|indonesie|philippines|thaïlande|thailande|bangkok|"
+    r"vietnam|birmanie|myanmar|népal|nepal|sri lanka|"
+    # Afrique
+    r"maroc|marocain|rabat|algérie|algerie|algérien|algerien|alger|"
+    r"tunisie|tunisien|libye|égypte|egypte|égyptien|egyptien|le caire|"
+    r"sénégal|senegal|sénégalais|senegalais|dakar|mali|burkina|"
+    r"côte d'ivoire|cote d'ivoire|ivoirien|abidjan|cameroun|gabon|"
+    r"nigeria|nigérian|nigerian|kenya|éthiopie|ethiopie|soudan|somalie|"
+    r"tchad|mauritanie|madagascar|afrique du sud|"
+    # Océanie et divers
+    r"australie|australien|nouvelle-zélande|nouvelle-zelande|"
+    r"turquie|turc|ankara|istanbul"
+    r")\b",
     re.IGNORECASE,
 )
 
@@ -776,6 +810,18 @@ async def maybe_extract(item: dict[str, Any]) -> dict[str, Any]:
         and not _looks_french(titre, description)
     ):
         extraction = await _rule_based_extract(titre, description)
+        # La gravité ≥ 2 ouvre DEUX canaux d'alerte française : la section
+        # « Alertes & vigilances » du brief, et surtout les notifications push
+        # (push.py sélectionne Event.gravite >= 2). Or les règles attribuent la
+        # gravité au seul mot-clé de catégorie, sans notion de lieu : « Séisme
+        # en Colombie : au moins 181 morts » ressortait en gravité 3, donc en
+        # notification rouge sur le téléphone d'un lecteur à Brest (relevé du
+        # 11/08/2026). Un fait étranger a sa place dans le fil — pas dans le
+        # canal d'alerte d'un service géolocalisé sur la France.
+        if extraction.get("gravite", 0) >= 2:
+            logger.info("Article hors France, gravité %d ramenée à 1 : %s",
+                        extraction["gravite"], titre[:70])
+            extraction["gravite"] = 1
     else:
         # Fetch full article content when an AI backend is available — richer context
         # greatly improves location extraction and tag quality.

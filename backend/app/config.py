@@ -66,6 +66,18 @@ class Settings(BaseSettings):
     MISTRAL_API_KEY: str = ""
     MISTRAL_MODEL: str = "mistral-small-latest"
 
+    # Tentatives par appel Mistral, reprises comprises. Un HTTP 429 (« trop de
+    # requêtes ») n'est pas une panne : il se résout en patientant. Sans reprise,
+    # l'extraction retombait sur les règles — résumé tronqué, aucun tag, lieu
+    # « national » — et le brief n'était pas produit du tout (relevé du
+    # 11/08/2026 : 3 articles sur 15 perdus ainsi). Mettre 1 pour désactiver.
+    MISTRAL_MAX_RETRIES: int = 4
+
+    # Appels Mistral simultanés. Trop haut, on déclenche la limitation de débit
+    # de l'API ; la reprise ci-dessus absorbe alors le surplus, mais au prix
+    # d'attentes inutiles. À baisser si les 429 persistent dans les journaux.
+    MISTRAL_MAX_CONCURRENCY: int = 10
+
     # Ollama : fallback local si MISTRAL_API_KEY est vide
     OLLAMA_BASE_URL: str = ""
     OLLAMA_MODEL: str = "qwen2.5:1.5b"

@@ -128,7 +128,6 @@ async def _extraction_factice(monkeypatch, lieu_nom, lieu_type):
             "lieu_type": lieu_type, "resume_ia": "Un résumé.", "tags": [],
         }
     monkeypatch.setattr(extractor, "extract_article", fake_extract)
-    monkeypatch.setattr(extractor, "_has_ai", True, raising=False)
     return await maybe_extract({
         "source": "presse_rss", "titre": "Un fait divers", "description": "",
         "auteur": "Test", "source_url": "https://exemple.fr/article",
@@ -159,3 +158,68 @@ async def test_commune_reelle_sans_lieu_type_conservee(monkeypatch):
 async def test_departement_sans_lieu_type_conserve(monkeypatch):
     result = await _extraction_factice(monkeypatch, "Morbihan", None)
     assert result["lieu_nom"] == "Morbihan"
+
+
+# --- Gravité des faits étrangers ----------------------------------------
+
+async def test_fait_etranger_ne_declenche_pas_le_canal_d_alerte(monkeypatch):
+    """La gravité ≥ 2 déclenche les notifications push (push.py) et la section
+    « Alertes » du brief. Les règles l'attribuaient au seul mot-clé de
+    catégorie : « Séisme en Colombie » sortait en gravité 3, soit une alerte
+    rouge sur le téléphone d'un lecteur français (relevé du 11/08/2026).
+    """
+    monkeypatch.setattr(extractor.settings, "MISTRAL_API_KEY", "clé-de-test")
+    result = await maybe_extract({
+        "source": "presse_rss",
+        # Titre réel du 11/08/2026, complet : c'est lui qui sortait en gravité 3.
+        "titre": "Séisme en Colombie : au moins 181 morts, Washington débloque une aide",
+        "description": "", "auteur": "Test",
+        "source_url": "https://exemple.fr/monde/seisme-colombie",
+    })
+    assert result["categorie"] == "seisme"      # la catégorie reste juste
+    assert result["gravite"] < 2                # mais hors du canal d'alerte
+    assert result["lieu_nom"] == "national"
+
+
+async def test_fait_francais_conserve_sa_gravite():
+    """Le plafond ne doit pas désarmer les alertes françaises légitimes."""
+    result = await maybe_extract({
+        "source": "presse_rss",
+        "titre": "Séisme ressenti dans les Pyrénées-Atlantiques, plusieurs blessés",
+        "description": "", "auteur": "Test",
+        "source_url": "https://exemple.fr/seisme-pyrenees",
+    })
+    assert result["gravite"] >= 2
+
+
+@pytest.mark.parametrize("titre", [
+    "Séisme de magnitude 7 au Chili",
+    "Inondations meurtrières au Pérou",
+    "Explosion au Bangladesh : 30 morts",
+    "Coup d'État au Mali",
+    "Séisme au Népal : des centaines de victimes",
+    "Manifestations en Pologne contre la réforme",
+])
+def test_pays_etrangers_detectes(titre):
+    """La liste d'origine ignorait presque toute l'Amérique latine, l'Europe de
+    l'Est, l'Afrique et l'Asie du Sud-Est : 26 pays passaient pour français."""
+    from app.pipeline.extractor import _looks_french
+    assert _looks_french(titre, "") is False
+
+
+@pytest.mark.parametrize("titre", [
+    "Trois blessés dans une collision à Colmar",
+    "Vigilance orange canicule sur 19 départements",
+    "Incendie en forêt de Fontainebleau",
+    # Pièges : homonymes français de noms de pays ou de villes.
+    "Chili con carne : la recette inratable",
+    "Concert au jardin du Luxembourg à Paris",
+    "L'AS Monaco s'impose face à Nice",
+    "La ville de Vienne, en Isère, rénove ses thermes",
+    "Le Niger, affluent de la Loire, en crue à Nevers",
+])
+def test_titres_francais_non_signales_comme_etrangers(titre):
+    """Élargir le filtre ne doit pas rejeter la matière française vers
+    l'extraction par règles, bien plus grossière."""
+    from app.pipeline.extractor import _looks_french
+    assert _looks_french(titre, "") is True
