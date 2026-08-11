@@ -195,3 +195,77 @@ async def test_get_exception_is_wrapped_in_runtimeerror():
 
     with pytest.raises(RuntimeError):
         await _fetch_feed(client, FEED_CFG, cache)
+
+
+# ── Étalement des requêtes par hôte ─────────────────────────────────────────
+
+async def test_les_requetes_vers_un_meme_hote_sont_espacees(monkeypatch):
+    """La concurrence par hôte borne le nombre de requêtes SIMULTANÉES, pas le
+    débit : trois requêtes en parallèle qui se renouvellent aussitôt, ce sont
+    toujours des dizaines d'appels en quelques secondes vers le même éditeur.
+    Un intervalle minimal les étale."""
+    import time as _t
+    from app.connectors import presse_rss as pr
+
+    monkeypatch.setattr(pr.settings, "FEED_HOST_MIN_INTERVAL_SECONDS", 0.05)
+    pr._host_last_request.clear()
+
+    debut = _t.monotonic()
+    for _ in range(4):
+        await pr._respect_host_interval("https://exemple.fr/rss.xml")
+    ecoule = _t.monotonic() - debut
+
+    # 4 requêtes espacées de 0,05 s → au moins 3 intervalles.
+    assert ecoule >= 0.15 - 0.01, f"étalement insuffisant : {ecoule:.3f}s"
+
+
+async def test_des_hotes_differents_ne_sattendent_pas():
+    """L'étalement est par hôte : interroger deux éditeurs distincts ne doit
+    pas les mettre en file l'un derrière l'autre."""
+    import time as _t
+    from app.connectors import presse_rss as pr
+
+    pr._host_last_request.clear()
+    debut = _t.monotonic()
+    await pr._respect_host_interval("https://un.fr/rss")
+    await pr._respect_host_interval("https://deux.fr/rss")
+    await pr._respect_host_interval("https://trois.fr/rss")
+    assert _t.monotonic() - debut < 0.05
+
+
+def test_les_entetes_ne_sont_pas_reduits_au_seul_user_agent():
+    """Un User-Agent de navigateur envoyé seul, sans en-tête d'acceptation, est
+    une signature de robot que les WAF repèrent."""
+    from app.connectors.presse_rss import BROWSER_HEADERS
+
+    assert BROWSER_HEADERS["User-Agent"].startswith("Mozilla/")
+    for entete in ("Accept", "Accept-Language"):
+        assert BROWSER_HEADERS.get(entete), entete
+
+
+def test_accept_encoding_est_laisse_a_httpx():
+    """Piège coûteux : annoncer « br » à la main fait répondre les serveurs en
+    Brotli, que le client ne sait pas décoder faute du paquet correspondant. Le
+    corps arrive alors en binaire sous un HTTP 200 et le flux paraît VIDE, sans
+    qu'aucune erreur ne soit levée — constaté sur letelegramme.fr : 20 entrées
+    sans l'en-tête, 0 avec. httpx compose le sien selon les codecs installés."""
+    import importlib.util
+
+    from app.connectors.presse_rss import BROWSER_HEADERS
+
+    assert "Accept-Encoding" not in BROWSER_HEADERS
+    # Si Brotli devient disponible, l'en-tête explicite redevient envisageable —
+    # ce test rappellera de le vérifier plutôt que de le supposer.
+    assert importlib.util.find_spec("brotli") is None, (
+        "brotli est installé : l'en-tête Accept-Encoding peut être reconsidéré"
+    )
+
+
+def test_les_flux_morts_ont_ete_retires():
+    """Retirés le 11/08/2026 après vérification depuis deux réseaux
+    indépendants : DNS disparu, 403 ou 409 anti-bot permanents."""
+    from app.connectors.presse_rss import RSS_FEEDS
+
+    urls = " ".join(c.get("url", "") for c in RSS_FEEDS)
+    for mort in ("lesinguliersete.fr", "d3.lequipe.fr", "overclock.net/forums"):
+        assert mort not in urls, mort

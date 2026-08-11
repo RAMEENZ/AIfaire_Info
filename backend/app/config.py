@@ -140,6 +140,16 @@ class Settings(BaseSettings):
     # tout laisser passer.
     FILTER_COMMERCIAL_CONTENT: bool = True
 
+    # Intervalle minimal (secondes) entre deux requêtes vers un même hôte lors
+    # de la collecte RSS. La concurrence par hôte borne les requêtes
+    # SIMULTANÉES, pas le débit : trois en parallèle qui se renouvellent
+    # aussitôt, ce sont toujours des dizaines d'appels en quelques secondes.
+    # Mesure de précaution contre les WAF anti-bot ; son bénéfice n'a pas été
+    # démontré sur un blocage déjà posé. Coût : le plus gros hôte (actu.fr,
+    # 114 flux) prend 114 × cette valeur, à comparer aux 120 s de
+    # CONNECTOR_FETCH_TIMEOUT_SECONDS. Mettre 0 pour désactiver.
+    FEED_HOST_MIN_INTERVAL_SECONDS: float = 0.3
+
     # ── Notifications Web Push (VAPID) ──────────────────────────────────────
     # Générer une paire une seule fois :
     #   docker compose exec backend python -m app.maintenance vapid-keys

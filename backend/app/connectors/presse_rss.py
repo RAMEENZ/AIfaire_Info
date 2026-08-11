@@ -1,5 +1,6 @@
 import asyncio
 import html as _html
+import time
 import re as _re
 import unicodedata
 import feedparser
@@ -719,7 +720,8 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Le Réveil de Neufchâtel", "url": "https://actu.fr/le-reveil-de-neufchatel/rss.xml", "region": "Normandie"},
 
     # ── LE SINGULIER ─────────────────────────────────────────────────────────────────
-    {"name": "Le Singulier", "url": "https://lesinguliersete.fr/feed/", "region": "Occitanie"},
+    # Le Singulier retiré 11/08/2026 : 403 depuis deux réseaux indépendants
+    # (serveur et réseau tiers) — le site refuse les robots, pas notre IP.
 
     # ── LE TREGOR ─────────────────────────────────────────────────────────────────
     {"name": "Le Tregor", "url": "https://actu.fr/le-tregor/rss.xml", "region": "Bretagne"},
@@ -1274,7 +1276,8 @@ RSS_FEEDS: list[dict[str, Any]] = [
     # ── FORMULE 1 ─────────────────────────────────────────────────────────────
     {"name": "Motorsport F1",      "url": "https://fr.motorsport.com/rss/f1/news/",            "region": None},
     {"name": "F1 Only",            "url": "https://f1only.fr/feed/",                            "region": None},
-    {"name": "L'Équipe Auto/Moto", "url": "https://d3.lequipe.fr/rss/v2/rss_auto-moto.xml",    "region": None},
+    # L'Équipe Auto/Moto retiré 11/08/2026 : d3.lequipe.fr ne résout plus
+    # (échec DNS depuis deux réseaux) — le sous-domaine a disparu.
 
     # ── JEUX VIDÉO ────────────────────────────────────────────────────────────
     {"name": "Jeux Vidéo.com",     "url": "https://www.jeuxvideo.com/rss/rss.xml",              "region": None},
@@ -1332,11 +1335,29 @@ RSS_FEEDS: list[dict[str, Any]] = [
 
     # ── OPTIMISATION & TWEAKING ───────────────────────────────────────────────
     {"name": "Overclocking.com",   "url": "https://overclocking.com/feed/",                     "region": None},
-    {"name": "Overclock.net News", "url": "https://www.overclock.net/forums/news.15/index.rss", "region": None},
+    # Overclock.net retiré 11/08/2026 : répond 409 avec 0 entrée (défi
+    # anti-bot), depuis deux réseaux. Le flux ne redeviendra pas lisible.
     {"name": "PC Tuning (GitHub)", "url": "https://github.com/valleyofdoom/PC-Tuning/releases.atom", "region": None},
 ]
 
 UA = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
+
+# En-têtes d'un vrai navigateur. Un User-Agent Firefox envoyé SEUL, sans aucun
+# en-tête d'acceptation, est une signature de robot que beaucoup de WAF
+# repèrent. Cela n'annule pas un blocage d'IP déjà posé, mais évite d'en
+# mériter de nouveaux.
+# PAS d'Accept-Encoding ici : httpx compose le sien à partir des codecs
+# réellement installés (gzip, deflate — pas Brotli, absent des dépendances).
+# L'annoncer à la main fait répondre les serveurs en Brotli, que le client ne
+# sait pas décoder : le corps arrive en binaire illisible sous un HTTP 200, et
+# le flux paraît vide sans qu'aucune erreur ne soit levée. Constaté sur
+# letelegramme.fr — 20 entrées sans l'en-tête, 0 avec.
+BROWSER_HEADERS = {
+    "User-Agent": UA,
+    "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5",
+    "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.5",
+    "Cache-Control": "no-cache",
+}
 # Articles older than this are skipped — matches presse_rss TTL in purge.py
 _MAX_ARTICLE_AGE = timedelta(hours=72)
 
@@ -1351,6 +1372,17 @@ _FETCH_SEMAPHORE = asyncio.Semaphore(20)
 _HOST_CONCURRENCY = 3
 _host_semaphores: dict[str, asyncio.Semaphore] = {}
 
+# Intervalle minimal entre deux requêtes vers un même hôte (voir
+# FEED_HOST_MIN_INTERVAL_SECONDS). La concurrence seule ne borne pas le DÉBIT :
+# trois requêtes simultanées qui se renouvellent aussitôt, ce sont toujours des
+# dizaines d'appels en quelques secondes vers le même éditeur.
+#
+# Le dimensionnement est contraint par le plus gros hôte : actu.fr compte 114
+# flux, soit 114 × l'intervalle en temps sérialisé, à tenir dans les 120 s de
+# CONNECTOR_FETCH_TIMEOUT_SECONDS. À 0,3 s → 34 s, marge confortable ; à 0,7 s
+# → 80 s, trop juste.
+_host_last_request: dict[str, float] = {}
+
 
 def _host_semaphore(url: str) -> asyncio.Semaphore:
     host = urlparse(url).hostname or ""
@@ -1358,6 +1390,28 @@ def _host_semaphore(url: str) -> asyncio.Semaphore:
     if sem is None:
         sem = _host_semaphores[host] = asyncio.Semaphore(_HOST_CONCURRENCY)
     return sem
+
+
+async def _respect_host_interval(url: str) -> None:
+    """Attend le temps qu'il faut pour espacer les requêtes vers un même hôte.
+
+    Appelé sous le sémaphore de l'hôte : la lecture puis l'écriture de
+    l'horodatage sont séparées par un await, mais la concurrence par hôte est
+    déjà bornée et un léger chevauchement ne coûte qu'un espacement imparfait.
+    """
+    host = urlparse(url).hostname or ""
+    if not host:
+        return
+    intervalle = settings.FEED_HOST_MIN_INTERVAL_SECONDS
+    if intervalle <= 0:
+        return
+    maintenant = time.monotonic()
+    precedent = _host_last_request.get(host)
+    if precedent is not None:
+        attente = intervalle - (maintenant - precedent)
+        if attente > 0:
+            await asyncio.sleep(attente)
+    _host_last_request[host] = time.monotonic()
 
 # Plafond d'articles conservés par flux (les plus récents). Évite qu'un flux
 # volumineux (Google News renvoie ~100 entrées) ne monopolise à lui seul le
@@ -1495,6 +1549,7 @@ async def _fetch_feed(
             req_headers = {}
 
     async with _FETCH_SEMAPHORE, _host_semaphore(feed_url):
+        await _respect_host_interval(feed_url)
         try:
             resp = await client.get(feed_url, timeout=15.0, headers=req_headers or None)
             if resp.status_code == 304:
@@ -1690,7 +1745,7 @@ class PresseRSSConnector(BaseConnector):
         ]
         n_skipped = len(RSS_FEEDS) - len(active)
 
-        async with httpx.AsyncClient(headers={"User-Agent": UA}, follow_redirects=True) as client:
+        async with httpx.AsyncClient(headers=BROWSER_HEADERS, follow_redirects=True) as client:
             tasks = [
                 _fetch_feed(client, cfg, self._feed_cache, self._logger)
                 for _, cfg in active

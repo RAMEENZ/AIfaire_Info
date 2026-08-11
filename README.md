@@ -17,7 +17,7 @@ Vue cartographique unifiée de l'actualité publique française en quasi temps r
 | Météo-France Vigilance | Météo, Crue | Open data |
 | Vigicrues | Crue | API publique GeoJSON |
 | USGS FDSNWS (RéNaSS) | Séisme | API publique |
-| 870+ flux RSS (presse, officiel, thématique) | Toutes | RSS |
+| 865 flux RSS (presse, officiel, thématique) | Toutes | RSS |
 
 _Enedis (coupures d'électricité) a été retiré en 07/2026 : le portail open data a migré et le dataset temps réel a disparu._
 
@@ -56,7 +56,8 @@ Pour déclencher manuellement : `POST /api/ingest/run` (clé `INGEST_API_KEY`). 
 - **Healthcheck de fraîcheur** : `GET /healthz` répond `503` si le scheduler ne planifie plus d'ingestion (ou la déclenche avec plus d'1 h de retard), ou si aucun événement n'a été ingéré depuis 26 h (`HEALTHZ_*`, grâce de 30 min au démarrage). Le healthcheck Docker pointe dessus, et le service `autoheal` redémarre automatiquement un backend « unhealthy ». Leçon de la panne de 07/2026 : un scheduler mort dans un processus vivant restait invisible avec un healthcheck qui ne testait que « l'API répond ».
 - **Alerte de staleness** : contrôle horaire de fraîcheur (`app/pipeline/freshness.py`) — si aucun événement n'est ingéré depuis 26 h, notification `WEBHOOK_URL` (anti-spam : une alerte par 12 h, réarmée dès le retour à la normale). Complète autoheal : si le redémarrage ne guérit pas, vous êtes prévenu au lieu d'une boucle silencieuse.
 - **Logs persistants** : en plus de stdout, le backend écrit dans `LOG_DIR` (monté sur `./logs`, rotation 5 × 10 Mo). Les logs Docker `json-file` meurent avec le conteneur — l'autopsie de la panne de 07/2026 a été impossible pour cette raison.
-- **Limite de concurrence par hôte** : au plus 3 requêtes simultanées vers un même domaine lors de la collecte RSS — une rafale de 12 flux d'un même éditeur (Le Télégramme…) déclenchait des 403 anti-bot.
+- **Collecte RSS discrète** : au plus 3 requêtes simultanées vers un même domaine, **et** un intervalle minimal entre deux (`FEED_HOST_MIN_INTERVAL_SECONDS`, défaut 0,3 s). La concurrence seule borne les requêtes simultanées, pas le débit : trois en parallèle qui se renouvellent aussitôt restent des dizaines d'appels en quelques secondes. Le dimensionnement est contraint par le plus gros hôte — actu.fr et ses 114 flux, soit 34 s à tenir dans les 120 s de `CONNECTOR_FETCH_TIMEOUT_SECONDS`.
+- **En-têtes de navigateur** : un User-Agent Firefox envoyé seul, sans en-tête d'acceptation, est une signature de robot. `Accept-Encoding` est en revanche **laissé à httpx** : l'annoncer à la main (`br`) fait répondre les serveurs en Brotli, que le client ne sait pas décoder faute du paquet — le corps arrive en binaire sous un HTTP 200 et le flux paraît vide, sans qu'aucune erreur ne soit levée.
 - **Rapport de santé des flux** : `GET /api/health/feeds` liste les flux RSS en échec (compteur, dernière erreur, mis de côté ou non) — le tri des flux morts devient une lecture de quelques minutes. Complémentaire du sondage complet `python -m app.maintenance check-feeds`.
 - **Métrique de localisation** : `/api/metrics` expose `localized_pct_24h` (% d'événements géolocalisés sur 24 h) — une chute brutale signale une régression silencieuse du géocodeur ou de l'extraction LLM.
 - **Charge utile bornée** : `/events` est paginé (`offset`, `has_more`) et tronque les résumés IA à 220 caractères (`?full=true` pour le texte intégral). La réponse par défaut est passée de 451 Ko à environ un tiers ; le fil charge 200 événements puis la suite à la demande.
