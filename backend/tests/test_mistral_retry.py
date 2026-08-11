@@ -32,6 +32,10 @@ def _sans_attente(monkeypatch):
     monkeypatch.setattr(mistral_client.asyncio, "sleep", faux_sleep)
     monkeypatch.setattr(mistral_client.settings, "MISTRAL_API_KEY", "clé-de-test")
     monkeypatch.setattr(mistral_client.settings, "MISTRAL_MAX_RETRIES", 4)
+    # Cadence neutralisée par défaut : ces tests mesurent le RECUL de reprise,
+    # et l'espacement s'y ajouterait sans rien démontrer. Les tests de cadence
+    # la réactivent explicitement (fixture _cadence).
+    monkeypatch.setattr(mistral_client.settings, "MISTRAL_MIN_INTERVAL_SECONDS", 0)
     return dormi
 
 
@@ -108,3 +112,65 @@ def test_recul_exponentiel_sans_entete():
 async def test_sans_cle_aucun_appel(monkeypatch):
     monkeypatch.setattr(mistral_client.settings, "MISTRAL_API_KEY", "")
     assert await mistral_client.chat([], max_tokens=10, temperature=0.1) is None
+
+
+# ── Cadence : borner le débit à la source ───────────────────────────────────
+
+@pytest.fixture
+def _cadence(monkeypatch):
+    """Espacement actif, chronomètre remis à zéro entre les tests."""
+    monkeypatch.setattr(mistral_client.settings, "MISTRAL_MIN_INTERVAL_SECONDS", 1.0)
+    monkeypatch.setattr(mistral_client, "_dernier_depart", 0.0)
+
+
+async def test_premier_appel_ne_patiente_pas(_sans_attente, _cadence):
+    await mistral_client._respecter_la_cadence()
+    assert _sans_attente == []
+
+
+async def test_appel_suivant_espace_du_delai_demande(_sans_attente, _cadence):
+    """Deux départs rapprochés : le second attend l'intervalle."""
+    await mistral_client._respecter_la_cadence()
+    await mistral_client._respecter_la_cadence()
+    assert len(_sans_attente) == 1
+    assert 0.9 < _sans_attente[0] <= 1.0
+
+
+async def test_rafale_entierement_etalee(_sans_attente, _cadence):
+    """Le cas réel : plusieurs articles lancés ensemble ne partent pas en rafale.
+
+    C'est ce qui manquait le 11/08/2026 — dix appels simultanés contre une API
+    limitée en débit, 5 articles sur 15 perdus malgré quatre tentatives.
+    """
+    import asyncio as aio
+    await aio.gather(*(mistral_client._respecter_la_cadence() for _ in range(5)))
+    # Quatre attentes pour cinq départs : seul le premier part sans délai.
+    assert len(_sans_attente) == 4
+
+
+async def test_intervalle_nul_desactive_la_cadence(_sans_attente, monkeypatch):
+    monkeypatch.setattr(mistral_client.settings, "MISTRAL_MIN_INTERVAL_SECONDS", 0)
+    for _ in range(5):
+        await mistral_client._respecter_la_cadence()
+    assert _sans_attente == []
+
+
+async def test_chat_applique_la_cadence(monkeypatch, _sans_attente, _cadence):
+    """Le câblage, pas seulement la fonction.
+
+    Les tests ci-dessus appellent _respecter_la_cadence directement : retirer
+    son appel de chat() les laissait tous passer. Ce test-ci échoue si le
+    câblage disparaît — c'est lui qui protège le correctif.
+    """
+    appels: list = []
+    monkeypatch.setattr(mistral_client.httpx, "AsyncClient",
+                        _client_qui_repond([_reponse(200, "ok")], appels))
+
+    await mistral_client.chat([], max_tokens=10, temperature=0.1)
+    await mistral_client.chat([], max_tokens=10, temperature=0.1)
+
+    assert len(appels) == 2
+    # Deux requêtes réussies, aucune reprise : la seule attente possible est
+    # l'espacement du second départ.
+    assert len(_sans_attente) == 1
+    assert 0.9 < _sans_attente[0] <= 1.0

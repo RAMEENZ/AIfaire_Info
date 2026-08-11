@@ -73,10 +73,21 @@ class Settings(BaseSettings):
     # 11/08/2026 : 3 articles sur 15 perdus ainsi). Mettre 1 pour désactiver.
     MISTRAL_MAX_RETRIES: int = 4
 
-    # Appels Mistral simultanés. Trop haut, on déclenche la limitation de débit
-    # de l'API ; la reprise ci-dessus absorbe alors le surplus, mais au prix
-    # d'attentes inutiles. À baisser si les 429 persistent dans les journaux.
-    MISTRAL_MAX_CONCURRENCY: int = 10
+    # Appels Mistral simultanés. Avec l'espacement ci-dessous, la concurrence ne
+    # sert plus qu'à recouvrir la latence : quatre suffisent, et un nombre bas
+    # évite que des reprises simultanées ne repartent en rafale.
+    MISTRAL_MAX_CONCURRENCY: int = 4
+
+    # Espacement minimal (secondes) entre deux départs de requête Mistral.
+    # C'est le vrai garde-fou contre la limitation de débit : la reprise seule
+    # ne suffisait pas — relevé du 11/08/2026, 5 articles sur 15 ont épuisé
+    # leurs quatre tentatives en 429, et ces 5 articles sont EXACTEMENT ceux
+    # ressortis sans tags et avec un résumé recopié du titre. Coût : une
+    # ingestion de MAX_PRESSE_ARTICLES articles dure au moins
+    # MAX_PRESSE_ARTICLES × cette valeur (120 s pour 120 articles à 1 s), à
+    # comparer aux minutes que prend déjà l'enrichissement. Mettre 0 pour
+    # désactiver ; augmenter si des 429 subsistent dans les journaux.
+    MISTRAL_MIN_INTERVAL_SECONDS: float = 1.0
 
     # Ollama : fallback local si MISTRAL_API_KEY est vide
     OLLAMA_BASE_URL: str = ""

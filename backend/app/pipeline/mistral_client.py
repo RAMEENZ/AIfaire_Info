@@ -16,6 +16,7 @@ différence entre une dégradation silencieuse et un service fiable.
 import asyncio
 import logging
 import random
+import time
 from typing import Any, Optional
 
 import httpx
@@ -25,6 +26,31 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 _URL = "https://api.mistral.ai/v1/chat/completions"
+
+# Espacement minimal entre deux départs de requête. La reprise seule ne
+# suffisait pas : relevé du 11/08/2026, 5 articles sur 15 ont épuisé leurs
+# quatre tentatives en 429. C'était traiter le symptôme — dix appels
+# simultanés contre une API limitée en débit produisent forcément des refus,
+# et les dix reprises se télescopent ensuite au même instant. On borne donc le
+# DÉBIT à la source, comme pour les hôtes RSS ; la reprise ne sert plus qu'aux
+# aléas résiduels.
+_verrou_cadence = asyncio.Lock()
+_dernier_depart = 0.0
+
+
+async def _respecter_la_cadence() -> None:
+    """Retarde le départ pour qu'aucune requête n'en suive une autre de trop près."""
+    intervalle = settings.MISTRAL_MIN_INTERVAL_SECONDS
+    if intervalle <= 0:
+        return
+    global _dernier_depart
+    # Le verrou sérialise la DÉCISION d'horaire, pas la requête elle-même :
+    # les appels restent concurrents, ils partent simplement en file.
+    async with _verrou_cadence:
+        attente = intervalle - (time.monotonic() - _dernier_depart)
+        if attente > 0:
+            await asyncio.sleep(attente)
+        _dernier_depart = time.monotonic()
 
 # Codes qui méritent une seconde chance : limitation de débit et pannes
 # transitoires côté serveur. Un 401 ou un 400 ne se répareront pas en attendant.
@@ -80,6 +106,7 @@ async def chat(
         for tentative in range(tentatives):
             resp = None
             try:
+                await _respecter_la_cadence()
                 resp = await client.post(
                     _URL,
                     headers={
