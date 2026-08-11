@@ -132,54 +132,45 @@ function HeatmapLayer({ events, active }: { events: Event[]; active: boolean }) 
   const map = useMap();
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const L = require("leaflet") as typeof import("leaflet");
-
-    // Load leaflet.heat from CDN if not available
-    const loadHeat = (): Promise<void> => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if ((L as any).heatLayer) return Promise.resolve();
-      return new Promise((resolve, reject) => {
-        const existing = document.querySelector(
-          'script[src*="leaflet-heat"]'
-        );
-        if (existing) {
-          existing.addEventListener("load", () => resolve());
-          return;
-        }
-        const script = document.createElement("script");
-        script.src = "https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js";
-        script.onload = () => resolve();
-        script.onerror = reject;
-        document.head.appendChild(script);
-      });
-    };
+    if (typeof window === "undefined" || !active) return;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let heatLayer: any = null;
+    // Le chargement du greffon reste asynchrone (import dynamique). Sans ce
+    // drapeau, un effet relancé AVANT la résolution voyait heatLayer encore
+    // nul : le nettoyage ne retirait rien, puis la promesse ajoutait un calque
+    // que plus personne ne détenait. Or `events` est en dépendance, donc
+    // l'effet se relance à CHAQUE rafraîchissement : les calques de chaleur
+    // s'empilaient tant que le mode restait actif.
+    let annule = false;
 
-    if (active) {
-      loadHeat()
-        .then(() => {
-          const points = events
-            .filter((e) => e.lieu_lat != null && e.lieu_lon != null)
-            .map((e) => [e.lieu_lat!, e.lieu_lon!, Math.min(1, (e.gravite + 1) / 4)]);
+    (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const L = require("leaflet") as typeof import("leaflet");
+      // Empaqueté avec l'application plutôt que tiré d'un CDN à l'exécution :
+      // du code exécutable servi par unpkg s'exécutait chez le lecteur sans
+      // aucun contrôle d'intégrité, et la carte de chaleur était de toute
+      // façon indisponible hors ligne.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (!(L as any).heatLayer) await import("leaflet.heat");
+      if (annule) return;
 
-          if (points.length === 0) return;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          heatLayer = (L as any).heatLayer(points, {
-            radius: 25,
-            blur: 20,
-            maxZoom: 10,
-            gradient: { 0.4: "#3B82F6", 0.65: "#F59E0B", 1: "#EF4444" },
-          }).addTo(map);
-        })
-        .catch(console.error);
-    }
+      const points = events
+        .filter((e) => e.lieu_lat != null && e.lieu_lon != null)
+        .map((e) => [e.lieu_lat!, e.lieu_lon!, Math.min(1, (e.gravite + 1) / 4)]);
+      if (points.length === 0) return;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      heatLayer = (L as any).heatLayer(points, {
+        radius: 25,
+        blur: 20,
+        maxZoom: 10,
+        gradient: { 0.4: "#3B82F6", 0.65: "#F59E0B", 1: "#EF4444" },
+      }).addTo(map);
+    })().catch(console.error);
 
     return () => {
+      annule = true;
       if (heatLayer) map.removeLayer(heatLayer);
     };
   }, [active, events, map]);
@@ -310,9 +301,12 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
     import("leaflet").then((L) => {
       delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
       L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-        iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-        shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+        // Servies par l'application (copiées de node_modules/leaflet dans
+        // public/leaflet) et non par unpkg : une dépendance tierce de moins à
+        // l'exécution, et des marqueurs qui s'affichent en mode hors ligne.
+        iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+        iconUrl: "/leaflet/marker-icon.png",
+        shadowUrl: "/leaflet/marker-shadow.png",
       });
     });
   }, []);

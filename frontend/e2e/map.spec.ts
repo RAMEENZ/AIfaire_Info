@@ -105,3 +105,56 @@ test("si la fiche échoue, la bulle le dit et propose de réessayer", async ({ p
   await expect(bulle.getByText("Résumé indisponible.")).toBeVisible();
   await expect(bulle.getByRole("button", { name: "Réessayer" })).toBeVisible();
 });
+
+/**
+ * Carte de chaleur : le greffon leaflet.heat est désormais EMPAQUETÉ avec
+ * l'application (import dynamique) et non plus tiré d'unpkg à l'exécution.
+ * Un import dynamique qui échoue passe la compilation et le build sans
+ * broncher — seule une vérification au navigateur le révèle.
+ */
+test.describe("carte de chaleur", () => {
+  test("le calque se monte sans requête vers un CDN tiers", async ({ page }) => {
+    const externes: string[] = [];
+    page.on("request", (r) => {
+      const url = r.url();
+      if (!url.startsWith("http://127.0.0.1") && !url.startsWith("http://localhost")) {
+        externes.push(url);
+      }
+    });
+    const erreurs: string[] = [];
+    page.on("pageerror", (e) => erreurs.push(e.message));
+
+    await mockApi(page, { total: 40 });
+    await page.goto("/");
+    await page.waitForSelector(".leaflet-container");
+
+    await page.getByRole("button", { name: /heatmap/i }).click();
+
+    // leaflet.heat dessine dans un <canvas> ajouté au panneau de calques.
+    await expect(page.locator(".leaflet-pane canvas")).toBeVisible({ timeout: 10_000 });
+    expect(erreurs, `erreurs JS : ${erreurs.join(" | ")}`).toEqual([]);
+    expect(
+      externes.filter((u) => u.includes("unpkg.com")),
+      "plus aucune requête vers unpkg",
+    ).toEqual([]);
+  });
+
+  test("chaque extinction retire le calque", async ({ page }) => {
+    // Portée exacte : ce test couvre le basculement SYNCHRONE, une fois le
+    // greffon chargé. Il ne reproduit PAS la course corrigée en même temps
+    // (effet relancé avant la résolution de l'import, cleanup ne trouvant
+    // rien à retirer) : vérifié par mutation, il passe sans le drapeau
+    // d'annulation. Cette garde reste défensive et non couverte.
+    await mockApi(page, { total: 40 });
+    await page.goto("/");
+    await page.waitForSelector(".leaflet-container");
+
+    const bouton = page.getByRole("button", { name: /heatmap/i });
+    for (let i = 0; i < 3; i++) {
+      await bouton.click();
+      await expect(page.locator(".leaflet-pane canvas")).toBeVisible({ timeout: 10_000 });
+      await bouton.click();
+      await expect(page.locator(".leaflet-pane canvas")).toHaveCount(0);
+    }
+  });
+});
