@@ -7,8 +7,8 @@ apscheduler==3.11.3
 httpx==0.28.1
 feedparser==6.0.14
 pydantic==2.13.4
-pydantic-settings==2.14.2
-alembic==1.19.0
+pydantic-settings==2.15.0
+alembic==1.19.1
 greenlet==3.5.4
 trafilatura==2.2.0
 # L'extra [asyncio] n'existe plus depuis redis 8 : le client async est
