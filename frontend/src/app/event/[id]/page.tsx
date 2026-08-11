@@ -2,6 +2,7 @@
 
 // Page événement dédiée : permalien partageable, lisible sans le contexte de
 // la carte. Chargée côté client depuis GET /api/events/{id}.
+import { useParams } from "next/navigation";
 import useSWR from "swr";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -24,9 +25,13 @@ function fmtDate(iso: string): string {
   }
 }
 
-export default function EventPage({ params }: { params: { id: string } }) {
+// Depuis Next 15, la prop `params` d'une route dynamique est une promesse.
+// Dans un composant client, `useParams()` la contourne : le hook lit le
+// segment déjà résolu par le routeur, sans dépendre de cette forme.
+export default function EventPage() {
+  const { id } = useParams<{ id: string }>();
   const { data: event, error, isLoading } = useSWR<Event>(
-    `${API_BASE_URL}/events/${params.id}`,
+    `${API_BASE_URL}/events/${id}`,
     fetcher,
     { revalidateOnFocus: false }
   );

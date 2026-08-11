@@ -58,7 +58,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         working-directory: frontend
-        run: npm install --legacy-peer-deps
+        run: npm install
       - name: Typecheck
         working-directory: frontend
         run: npx tsc --noEmit
@@ -121,7 +121,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         working-directory: frontend
-        run: npm install --legacy-peer-deps
+        run: npm install
       - name: Install Chromium
         working-directory: frontend
         run: npx playwright install --with-deps chromium
