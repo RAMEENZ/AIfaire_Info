@@ -458,3 +458,45 @@ async def test_regions_priorise_la_gravite_sur_la_recence(client, monkeypatch):
     # Trié par la seule récence, « Commune 69 » tombait hors des huit retenues.
     volet = user_prompt.split("EN RÉGIONS")[-1] if "EN RÉGIONS" in user_prompt else user_prompt
     assert "Commune 69" in volet
+
+
+async def test_test_extraction_n_interroge_pas_le_modele_hors_france(client, monkeypatch):
+    """Les métriques doivent décrire la production, pas une extraction fictive.
+
+    Le pipeline n'appelle pas le modèle sur un article jugé étranger. La
+    commande de diagnostic, elle, l'appelait quand même pour l'affichage :
+    l'article sur Bachar al-Assad montrait quatre tags et un résumé enrichi
+    juste SOUS l'avertissement disant que le modèle n'est pas appelé (relevé
+    du 11/08/2026). Tags, résumés et catégories étaient donc mesurés sur une
+    sortie que la production ne produit jamais.
+    """
+    from app.models import Event
+    import app.maintenance as maintenance
+    import app.pipeline.extractor as extracteur
+
+    now = datetime.now(timezone.utc)
+    async with client.session_factory() as session:
+        session.add(Event(
+            id="etranger-1", source="presse_rss",
+            source_url=f"https://exemple.fr/monde-{uuid.uuid4()}",
+            titre="Le président syrien déchu, exilé en Russie, condamné à mort",
+            date_publication=now, categorie="actualite", gravite=0,
+            lieu_nom="national", lieu_niveau="national", lieu_confiance_geo=0,
+            tags=[], resume_ia="Un tribunal syrien a rendu son verdict.",
+            score_confiance=1.0, created_at=now,
+        ))
+        await session.commit()
+
+    monkeypatch.setattr(maintenance, "AsyncSessionLocal", client.session_factory)
+    monkeypatch.setattr(extracteur.settings, "MISTRAL_API_KEY", "clé-de-test")
+
+    appels: list[str] = []
+
+    async def modele_interdit(titre, description=None, full_text=None):
+        appels.append(titre)
+        raise AssertionError("le modèle ne doit pas être interrogé sur un article étranger")
+
+    monkeypatch.setattr(extracteur, "extract_article", modele_interdit)
+
+    await maintenance.test_extraction(limit=1)
+    assert appels == []

@@ -242,7 +242,9 @@ async def test_extraction(limit: int = 15) -> dict:
     « national » là où le pipeline en localise une partie.
     """
     from app.config import settings
-    from app.pipeline.extractor import _looks_french, extract_article, maybe_extract
+    from app.pipeline.extractor import (
+        _looks_french, _rule_based_extract, extract_article, maybe_extract,
+    )
 
     if not settings.MISTRAL_API_KEY:
         print("MISTRAL_API_KEY absente : impossible d'appeler le modèle.")
@@ -274,8 +276,17 @@ async def test_extraction(limit: int = 15) -> dict:
         via_llm = _looks_french(e.titre, e.resume_ia or "")
         if not via_llm:
             hors_llm += 1
-        # 1) Le modèle seul — ce que le prompt produit.
-        brut = await extract_article(e.titre, e.resume_ia or "", None)
+        # 1) L'étape d'extraction seule — ce que la production en tire, donc le
+        # modèle SI le pipeline l'appelle, les règles sinon. Interroger le
+        # modèle même sur un article qu'il refuse faisait décrire par les
+        # métriques une extraction jamais produite : relevé du 11/08/2026,
+        # l'article sur Bachar al-Assad affichait quatre tags et un résumé
+        # enrichi juste SOUS l'avertissement disant que le modèle n'est pas
+        # appelé. Économise en prime un appel par article étranger.
+        brut = (
+            await extract_article(e.titre, e.resume_ia or "", None) if via_llm
+            else await _rule_based_extract(e.titre, e.resume_ia or "")
+        )
         # 2) Le pipeline complet — ce qui finit réellement sur la carte.
         final = await maybe_extract({
             "source": e.source,
