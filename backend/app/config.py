@@ -93,6 +93,18 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = ""
     OLLAMA_MODEL: str = "qwen2.5:1.5b"
 
+    # Consulter robots.txt avant de télécharger le CORPS d'un article.
+    # Un flux RSS est publié pour être repris ; aspirer le texte intégral pour
+    # le passer à un modèle de langage est autre chose, et la presse française
+    # le refuse largement : mesuré le 11/08/2026, 678 des 867 flux (78 %)
+    # pointent vers un hôte qui l'interdit — actu.fr, ici.fr, France 3 Régions,
+    # franceinfo, Le Monde. Les flux, eux, continuent d'être lus normalement :
+    # c'est leur raison d'être.
+    # COÛT ASSUMÉ, et il porte sur la majorité du corpus : pour ces sources
+    # l'extraction retombe sur titre + chapô RSS, ce qui se produit déjà quand
+    # un téléchargement échoue. Mettre false rétablit l'ancien comportement.
+    RESPECT_ROBOTS_TXT: bool = True
+
     # Activer le fetch du contenu complet des articles avant extraction IA.
     # Désactiver si la VM a un accès internet limité ou pour économiser la bande passante.
     FETCH_FULL_ARTICLES: bool = True

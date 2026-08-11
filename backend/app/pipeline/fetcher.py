@@ -12,6 +12,8 @@ from urllib.parse import urljoin, urlparse
 import httpx
 import trafilatura
 
+from app.pipeline.robots import peut_telecharger
+
 logger = logging.getLogger(__name__)
 
 _article_cache: dict[str, str] = {}
@@ -116,6 +118,12 @@ async def fetch_article_text(url: str) -> str | None:
 
     if url in _article_cache:
         return _article_cache[url]
+
+    # L'éditeur a-t-il consenti à ce que le corps de ses articles soit
+    # récupéré ? Contrôlé AVANT la requête, et avant le sémaphore : un refus
+    # ne doit pas consommer un créneau de téléchargement.
+    if not await peut_telecharger(url):
+        return None
 
     async with _FETCH_SEMAPHORE:
         try:
