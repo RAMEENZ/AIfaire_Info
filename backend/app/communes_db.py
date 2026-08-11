@@ -19,6 +19,8 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 _DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "communes_geo.csv")
+# Communes fusionnées depuis 2015, sous leur ancien nom (voir _load_anciennes).
+_ANCIENNES_PATH = os.path.join(os.path.dirname(__file__), "data", "communes_anciennes_geo.csv")
 
 # nom normalise -> meilleur enregistrement (commune la plus peuplee en cas
 # d'homonymie, p.ex. plusieurs "Sainte-Croix").
@@ -81,10 +83,50 @@ def _load() -> None:
             if prevd is None or rec["population"] > prevd["population"]:
                 _BY_NAME_DEPT[dk] = rec
             n += 1
+    _load_anciennes()
     logger.info(
         "Base communes locale chargee : %d lignes, %d noms, %d INSEE, %d CP",
         n, len(_INDEX), len(_BY_INSEE), len(_BY_POSTAL),
     )
+
+
+def _load_anciennes() -> None:
+    """Ajoute les communes fusionnées, sous le nom qu'emploie encore la presse.
+
+    Environ 2 500 communes ont fusionné depuis 2015 et ne figurent plus dans la
+    table des communes actuelles. La presse locale continue pourtant de les
+    nommer : « Cran-Gevrier » pour un quartier d'Annecy (relevé du 11/08/2026).
+    Le garde-fou anti-lieu-inventé les prenait pour des inventions du modèle et
+    l'article sortait de la carte.
+
+    Elles n'alimentent QUE l'index par nom. Surtout pas _BY_INSEE : leur code
+    INSEE est celui de la commune de rattachement, et les y inscrire ferait
+    répondre « Cran-Gevrier » à une recherche sur le code d'Annecy. Ni
+    _BY_POSTAL, qui y gagnerait des doublons sans rien résoudre de plus.
+    """
+    if not os.path.exists(_ANCIENNES_PATH):
+        return
+    ajoutees = 0
+    with open(_ANCIENNES_PATH, encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            key = r["nom_norm"]
+            # Une commune actuelle n'est jamais masquée : le fichier est déjà
+            # filtré à la construction, ce test est la seconde barrière.
+            if key in _INDEX:
+                continue
+            try:
+                _INDEX[key] = {
+                    "lat": float(r["lat"]),
+                    "lon": float(r["lon"]),
+                    "code_insee": r["code_insee"],
+                    "population": 0,
+                    "dept": r["dept"],
+                    "nom": r["nom"],
+                }
+            except (KeyError, ValueError):
+                continue
+            ajoutees += 1
+    logger.info("Communes fusionnées ajoutees a l'index par nom : %d", ajoutees)
 
 
 def _as_result(rec: dict[str, Any]) -> dict[str, Any]:
