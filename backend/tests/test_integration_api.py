@@ -355,3 +355,64 @@ async def test_clean_extractions_distingue_troncature_et_point_manquant(client, 
     assert len(rows["coupe-1"]) < 500
     # …l'entier ne perd rien, il gagne son point.
     assert rows["point-1"] == "Trois blessés dans une collision à Colmar."
+
+
+async def test_build_brief_prompts_repartition(client, monkeypatch):
+    """La matière du brief se répartit bien en trois volets disjoints.
+
+    C'est la mécanique la moins évidente du brief : « En régions » ne reçoit
+    QUE ce qui n'a été retenu ni en alertes ni dans les 25 premières
+    actualités. Un événement localisé mais récent part en « Actualité
+    générale », pas en régions — ce test fige ce partage, qu'aucun autre
+    n'observait.
+    """
+    from app.models import Event
+    from app.pipeline.brief import SECTION_TITLES, build_brief_prompts
+
+    now = datetime.now(timezone.utc)
+    async with client.session_factory() as session:
+        for i in range(32):
+            session.add(Event(
+                id=f"brief-{i}", source="presse_rss",
+                source_url=f"https://example.com/brief-{i}-{uuid.uuid4()}",
+                titre=f"Fait numéro {i}",
+                date_publication=now - timedelta(minutes=i),
+                categorie="incendie",
+                # Les deux premiers sont des alertes (gravité ≥ 2).
+                gravite=2 if i < 2 else 0,
+                # Un lieu distinct par événement : sans cela la déduplication
+                # par lieu viderait le volet régional.
+                lieu_nom=f"Commune {i}", lieu_niveau="commune",
+                lieu_confiance_geo=0.9, tags=[],
+                resume_ia=f"Résumé du fait numéro {i}.",
+                score_confiance=1.0, created_at=now,
+            ))
+        await session.commit()
+
+    import app.pipeline.brief as brief_mod
+    monkeypatch.setattr(brief_mod, "AsyncSessionLocal", client.session_factory)
+
+    built = await build_brief_prompts(hours=24)
+    assert built is not None
+    _system, user_prompt, repartition = built
+
+    # Les clés sont celles des sections : la répartition se lit en regard de
+    # l'audit du texte produit.
+    assert tuple(repartition) == SECTION_TITLES
+    assert repartition["Alertes & vigilances"] == 2
+    assert repartition["Actualité générale"] == 25  # plafond du volet
+    assert repartition["En régions"] == 5  # le reliquat, ni alerte ni actualité
+    assert sum(repartition.values()) == 32
+
+    # Le reliquat, ce sont les plus anciens : ils doivent figurer dans le prompt.
+    assert "Commune 31" in user_prompt
+
+
+async def test_build_brief_prompts_sans_matiere(client, monkeypatch):
+    """Fenêtre vide : None, et non un prompt sans faits à résumer."""
+    from app.pipeline.brief import build_brief_prompts
+
+    import app.pipeline.brief as brief_mod
+    monkeypatch.setattr(brief_mod, "AsyncSessionLocal", client.session_factory)
+
+    assert await build_brief_prompts(hours=24) is None

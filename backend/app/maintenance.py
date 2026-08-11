@@ -195,9 +195,13 @@ async def test_brief(hours: int = 24) -> Optional[str]:
     if built is None:
         print(f"Aucun événement sur les dernières {hours} h : rien à résumer.")
         return None
-    system_prompt, user_prompt, event_count = built
+    system_prompt, user_prompt, repartition = built
 
-    print(f"=== Matière : {event_count} événements sur {hours} h ===")
+    print(f"=== Matière : {sum(repartition.values())} événements sur {hours} h ===")
+    # Détail par section : un brief creux « En régions » se lit tout autrement
+    # selon qu'on lui a fourni 8 événements localisés ou aucun.
+    for titre, n in repartition.items():
+        print(f"  {titre} : {n}" + ("   ← aucune matière fournie" if n == 0 else ""))
     print(f"prompt système : {len(system_prompt)} caractères")
     print(f"prompt données : {len(user_prompt)} caractères\n")
 

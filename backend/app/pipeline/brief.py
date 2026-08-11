@@ -341,15 +341,19 @@ async def _generate_text(system_prompt: str, user_prompt: str) -> Optional[str]:
         return None
 
 
-async def build_brief_prompts(hours: int = 24) -> Optional[tuple[str, str, int]]:
+async def build_brief_prompts(hours: int = 24) -> Optional[tuple[str, str, dict[str, int]]]:
     """Rassemble la matière et construit les deux prompts du brief.
 
     Séparé de l'écriture en base pour qu'on puisse essayer un prompt sur les
     données réelles sans publier le résultat :
     `python -m app.maintenance test-brief`.
 
-    Retourne (prompt système, prompt utilisateur, nombre d'événements), ou None
-    si la fenêtre ne contient aucun événement.
+    Retourne (prompt système, prompt utilisateur, répartition), ou None si la
+    fenêtre ne contient aucun événement. La répartition compte les événements
+    fournis au modèle section par section, avec les clés de SECTION_TITLES.
+    Un total seul serait ambigu au diagnostic : un brief muet « En régions »
+    peut venir d'un prompt ignoré comme d'une matière vide, et ces deux causes
+    appellent des corrections opposées.
     """
     now = datetime.now(timezone.utc)
     since = now - timedelta(hours=hours)
@@ -445,7 +449,9 @@ async def build_brief_prompts(hours: int = 24) -> Optional[tuple[str, str, int]]
     alerts_text = _aggregate_alerts(alerts, _fmt) or "(aucune alerte majeure)"
     news_text = "\n".join(_fmt(e) for e in news) or "(rien de notable)"
     regional_text = "\n".join(_fmt(e) for e in regional) or "(rien de notable en régions)"
-    event_count = len(events)
+    # Clés alignées sur SECTION_TITLES : la répartition se lit en regard de
+    # l'audit du texte produit, section par section.
+    repartition = dict(zip(SECTION_TITLES, (len(alerts), len(news), len(regional))))
 
     periode = _periode_fr(hours)
     hebdo = hours >= 72
@@ -455,7 +461,7 @@ async def build_brief_prompts(hours: int = 24) -> Optional[tuple[str, str, int]]
         alerts_text, news_text, regional_text,
         len(alerts), len(news), len(regional), periode,
     )
-    return system_prompt, user_prompt, event_count
+    return system_prompt, user_prompt, repartition
 
 
 async def generate_daily_brief(hours: int = 24) -> Optional[str]:
@@ -472,7 +478,8 @@ async def generate_daily_brief(hours: int = 24) -> Optional[str]:
     built = await build_brief_prompts(hours)
     if built is None:
         return None
-    system_prompt, user_prompt, event_count = built
+    system_prompt, user_prompt, repartition = built
+    event_count = sum(repartition.values())
 
     if not settings.MISTRAL_API_KEY:
         logger.warning("Brief: MISTRAL_API_KEY not set, cannot generate brief")
