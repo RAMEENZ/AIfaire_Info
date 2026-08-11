@@ -1762,9 +1762,14 @@ class PresseRSSConnector(BaseConnector):
             it.pop("_feed", None)
         self._logger.info(
             "presse_rss: %d flux récupérés, %d inchangés (304), %d sautés (circuit ouvert) | "
-            "%d marchands écartés | %d raw → %d after title dedup → %d after cap "
+            "marchands : %s | %d raw → %d after title dedup → %d after cap "
             "(max=%d, round-robin par flux)",
-            n_fetched, n_not_modified, n_skipped, n_marchands,
+            n_fetched, n_not_modified, n_skipped,
+            # « 0 écartés » et « filtre désactivé » donnaient la même trace :
+            # impossible de savoir si le filtre n'avait rien trouvé ou n'avait
+            # pas tourné. Le log doit distinguer les deux.
+            (f"{n_marchands} écartés" if settings.FILTER_COMMERCIAL_CONTENT
+             else "filtre désactivé"),
             len(raw), len(seen), len(capped), settings.MAX_PRESSE_ARTICLES,
         )
         return capped

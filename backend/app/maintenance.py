@@ -6,7 +6,7 @@
     docker compose exec backend python -m app.maintenance test-brief [--hours 24]
     docker compose exec backend python -m app.maintenance test-extraction [--limit 15]
     docker compose exec backend python -m app.maintenance clean-extractions [--dry-run]
-    docker compose exec backend python -m app.maintenance audit-commercial [--limit 400]
+    docker compose exec backend python -m app.maintenance audit-commercial [--limit 400 | --live]
 
 Les deux commandes `test-*` servent à juger les prompts sur les données
 réelles : elles appellent le modèle mais n'écrivent RIEN en base.
@@ -415,12 +415,77 @@ async def clean_extractions(dry_run: bool = False) -> dict:
     }
 
 
+async def audit_commercial_live() -> dict:
+    """Mesure la présence de contenus marchands sur les flux EN DIRECT.
+
+    Les événements en base ne répondent pas à la question : ils ont déjà subi le
+    filtre, la déduplication ET le plafond de 120 par run — soit moins de 2 %
+    des ~7 900 titres qu'un cycle collecte. Pour savoir si le filtre est trop
+    strict ou s'il n'y a réellement rien à écarter, il faut regarder la matière
+    brute.
+
+    Collecte les flux (aucun appel au modèle, aucune écriture) avec le filtre et
+    le plafond neutralisés, puis compte par source.
+    """
+    from app.config import settings as _s
+    from app.connectors.presse_rss import PresseRSSConnector
+    from app.pipeline.commercial import is_commercial
+
+    filtre_initial = _s.FILTER_COMMERCIAL_CONTENT
+    plafond_initial = _s.MAX_PRESSE_ARTICLES
+    _s.FILTER_COMMERCIAL_CONTENT = False
+    _s.MAX_PRESSE_ARTICLES = 100_000
+    try:
+        print("Collecte des flux en cours (une à deux minutes)…")
+        items = await PresseRSSConnector().run()
+    finally:
+        _s.FILTER_COMMERCIAL_CONTENT = filtre_initial
+        _s.MAX_PRESSE_ARTICLES = plafond_initial
+
+    if not items:
+        print("Aucun article collecté — flux injoignables ?")
+        return {}
+
+    par_source: Counter = Counter()
+    total_par_source: Counter = Counter()
+    exemples: list[str] = []
+    for it in items:
+        source = (it.get("auteur") or "source inconnue").strip()
+        total_par_source[source] += 1
+        if is_commercial(it.get("titre", ""), it.get("description", "")):
+            par_source[source] += 1
+            if len(exemples) < 25:
+                exemples.append(f"[{source[:22]}] {it.get('titre', '')[:100]}")
+
+    marchands = sum(par_source.values())
+    n = len(items)
+    print(f"\n=== {marchands}/{n} titres marchands ({100 * marchands / n:.2f} %) ===\n")
+    if not marchands:
+        print(
+            "Aucun contenu marchand détecté sur la matière brute.\n"
+            "Le « 0 écartés » de l'ingestion est donc exact : ces flux n'en\n"
+            "publient pas, ou pas en ce moment."
+        )
+        return {"total": n, "marchands": 0}
+
+    print(f"{'Source':<38} {'marchands':>10} {'total':>7} {'part':>6}")
+    for source, k in par_source.most_common(20):
+        total = total_par_source[source]
+        print(f"{source[:38]:<38} {k:>10} {total:>7} {100 * k / total:>5.1f} %")
+    print("\nExemples :")
+    for ex in exemples:
+        print(f"  {ex}")
+    return {"total": n, "marchands": marchands, "par_source": dict(par_source)}
+
+
 async def audit_commercial(limit: int = 400) -> dict:
     """Compte les articles marchands par flux, sur les événements en base.
 
-    Répond à la question que le filtre ne tranche pas : la pollution vient-elle
-    de quelques flux qu'il vaudrait mieux retirer, ou est-elle diffuse ? Aucun
-    appel au modèle, aucune écriture.
+    Attention : les événements stockés ont déjà subi le filtre, la déduplication
+    et le plafond de 120 par run. Pour mesurer la vraie prévalence sur la
+    matière brute, utiliser `audit-commercial --live`.
+
+    Aucun appel au modèle, aucune écriture.
     """
     from app.pipeline.commercial import is_commercial
 
@@ -500,7 +565,10 @@ def _main(argv: list[str]) -> int:
         asyncio.run(test_extraction(limit=_arg_int(argv, "--limit", 15)))
         return 0
     if cmd == "audit-commercial":
-        asyncio.run(audit_commercial(limit=_arg_int(argv, "--limit", 400)))
+        if "--live" in argv:
+            asyncio.run(audit_commercial_live())
+        else:
+            asyncio.run(audit_commercial(limit=_arg_int(argv, "--limit", 400)))
         return 0
     if cmd == "clean-extractions":
         asyncio.run(clean_extractions(dry_run="--dry-run" in argv))
