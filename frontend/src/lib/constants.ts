@@ -119,3 +119,17 @@ export const REFRESH_INTERVAL = 900_000;
 // résumés tronqués côté serveur ramènent la réponse à environ un tiers, sans
 // dégarnir la carte ; la suite se charge à la demande.
 export const EVENTS_PAGE_SIZE = 200;
+
+/**
+ * Neutralise une valeur destinée à un fichier CSV.
+ *
+ * Un tableur traite comme une FORMULE toute cellule commençant par =, +, -, @
+ * ou une tabulation : `=cmd|'/c calc'!A1` s'exécute à l'ouverture du fichier.
+ * Les titres et résumés exportés proviennent de flux RSS tiers, donc de textes
+ * que nous ne contrôlons pas — c'est exactement le vecteur d'une injection de
+ * formule. Le guillemet simple en tête est la parade reconnue : le tableur
+ * affiche le texte tel quel et n'évalue rien.
+ */
+export function csvSafe(valeur: string): string {
+  return /^[=+\-@\t\r]/.test(valeur) ? `'${valeur}` : valeur;
+}

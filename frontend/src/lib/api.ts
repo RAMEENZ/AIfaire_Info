@@ -16,17 +16,6 @@ interface FetchEventsParams {
   q?: string;
 }
 
-function buildQuery(params: Record<string, string | number | boolean | undefined | null>): string {
-  const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null && value !== "") {
-      search.set(key, String(value));
-    }
-  }
-  const str = search.toString();
-  return str ? `?${str}` : "";
-}
-
 export async function fetchEvents(params: FetchEventsParams = {}): Promise<EventsResponse> {
   const { bbox, categories, gravite_min, niveau, depuis, avant, limit, offset, national_only, q } = params;
 
@@ -88,8 +77,14 @@ export async function fetchMapEvents(params: {
 
   const response = await fetch(`${API_BASE_URL}/events/map${query}`, { next: { revalidate: 0 } });
   if (!response.ok) throw new Error(`Erreur API /events/map : ${response.status}`);
-  const data = (await response.json()) as { events: MapEventRaw[] };
-  return data.events.map((e) => ({
+  const data = (await response.json()) as unknown;
+  // Même durcissement que fetchEvents : une réponse 200 au corps inattendu
+  // (page d'erreur d'un intermédiaire, repli d'un service worker) cassait plus
+  // loin, au premier .map(), loin de sa cause.
+  if (!data || !Array.isArray((data as { events?: unknown }).events)) {
+    throw new Error("Réponse /events/map inattendue : champ « events » absent");
+  }
+  return (data as { events: MapEventRaw[] }).events.map((e) => ({
     ...e,
     date_evenement: null,
     lieu_confiance_geo: 1,
@@ -172,11 +167,6 @@ export async function fetchStats(): Promise<StatsData> {
   if (!response.ok) throw new Error(`Erreur API /stats : ${response.status}`);
   return response.json();
 }
-
-export const eventsKey = (params: FetchEventsParams) =>
-  ["events", params] as const;
-
-export const healthKey = () => ["health"] as const;
 
 export interface TimelineBucket {
   time: string;

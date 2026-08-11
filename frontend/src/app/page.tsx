@@ -17,11 +17,11 @@ import OfflineIndicator from "@/components/OfflineIndicator";
 import PushSettings from "@/components/PushSettings";
 import { fetchEvents, fetchHealth, fetchMapEvents, triggerIngest } from "@/lib/api";
 import { toast } from "@/lib/toast";
-import { API_BASE_URL, ALL_CATEGORIES, EVENTS_PAGE_SIZE, GRAVITE_CONFIG, REFRESH_INTERVAL, readableTextColor } from "@/lib/constants";
+import { API_BASE_URL, ALL_CATEGORIES, EVENTS_PAGE_SIZE, GRAVITE_CONFIG, REFRESH_INTERVAL, csvSafe, readableTextColor } from "@/lib/constants";
 import {
   AlertSettings as AlertSettingsType,
   loadAlertSettings,
-  shouldAlert,
+  evenementsAAlerter,
   sendEventNotification,
 } from "@/lib/notifications";
 import { Categorie, Event, EventFilters } from "@/lib/types";
@@ -69,7 +69,7 @@ function useEventStream(categories: Categorie[], graviteMin: number) {
 
 function exportToCSV(events: Event[]) {
   const headers = ["id", "titre", "source", "auteur", "categorie", "gravite", "lieu_nom", "lieu_niveau", "lieu_lat", "lieu_lon", "date_publication", "source_url", "resume_ia"];
-  const esc = (v: string | null | undefined) => `"${(v ?? "").replace(/"/g, '""')}"`;
+  const esc = (v: string | null | undefined) => `"${csvSafe(v ?? "").replace(/"/g, '""')}"`;
   const rows = events.map((e) => [
     e.id, esc(e.titre), esc(e.source), esc(e.auteur), esc(e.categorie),
     e.gravite, esc(e.lieu_nom), esc(e.lieu_niveau),
@@ -400,18 +400,14 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!alertSettings) return;
-    // Premier passage : on mémorise les IDs déjà présents sans notifier
-    // (sinon tout le feed initial déclencherait une avalanche d'alertes).
-    if (seenEventIdsRef.current === null) {
-      seenEventIdsRef.current = new Set(allEvents.map((e) => e.id));
-      return;
-    }
-    const seen = seenEventIdsRef.current;
-    const fresh = allEvents.filter((e) => !seen.has(e.id));
-    for (const e of fresh) {
-      seen.add(e.id);
-      if (shouldAlert(e, alertSettings)) sendEventNotification(e);
-    }
+    // L'amorçage de la mémoire et le tri vivent dans evenementsAAlerter, où ils
+    // sont couverts par des tests : la subtilité — n'amorcer que sur un lot non
+    // vide — n'était pas vérifiable tant qu'elle restait dans cet effet.
+    const { memoire, aAlerter } = evenementsAAlerter(
+      seenEventIdsRef.current, allEvents, alertSettings,
+    );
+    seenEventIdsRef.current = memoire;
+    aAlerter.forEach(sendEventNotification);
   }, [allEvents, alertSettings]);
 
   const handleCategoriesChange = useCallback((categories: Categorie[]) => {

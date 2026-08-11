@@ -76,6 +76,43 @@ export function shouldAlert(event: Event, settings: AlertSettings): boolean {
   return true;
 }
 
+/**
+ * Trie un lot d'événements entre « déjà connus » et « à signaler ».
+ *
+ * `memoire` retient les identifiants déjà vus ; `null` signifie qu'elle n'est
+ * pas encore amorcée. L'amorçage se fait sur le premier lot NON VIDE, et c'est
+ * tout l'enjeu : le fil arrive de façon asynchrone, si bien qu'au moment où les
+ * réglages d'alerte sont chargés depuis localStorage, la liste est encore vide.
+ * Amorcer sur cette liste vide revenait à considérer tout le fil initial comme
+ * nouveau — soit une notification par vigilance météo en cours, une vingtaine
+ * d'un coup à l'ouverture de la page. C'est précisément l'avalanche que
+ * l'amorçage devait empêcher.
+ *
+ * Retourne la mémoire mise à jour (jamais mutée sur place, pour rester
+ * vérifiable) et les événements qui méritent une notification.
+ */
+export function evenementsAAlerter(
+  memoire: Set<string> | null,
+  evenements: Event[],
+  settings: AlertSettings,
+): { memoire: Set<string> | null; aAlerter: Event[] } {
+  // Rien à mémoriser : on attend le premier lot réel.
+  if (evenements.length === 0) return { memoire, aAlerter: [] };
+
+  if (memoire === null) {
+    return { memoire: new Set(evenements.map((e) => e.id)), aAlerter: [] };
+  }
+
+  const suivante = new Set(memoire);
+  const aAlerter: Event[] = [];
+  for (const e of evenements) {
+    if (suivante.has(e.id)) continue;
+    suivante.add(e.id);
+    if (shouldAlert(e, settings)) aAlerter.push(e);
+  }
+  return { memoire: suivante, aAlerter };
+}
+
 /** Envoie une notification navigateur pour un événement (si permission accordée). */
 export function sendEventNotification(event: Event): void {
   if (!notificationsSupported() || Notification.permission !== "granted") return;
