@@ -23,7 +23,9 @@ def test_scheduler_grants_generous_misfire_grace_time():
     ids = {j.id for j in s.get_jobs()}
     for heure in sch.ingest_hours():
         assert f"ingest_{heure:02d}h" in ids, heure
-    for jid in ("brief_morning", "brief_midday", "brief_evening", "purge_daily"):
+    for heure in sch.brief_hours():
+        assert f"brief_{heure:02d}h" in ids, heure
+    for jid in ("purge_daily", "stats_hourly", "freshness_check_hourly"):
         assert jid in ids, jid
 
 
@@ -76,3 +78,28 @@ def test_chaque_heure_declaree_donne_une_tache(monkeypatch):
     assert "ingest_08h" in ids and "ingest_20h" in ids
     assert not any(i.startswith("ingest_") and i.endswith("h") and i not in
                    {"ingest_08h", "ingest_20h"} for i in ids)
+
+
+# ── Heures de brief (BRIEF_HOURS) ───────────────────────────────────────────
+
+def test_un_brief_suit_chaque_ingestion():
+    """Le passage d'ingestion de 22h n'était exploité par aucun brief : les
+    briefs s'arrêtaient à 20h. Chaque heure de brief doit suivre de peu une
+    heure d'ingestion, sinon le brief résume des données déjà rassises."""
+    ingestions = sch.ingest_hours()
+    for heure_brief in sch.brief_hours():
+        ecarts = [(heure_brief - h) % 24 for h in ingestions]
+        assert min(ecarts) <= 3, (
+            f"le brief de {heure_brief}h ne suit aucune ingestion de moins de 3 h "
+            f"(ingestions : {ingestions})"
+        )
+
+
+def test_les_heures_de_brief_sont_configurables(monkeypatch):
+    monkeypatch.setattr(sch.settings, "BRIEF_HOURS", "8, 18")
+    assert sch.brief_hours() == (8, 18)
+
+
+def test_une_configuration_de_brief_illisible_retombe_sur_le_defaut(monkeypatch):
+    monkeypatch.setattr(sch.settings, "BRIEF_HOURS", "nawak")
+    assert sch.brief_hours() == (9, 13, 20, 23)

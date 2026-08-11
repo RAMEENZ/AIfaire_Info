@@ -11,12 +11,18 @@
  *  - skipWaiting + clients.claim : une nouvelle version prend la main
  *    immédiatement, sans laisser un ancien worker piloter la page.
  */
-const CACHE_VERSION = "faire-info-v1";
+const CACHE_VERSION = "faire-info-v2";
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const API_CACHE = `${CACHE_VERSION}-api`;
+// Les événements ont leur propre cache : partageant celui des autres appels,
+// ils étaient évincés en quelques minutes par les sondages fréquents
+// (/health toutes les 30 s, /metrics, /trends) — c'est-à-dire précisément par
+// les réponses sans valeur hors ligne.
+const EVENTS_CACHE = `${CACHE_VERSION}-events`;
 
-// Nombre de réponses d'API conservées (les dernières vues suffisent au repli).
+// Nombre de réponses conservées par cache (les dernières vues suffisent au repli).
 const API_CACHE_MAX = 12;
+const EVENTS_CACHE_MAX = 8;
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -113,14 +119,20 @@ self.addEventListener("fetch", (event) => {
 
   // API : réseau d'abord, cache en repli si la requête échoue (hors ligne).
   if (url.pathname.startsWith("/api/")) {
+    // Les événements et le brief sont ce qu'on veut relire hors ligne ; le
+    // reste (santé, métriques, tendances) n'a aucune valeur différée.
+    const estContenu =
+      url.pathname.startsWith("/api/events") || url.pathname.startsWith("/api/brief");
+    const nomCache = estContenu ? EVENTS_CACHE : API_CACHE;
+    const maxCache = estContenu ? EVENTS_CACHE_MAX : API_CACHE_MAX;
     event.respondWith(
       fetch(request)
         .then((res) => {
           if (res.ok) {
             const copy = res.clone();
-            caches.open(API_CACHE).then(async (c) => {
+            caches.open(nomCache).then(async (c) => {
               await c.put(request, copy);
-              trimCache(API_CACHE, API_CACHE_MAX);
+              trimCache(nomCache, maxCache);
             });
           }
           return res;

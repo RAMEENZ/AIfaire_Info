@@ -93,8 +93,8 @@ async def notify_new_events(event_ids: list[str]) -> int:
 
         sent = 0
         expired: list[str] = []
+        notifies: set[str] = set()
         for event in events:
-            dept = (event.lieu_code_insee or "")[:3]
             for sub in subs:
                 if event.gravite < sub.gravite_min:
                     continue
@@ -116,10 +116,10 @@ async def notify_new_events(event_ids: list[str]) -> int:
                 ok, status = await asyncio.to_thread(_send_one, info, payload)
                 if ok:
                     sent += 1
+                    notifies.add(sub.endpoint)
                 elif status in (404, 410):
                     # Abonnement révoqué côté navigateur : à supprimer.
                     expired.append(sub.endpoint)
-            _ = dept  # (le filtrage utilise lieu_code_insee directement)
 
         async with AsyncSessionLocal() as session:
             if expired:
@@ -127,10 +127,13 @@ async def notify_new_events(event_ids: list[str]) -> int:
                     delete(PushSubscription).where(PushSubscription.endpoint.in_(expired))
                 )
                 logger.info("Push: %d abonnements expirés supprimés", len(expired))
-            if sent:
+            # Horodatage des seuls abonnements réellement notifiés : il était
+            # appliqué à TOUS, ce qui vidait le champ de son sens (impossible de
+            # savoir qui avait reçu quoi, ni de repérer un abonné jamais servi).
+            if notifies:
                 await session.execute(
                     update(PushSubscription)
-                    .where(PushSubscription.endpoint.notin_(expired) if expired else True)
+                    .where(PushSubscription.endpoint.in_(notifies))
                     .values(last_sent_at=now)
                 )
             await session.commit()

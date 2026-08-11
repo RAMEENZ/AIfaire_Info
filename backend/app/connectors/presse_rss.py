@@ -1721,6 +1721,23 @@ class PresseRSSConnector(BaseConnector):
                     it["_feed"] = i  # identité du flux, pour la sélection diversifiée
                 raw.extend(items)
 
+        # Contenus marchands : écartés AVANT la déduplication et le plafond,
+        # pour ne pas consommer une place du budget LLM (ni figurer sur la
+        # carte). Relevé en production : « Ce ventilateur Philips est 40 €
+        # moins cher » classé en économie, sans lieu, aux côtés des incendies.
+        n_marchands = 0
+        if settings.FILTER_COMMERCIAL_CONTENT:
+            from app.pipeline.commercial import is_commercial
+            gardes: list[dict[str, Any]] = []
+            for item in raw:
+                if is_commercial(item.get("titre", ""), item.get("description", "")):
+                    n_marchands += 1
+                    self._logger.debug("presse_rss: article marchand écarté — %s",
+                                       item.get("titre", "")[:90])
+                else:
+                    gardes.append(item)
+            raw = gardes
+
         # Déduplication par titre normalisé : préférer les articles avec une région
         seen: dict[str, dict[str, Any]] = {}
         for item in raw:
@@ -1745,8 +1762,9 @@ class PresseRSSConnector(BaseConnector):
             it.pop("_feed", None)
         self._logger.info(
             "presse_rss: %d flux récupérés, %d inchangés (304), %d sautés (circuit ouvert) | "
-            "%d raw → %d after title dedup → %d after cap (max=%d, round-robin par flux)",
-            n_fetched, n_not_modified, n_skipped,
+            "%d marchands écartés | %d raw → %d after title dedup → %d after cap "
+            "(max=%d, round-robin par flux)",
+            n_fetched, n_not_modified, n_skipped, n_marchands,
             len(raw), len(seen), len(capped), settings.MAX_PRESSE_ARTICLES,
         )
         return capped

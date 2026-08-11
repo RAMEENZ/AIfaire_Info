@@ -4,7 +4,7 @@ from typing import Optional
 
 from datetime import date
 
-from sqlalchemy import String, Integer, Float, Date, DateTime, Text, Index, UniqueConstraint
+from sqlalchemy import Boolean, String, Integer, Float, Date, DateTime, Text, Index, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 from geoalchemy2 import Geometry
@@ -137,3 +137,10 @@ class DailyBrief(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     event_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    # Brief de semaine plutôt que de journée. Auparavant déduit de deux
+    # heuristiques : la présence du mot « semaine » dans le texte (pour éviter
+    # une double génération le lundi) et un nombre d'événements > 100 (pour
+    # l'affichage). Un brief quotidien chargé dépassait 100 événements, et un
+    # brief hebdomadaire pouvait ne pas contenir le mot — les deux se
+    # trompaient. Le fait est désormais enregistré, pas deviné.
+    is_weekly: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)

@@ -81,7 +81,7 @@ async def test_ingest_connector_times_out(monkeypatch):
             await asyncio.sleep(5)  # bien au-delà du délai patché
             return [{"never": "reached"}]
 
-    name, saved, error = await ingestor.ingest_connector(SlowConnector())
+    name, saved, error, _ids = await ingestor.ingest_connector(SlowConnector())
 
     assert name == "slowpoke"
     assert saved == 0
@@ -116,7 +116,7 @@ async def test_ingest_connector_succeeds_within_timeout(monkeypatch):
         async def run(self):
             return [{"source_url": "https://example.com/a"}]
 
-    name, saved, error = await ingestor.ingest_connector(FastConnector())
+    name, saved, error, _ids = await ingestor.ingest_connector(FastConnector())
     assert name == "speedy"
     assert error is None
     assert saved == 1
@@ -164,3 +164,28 @@ def test_alert_connectors_are_llm_free():
     """Le passage horaire ne doit inclure aucune source presse : chaque article
     presse passe par le LLM, et la cadence horaire ferait exploser le coût."""
     assert "presse_rss" not in ingestor.ALERT_CONNECTOR_NAMES
+
+
+# ── Tâches de fond : référence forte (sinon interruption par le GC) ─────────
+
+async def test_les_taches_de_fond_gardent_une_reference():
+    """La boucle asyncio ne garde qu'une référence FAIBLE sur les tâches :
+    sans référence forte, le ramasse-miettes peut en interrompre une en pleine
+    exécution. Les notifications push et les alertes webhook étaient donc
+    perdues au hasard."""
+    import gc
+
+    termine = asyncio.Event()
+
+    async def travail():
+        await asyncio.sleep(0.02)
+        termine.set()
+
+    ingestor._spawn(travail())
+    assert len(ingestor._background_tasks) == 1, "aucune référence conservée"
+
+    # Un cycle de GC ne doit pas emporter la tâche.
+    gc.collect()
+    await asyncio.wait_for(termine.wait(), timeout=1.0)
+    await asyncio.sleep(0)  # laisse le callback de nettoyage s'exécuter
+    assert not ingestor._background_tasks, "la référence n'est pas relâchée à la fin"

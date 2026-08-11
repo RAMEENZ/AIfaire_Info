@@ -26,6 +26,8 @@ interface EventFeedProps {
   selectedEventId?: string | null;
   onSelectEvent?: (event: Event) => void;
   onRetry?: () => void;
+  /** Requête déjà transmise au serveur (voir `matchesSearch`). */
+  serverQuery?: string;
   liveEventIds?: Set<string>;
   /** Remonte la recherche (anti-rebondie) pour interroger le serveur. */
   onSearchChange?: (q: string) => void;
@@ -430,6 +432,7 @@ export default function EventFeed({
   selectedEventId,
   onSelectEvent,
   onRetry,
+  serverQuery,
   liveEventIds,
   onSearchChange,
   totalAvailable = 0,
@@ -552,8 +555,17 @@ export default function EventFeed({
 
   const searchLower = search.trim().toLowerCase();
 
+  // Le filtre local ne sert QUE pendant l'anti-rebond, tant que la frappe n'a
+  // pas encore atteint le serveur. Une fois la requête partie et la réponse
+  // reçue, la liste EST le résultat de la recherche serveur : la refiltrer
+  // masquait des résultats légitimes, car le résumé reçu dans la liste est
+  // tronqué à 220 caractères alors que le serveur cherche dans le texte
+  // intégral. Un mot situé au-delà était trouvé côté serveur puis éliminé côté
+  // client — « aucun événement » sur une recherche qui en avait trouvé.
+  const rechercheServeurAJour = onSearchChange !== undefined && serverQuery === search.trim();
+
   const matchesSearch = (e: Event) => {
-    if (!searchLower) return true;
+    if (!searchLower || rechercheServeurAJour) return true;
     return (
       e.titre.toLowerCase().includes(searchLower) ||
       (e.lieu_nom?.toLowerCase().includes(searchLower) ?? false) ||

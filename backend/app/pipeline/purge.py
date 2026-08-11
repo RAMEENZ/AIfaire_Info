@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete
+from sqlalchemy import delete, func
 
 from app.database import AsyncSessionLocal
 from app.models import Event
@@ -30,10 +30,16 @@ async def purge_old_events() -> int:
         try:
             for source, ttl_h in sources_to_purge.items():
                 cutoff = now - timedelta(hours=ttl_h)
+                # `greatest(date_publication, created_at)` : le TTL court à
+                # partir du plus récent des deux. Sur la seule date de
+                # publication, un article rétro-daté par son flux (reprise
+                # d'archive, date de parsing erronée) était supprimé dès la
+                # purge suivant son ingestion — visible quelques heures puis
+                # disparu sans raison apparente.
                 stmt = (
                     delete(Event)
                     .where(Event.source == source)
-                    .where(Event.date_publication < cutoff)
+                    .where(func.greatest(Event.date_publication, Event.created_at) < cutoff)
                 )
                 result = await session.execute(stmt)
                 deleted = result.rowcount
@@ -50,7 +56,7 @@ async def purge_old_events() -> int:
             stmt_default = (
                 delete(Event)
                 .where(Event.source.not_in(known_sources))
-                .where(Event.date_publication < default_cutoff)
+                .where(func.greatest(Event.date_publication, Event.created_at) < default_cutoff)
             )
             result_default = await session.execute(stmt_default)
             deleted_default = result_default.rowcount

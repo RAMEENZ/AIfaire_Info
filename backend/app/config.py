@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     # Format : heures séparées par des virgules, ex. "7,12,17,22" ou "6,11,16,21,2".
     INGEST_HOURS: str = "7,12,17,22"
 
+    # Heures de génération du brief. Chacune suit de peu une ingestion : 09h
+    # après celle de 07h, 13h après 12h, 20h après 17h, 23h après 22h. Le
+    # passage de 22h n'était exploité par aucun brief. Même format et mêmes
+    # garde-fous que INGEST_HOURS.
+    BRIEF_HOURS: str = "9,13,20,23"
+
     MAX_EVENTS_LIMIT: int = 1000
     DEFAULT_EVENTS_LIMIT: int = 500
     DEFAULT_SINCE_HOURS: int = 48
@@ -126,6 +132,13 @@ class Settings(BaseSettings):
     # 3 ingestions complètes quotidiennes. APIs structurées, aucun coût LLM :
     # une vigilance orange apparaît en ~1 h au lieu d'attendre le prochain run.
     HOURLY_ALERT_INGESTION: bool = True
+
+    # Écarte les articles d'affiliation des flux de presse (bons plans, promos,
+    # comparatifs de prix) : sans lieu, sans gravité, ils n'ont rien à faire sur
+    # une carte d'information. Filtre volontairement prudent (deux signaux
+    # concordants exigés) — voir app/pipeline/commercial.py. Mettre à false pour
+    # tout laisser passer.
+    FILTER_COMMERCIAL_CONTENT: bool = True
 
     # ── Notifications Web Push (VAPID) ──────────────────────────────────────
     # Générer une paire une seule fois :

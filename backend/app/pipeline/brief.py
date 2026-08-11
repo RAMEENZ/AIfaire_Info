@@ -459,9 +459,15 @@ async def build_brief_prompts(hours: int = 24) -> Optional[tuple[str, str, int]]
 
 
 async def generate_daily_brief(hours: int = 24) -> Optional[str]:
-    """Génère et sauvegarde le brief du jour. Retourne le texte ou None si échec."""
+    """Génère et sauvegarde le brief. Retourne le texte ou None si échec.
+
+    `hours >= 72` marque le brief comme hebdomadaire (colonne `is_weekly`).
+    """
     now = datetime.now(timezone.utc)
     today = now.astimezone(_PARIS).replace(hour=0, minute=0, second=0, microsecond=0)
+    # Même seuil que build_brief_prompts : au-delà de trois jours, le brief
+    # couvre une semaine et non une journée.
+    hebdo = hours >= 72
 
     built = await build_brief_prompts(hours)
     if built is None:
@@ -505,12 +511,14 @@ async def generate_daily_brief(hours: int = 24) -> Optional[str]:
             existing_brief.content = content
             existing_brief.event_count = event_count
             existing_brief.generated_at = now
+            existing_brief.is_weekly = hebdo
         else:
             session.add(DailyBrief(
                 date=today,
                 content=content,
                 event_count=event_count,
                 generated_at=now,
+                is_weekly=hebdo,
             ))
 
         await session.commit()
@@ -528,9 +536,11 @@ async def generate_weekly_brief() -> Optional[str]:
         existing = await session.execute(
             select(DailyBrief).where(DailyBrief.date >= monday).limit(1)
         )
-        # Don't regenerate if already done today
+        # Ne pas régénérer si c'est déjà fait aujourd'hui. Le marqueur est lu en
+        # base : la détection par la présence du mot « semaine » dans le texte
+        # sautait la génération dès qu'un brief quotidien employait ce mot.
         existing_brief = existing.scalar_one_or_none()
-        if existing_brief and "semaine" in existing_brief.content.lower():
+        if existing_brief and existing_brief.is_weekly:
             logger.info("Weekly brief already generated today")
             return existing_brief.content
 
@@ -550,5 +560,5 @@ async def get_latest_brief() -> Optional[dict]:
             "content": brief.content,
             "event_count": brief.event_count,
             "generated_at": brief.generated_at.isoformat(),
-            "is_weekly": brief.event_count > 100,  # Weekly briefs cover more events
+            "is_weekly": brief.is_weekly,
         }

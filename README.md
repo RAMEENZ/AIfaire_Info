@@ -39,6 +39,8 @@ _Enedis (coupures d'électricité) a été retiré en 07/2026 : le portail open 
 [Sources] → [Connectors] → [Extractor IA / règles] → [Geocoder BAN] → [Dédup] → [PostgreSQL+PostGIS] → [API FastAPI] → [Next.js + Leaflet]
 ```
 
+Briefs : **9h00, 13h00, 20h00, 23h00** — chacun suit de peu une ingestion (`BRIEF_HOURS`). Un brief est marqué hebdomadaire en base (`is_weekly`) au lieu d'être deviné par la présence du mot « semaine » dans son texte.
+
 Ingestions automatiques : **7h00, 12h00, 17h00, 22h00** (heure Paris) — un passage toutes les 5 heures à partir de 7 h. Les heures sont configurables (`INGEST_HOURS`, défaut `7,12,17,22`) ; le cycle ne se poursuit pas la nuit, 24 n'étant pas divisible par 5 la série dériverait de jour en jour et perdrait son ancrage matinal. S'y ajoute un **passage horaire léger** (à :30) des sources d'alerte temps réel — météo, crues, séismes — sans coût LLM (`HOURLY_ALERT_INGESTION`), qui couvre donc aussi la nuit.  
 Purge quotidienne : **3h00** — TTL variable par source : 36h météo/vigicrues, 72h presse, 30j séismes. Juste avant la purge, les comptes quotidiens (jour × catégorie × département) sont figés dans `daily_stats` (exposés par `GET /api/stats/history`) : les tendances longues survivent à la purge.
 
@@ -61,6 +63,11 @@ Pour déclencher manuellement : `POST /api/ingest/run` (clé `INGEST_API_KEY`). 
 - **Carte alimentée séparément** : `/events/map` renvoie les seuls événements localisés, sans résumé ni tags — la carte reste complète quelle que soit la page affichée par le fil. La bulle d'un marqueur complète la fiche via `GET /events/{id}` **à son ouverture** : le détail n'est payé que pour les marqueurs réellement consultés. Sans ce complément, cliquer un marqueur ne rendait que le titre (régression de 08/2026, invisible sur les vigilances météo dont le titre porte toute l'information).
 - **Reconnaissance de commune dans les titres** : `communes_db.commune_from_text` couvre les 35 000 communes de la table locale (contre ~70 grandes villes auparavant), avec trois garde-fous contre les homonymes — population ≥ 3 000, nom propre (majuscule), liste noire de noms ambigus (« Bar », « Le Port »…). Un faux marqueur trompant plus qu'une absence de marqueur, la détection s'abstient au moindre doute.
 - **Jeu d'évaluation hors-ligne** : `tests/test_extraction_eval.py` rejoue un corpus annoté (catégorisation, détection de commune) sans réseau ni LLM, avec des seuils de non-régression. Permet de retoucher mots-clés, prompt ou modèle sans régresser à l'aveugle.
+- **Contenus marchands écartés** : les flux de presse mêlent à l'actualité des articles d'affiliation (« Ce ventilateur est 40 € moins cher »), sans lieu ni gravité. `pipeline/commercial.py` les filtre avant le budget LLM, en exigeant **deux signaux concordants** — le compromis est asymétrique, écarter un vrai article coûte une information, en laisser passer un ne coûte qu'une ligne. `FILTER_COMMERCIAL_CONTENT=false` désactive. `app.maintenance audit-commercial` compte la pollution par source, pour décider entre filtrer et retirer un flux.
+- **Notification de rétablissement** : le webhook signalait la panne d'un connecteur, jamais sa résolution. Un second message part au retour à la normale.
+- **Cache Redis invalidé à l'ingestion** : `/events` continuait de servir la réponse d'avant pendant `REDIS_EVENTS_TTL` (120 s), y compris sur un rafraîchissement manuel juste après un run.
+- **Tâches de fond référencées** : la boucle asyncio ne garde qu'une référence *faible* sur les tâches — sans référence forte, le ramasse-miettes peut en interrompre une en pleine exécution. Les notifications push et les alertes webhook étaient perdues au hasard.
+- **Remplacement atomique des sources temps réel** : pour les connecteurs `replace_on_ingest` (météo, crues), la suppression et la réinsertion tiennent dans **une transaction**. La séquence précédente laissait la carte sans vigilances entre les deux, et un arrêt au mauvais moment les perdait jusqu'au passage suivant.
 - **Aiguillage vers le modèle** : `_looks_french` épargne un appel LLM aux dépêches internationales. Le doute profite au français — seul un marqueur étranger net **dans le titre**, sans aucun indice français, fait renoncer. L'heuristique inverse (exiger un indice français explicite parmi une vingtaine de métropoles) privait d'extraction IA l'information locale, celle qui parle de petites communes : « Corte : un incendie se déclare » n'atteignait jamais le modèle. Se tromper vers « français » coûte un appel ; se tromper vers « étranger » dégrade durablement un article.
 - **Toponymes exigeant une majuscule** : de nombreux départements portent le nom d'un mot courant (Cher, Var, Aube, Lot, Nord, Somme, Manche). La comparaison en minuscules géolocalisait « vacances moins cher » dans le Cher — un faux marqueur, le pire des résultats. Un nom de lieu dans un titre est un nom propre.
 - **Mode hors ligne** : service worker à priorité réseau (`frontend/public/sw.js`) — cache uniquement en repli, version épinglée et purgée à l'activation, HTML jamais servi depuis le cache tant que le réseau répond. Bandeau « Hors ligne » dans l'interface.
@@ -318,6 +325,8 @@ bulles de carte.
 | `ENABLE_DOCS` | `false` | Swagger `/docs` — mettre `true` en local pour explorer l'API |
 | `SCHEDULER_TIMEZONE` | `Europe/Paris` | Timezone APScheduler |
 | `INGEST_HOURS` | `7,12,17,22` | Heures des ingestions complètes (heure locale). Valeurs illisibles ou hors 0-23 ignorées, repli sur le défaut |
+| `BRIEF_HOURS` | `9,13,20,23` | Heures de génération du brief, même format |
+| `FILTER_COMMERCIAL_CONTENT` | `true` | Écarte les articles d'affiliation des flux de presse |
 | `DEFAULT_SINCE_HOURS` | `48` | Fenêtre d'affichage par défaut |
 | `MAX_PRESSE_ARTICLES` | `120` | Plafond articles presse traités par cycle (chacun passe par le LLM) |
 | `FETCH_FULL_ARTICLES` | `true` | Fetch du contenu complet avant extraction IA (désactiver si bande passante limitée) |

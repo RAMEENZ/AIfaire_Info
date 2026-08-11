@@ -17,6 +17,35 @@ _scheduler: AsyncIOScheduler | None = None
 # Repli si INGEST_HOURS est vide ou illisible : mieux vaut un rythme par défaut
 # qu'un ordonnanceur muet, qui laisserait le site se figer sans bruit.
 _INGEST_HOURS_DEFAUT = (7, 12, 17, 22)
+_BRIEF_HOURS_DEFAUT = (9, 13, 20, 23)
+
+
+def _parse_hours(brut: str, defaut: tuple[int, ...], nom: str) -> tuple[int, ...]:
+    """Analyse une liste d'heures « 7,12,17,22 ». Voir ingest_hours."""
+    heures: set[int] = set()
+    for morceau in (brut or "").split(","):
+        morceau = morceau.strip()
+        if not morceau:
+            continue
+        try:
+            heure = int(morceau)
+        except ValueError:
+            logger.warning("%s : « %s » n'est pas un nombre, ignoré", nom, morceau)
+            continue
+        if 0 <= heure <= 23:
+            heures.add(heure)
+        else:
+            logger.warning("%s : %d hors de 0-23, ignoré", nom, heure)
+
+    if not heures:
+        logger.warning("%s inutilisable (%r) — repli sur %s", nom, brut, defaut)
+        return defaut
+    return tuple(sorted(heures))
+
+
+def brief_hours() -> tuple[int, ...]:
+    """Heures de génération du brief, lues dans BRIEF_HOURS."""
+    return _parse_hours(settings.BRIEF_HOURS, _BRIEF_HOURS_DEFAUT, "BRIEF_HOURS")
 
 
 def ingest_hours() -> tuple[int, ...]:
@@ -28,28 +57,7 @@ def ingest_hours() -> tuple[int, ...]:
     échouer le démarrage — une faute de frappe dans le .env ne doit pas
     empêcher le backend de tourner.
     """
-    heures: set[int] = set()
-    for morceau in (settings.INGEST_HOURS or "").split(","):
-        morceau = morceau.strip()
-        if not morceau:
-            continue
-        try:
-            heure = int(morceau)
-        except ValueError:
-            logger.warning("INGEST_HOURS : « %s » n'est pas un nombre, ignoré", morceau)
-            continue
-        if 0 <= heure <= 23:
-            heures.add(heure)
-        else:
-            logger.warning("INGEST_HOURS : %d hors de 0-23, ignoré", heure)
-
-    if not heures:
-        logger.warning(
-            "INGEST_HOURS inutilisable (%r) — repli sur %s",
-            settings.INGEST_HOURS, _INGEST_HOURS_DEFAUT,
-        )
-        return _INGEST_HOURS_DEFAUT
-    return tuple(sorted(heures))
+    return _parse_hours(settings.INGEST_HOURS, _INGEST_HOURS_DEFAUT, "INGEST_HOURS")
 
 
 async def _run_ingestion_job() -> None:
@@ -100,6 +108,14 @@ async def _run_weekly_brief_job() -> None:
             logger.info("Weekly brief skipped")
     except Exception as exc:
         logger.error("Weekly brief failed: %s", exc, exc_info=True)
+
+
+async def _run_stats_aggregation_job() -> None:
+    try:
+        from app.pipeline.stats import aggregate_daily_stats
+        await aggregate_daily_stats()
+    except Exception as exc:
+        logger.error("Agrégation horaire des statistiques échouée : %s", exc, exc_info=True)
 
 
 async def _run_purge_job() -> None:
@@ -164,6 +180,21 @@ def get_scheduler() -> AsyncIOScheduler:
                 coalesce=True,
             )
 
+        # Agrégats quotidiens rafraîchis toutes les heures (à :50). Calculés
+        # seulement à 3h00, ils ne couvraient pour le jour courant que la
+        # tranche 00h-03h : la page Tendances affichait « aujourd'hui » à un
+        # compte quasi nul jusqu'au lendemain. L'upsert est idempotent et la
+        # requête est un GROUP BY sur une table bornée par la purge.
+        _scheduler.add_job(
+            _run_stats_aggregation_job,
+            trigger=CronTrigger(minute=50, timezone=settings.SCHEDULER_TIMEZONE),
+            id="stats_hourly",
+            name="Agrégats quotidiens (:50)",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # Contrôle horaire de fraîcheur des données → webhook si plus rien
         # n'est ingéré (voir app/pipeline/freshness.py).
         _scheduler.add_job(
@@ -186,16 +217,12 @@ def get_scheduler() -> AsyncIOScheduler:
             coalesce=True,
         )
 
-        for hour, job_id, label in [
-            (9,  "brief_morning", "Morning brief (09h00)"),
-            (13, "brief_midday",  "Midday brief (13h00)"),
-            (20, "brief_evening", "Evening brief (20h00)"),
-        ]:
+        for hour in brief_hours():
             _scheduler.add_job(
                 _run_brief_job,
                 trigger=CronTrigger(hour=hour, minute=0, timezone=settings.SCHEDULER_TIMEZONE),
-                id=job_id,
-                name=label,
+                id=f"brief_{hour:02d}h",
+                name=f"Brief ({hour:02d}h00)",
                 replace_existing=True,
                 max_instances=1,
                 coalesce=True,

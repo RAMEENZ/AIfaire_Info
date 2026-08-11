@@ -31,6 +31,20 @@ from app.pipeline.dedup import title_fingerprint
 
 logger = logging.getLogger(__name__)
 
+# Tâches de fond en cours. La boucle asyncio ne garde qu'une référence FAIBLE
+# sur les tâches : sans référence forte, le ramasse-miettes peut interrompre une
+# tâche en pleine exécution (documenté dans asyncio.create_task). Les
+# notifications push et les alertes webhook étaient donc perdues au hasard.
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn(coro) -> None:
+    """Lance une tâche de fond en gardant une référence jusqu'à son terme."""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
 CONNECTORS = [
     MeteoFranceConnector(),
     VigicruesConnector(),
@@ -199,6 +213,35 @@ async def _send_webhook_alert(name: str, failures: int, error: str | None) -> No
         logger.warning("Webhook notification failed for %s: %s", name, exc)
 
 
+async def _send_recovery_alert(name: str, previous_failures: int) -> None:
+    """Signale qu'un connecteur en panne chronique refonctionne.
+
+    Sans cela, on était averti de la panne mais jamais de sa résolution : il
+    fallait aller voir la StatusBar pour savoir si le problème durait encore.
+    """
+    url = settings.WEBHOOK_URL
+    if not url:
+        return
+    text = (
+        f"✅ Connecteur **{name}** rétabli "
+        f"(après {previous_failures} échecs consécutifs)"
+    )
+    payload: dict = {
+        "webhook_event": "connector_recovered",
+        "connector": name,
+        "previous_consecutive_failures": previous_failures,
+    }
+    if "discord.com" in url or "discordapp.com" in url:
+        payload["content"] = text
+    elif "hooks.slack.com" in url:
+        payload["text"] = text
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(url, json=payload)
+    except Exception as exc:
+        logger.warning("Webhook de rétablissement échoué pour %s: %s", name, exc)
+
+
 async def _upsert_connector_status(
     name: str,
     last_run: datetime,
@@ -209,6 +252,16 @@ async def _upsert_connector_status(
     has_error = last_error is not None
     async with AsyncSessionLocal() as session:
         try:
+            # Compteur d'échecs AVANT mise à jour : c'est lui qui dit si ce
+            # succès constitue un rétablissement après panne chronique.
+            previous_failures = (
+                await session.execute(
+                    select(ConnectorStatus.consecutive_failures).where(
+                        ConnectorStatus.name == name
+                    )
+                )
+            ).scalar_one_or_none() or 0
+
             stmt = pg_insert(ConnectorStatus).values(
                 name=name,
                 last_run=last_run,
@@ -248,7 +301,12 @@ async def _upsert_connector_status(
                 )
                 failures = row.scalar_one_or_none() or 0
                 if failures >= settings.WEBHOOK_THRESHOLD:
-                    asyncio.create_task(_send_webhook_alert(name, failures, last_error))
+                    _spawn(_send_webhook_alert(name, failures, last_error))
+            # Rétablissement : on ne savait jamais si une panne signalée était
+            # résolue. Notifié une seule fois, au passage de « chronique » à
+            # « rétabli » (le compteur d'échecs vient d'être remis à zéro).
+            elif not has_error and settings.WEBHOOK_URL and previous_failures >= settings.WEBHOOK_THRESHOLD:
+                _spawn(_send_recovery_alert(name, previous_failures))
         except Exception as exc:
             logger.error("Failed to update connector status for %s: %s", name, exc)
             await session.rollback()
@@ -315,6 +373,55 @@ async def _process_item_limited(item: dict[str, Any]) -> dict[str, Any] | None:
 _SAVE_BATCH_SIZE = 10
 
 
+async def _replace_source_events(source: str, rows: list[dict[str, Any]]) -> list[str]:
+    """Remplace d'un bloc tous les événements d'une source, en UNE transaction.
+
+    La séquence précédente — supprimer, commiter, puis réinsérer par lots —
+    laissait une fenêtre pendant laquelle la carte ne montrait plus aucune
+    vigilance. Un arrêt au mauvais moment (redéploiement, autoheal) les perdait
+    jusqu'au passage horaire suivant. Ici, tant que l'insertion n'est pas
+    validée, l'ancienne liste reste servie.
+
+    Réservé aux sources sans extraction LLM (météo, crues, séismes) : leur
+    traitement est immédiat, il n'y a donc rien à gagner à commiter par lots.
+    """
+    if not rows:
+        return []
+    now = datetime.now(timezone.utc)
+    prepared: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for evt in rows:
+        if evt["source_url"] in seen:
+            continue
+        seen.add(evt["source_url"])
+        row = dict(evt)
+        row.setdefault("id", str(uuid.uuid4()))
+        row.setdefault("created_at", now)
+        prepared.append(row)
+
+    async with AsyncSessionLocal() as session:
+        try:
+            deleted = await session.execute(delete(Event).where(Event.source == source))
+            stmt = (
+                pg_insert(Event)
+                .values(prepared)
+                .on_conflict_do_nothing(index_elements=["source_url"])
+                .returning(Event.id)
+            )
+            result = await session.execute(stmt)
+            inserted = [r[0] for r in result.all()]
+            await session.commit()
+            logger.info(
+                "replace_on_ingest %s : %d supprimés, %d insérés (une transaction)",
+                source, deleted.rowcount, len(inserted),
+            )
+            return inserted
+        except Exception as exc:
+            await session.rollback()
+            logger.error("Remplacement des événements %s échoué : %s", source, exc, exc_info=True)
+            return []
+
+
 async def _delete_source_events(source: str) -> int:
     async with AsyncSessionLocal() as session:
         try:
@@ -327,7 +434,7 @@ async def _delete_source_events(source: str) -> int:
             return 0
 
 
-async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
+async def ingest_connector(connector: Any) -> tuple[str, int, str | None, list[str]]:
     # Garde-fou wall-clock sur la collecte : un connecteur qui répond au
     # compte-gouttes (au-delà des timeouts httpx par requête) ne doit pas figer
     # toute l'ingestion. connector.run() avale déjà ses propres exceptions ; ici
@@ -348,19 +455,44 @@ async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
     # (5xx amont → liste vide) viderait la carte alors que les alertes en cours
     # sont toujours valides. Une liste vide après un fetch réussi = vrai
     # « retour au calme » → suppression légitime.
-    if connector.replace_on_ingest and connector.last_error is None:
-        deleted = await _delete_source_events(connector.name)
-        logger.info("replace_on_ingest: deleted %d old %s events", deleted, connector.name)
-    elif connector.replace_on_ingest:
-        logger.warning(
-            "replace_on_ingest: skipping delete for %s — fetch failed (%s), keeping existing events",
-            connector.name, connector.last_error,
-        )
+    if connector.replace_on_ingest:
+        if connector.last_error is not None:
+            logger.warning(
+                "replace_on_ingest: remplacement ignoré pour %s — collecte en échec (%s), "
+                "les événements existants sont conservés",
+                connector.name, connector.last_error,
+            )
+            raw_items = []
+        else:
+            # Traitement complet PUIS remplacement atomique : la carte n'est
+            # jamais vide entre les deux (cf. _replace_source_events).
+            processed = await asyncio.gather(
+                *(_process_item_limited(item) for item in raw_items),
+                return_exceptions=True,
+            )
+            valid: list[dict[str, Any]] = []
+            for r in processed:
+                if isinstance(r, Exception):
+                    logger.warning("Processing raised exception: %s", r)
+                elif r is not None:
+                    valid.append(r)
+            inserted = await _replace_source_events(connector.name, valid)
+            await _upsert_connector_status(
+                name=connector.name,
+                last_run=connector.last_run or datetime.now(timezone.utc),
+                last_error=connector.last_error,
+                count=len(inserted),
+            )
+            logger.info(
+                "Connector %s: %d raw → %d saved", connector.name, len(raw_items), len(inserted)
+            )
+            return connector.name, len(inserted), connector.last_error, inserted
 
     # Traitement et sauvegarde par lots : les événements sont commités au fur et
     # à mesure (pas seulement en fin de run), pour qu'ils apparaissent vite et
     # survivent à un redémarrage en cours d'ingestion.
     total_saved = 0
+    run_inserted: list[str] = []
     if not raw_items:
         # Aucun item (ex. connecteur replace_on_ingest revenu au calme) : la
         # boucle ne tournerait pas, on met quand même le statut à jour.
@@ -386,11 +518,10 @@ async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
 
         inserted_ids = await _save_events(valid_events)
         total_saved += len(inserted_ids)
-        # Notifications Web Push : uniquement sur les événements réellement
-        # insérés (pas les doublons ignorés), et sans jamais bloquer le run.
-        if inserted_ids:
-            from app.pipeline.push import notify_new_events
-            asyncio.create_task(notify_new_events(inserted_ids))
+        # Les identifiants sont accumulés puis notifiés UNE fois en fin de run.
+        # Notifier par lot faisait sauter le plafond anti-avalanche : sur
+        # 120 articles (12 lots), il autorisait 12 × 3 événements au lieu de 3.
+        run_inserted.extend(inserted_ids)
 
         # Statut mis à jour à chaque lot : la table ConnectorStatus (lue par
         # /api/health) reflète la progression au lieu de rester vide jusqu'à la
@@ -403,7 +534,7 @@ async def ingest_connector(connector: Any) -> tuple[str, int, str | None]:
         )
 
     logger.info("Connector %s: %d raw → %d saved", connector.name, len(raw_items), total_saved)
-    return connector.name, total_saved, connector.last_error
+    return connector.name, total_saved, connector.last_error, run_inserted
 
 
 # Verrou global : empêche plusieurs ingestions de tourner en parallèle.
@@ -456,14 +587,40 @@ async def _ingest_inner(connectors: list[Any], label: str) -> dict[str, Any]:
         "connectors": {},
     }
 
+    inserted_ids: list[str] = []
     for r in results:
         if isinstance(r, Exception):
             logger.error("Connector task raised: %s", r, exc_info=r)
         else:
-            name, saved, error = r
+            name, saved, error, ids = r
             summary["connectors"][name] = {"saved": saved, "error": error}
+            inserted_ids.extend(ids)
 
     total = sum(v["saved"] for v in summary["connectors"].values())
     summary["total_saved"] = total
+
+    # Notifications push : une seule fois, sur l'ensemble du run — c'est là que
+    # le plafond anti-avalanche prend son sens.
+    if inserted_ids:
+        from app.pipeline.push import notify_new_events
+        _spawn(notify_new_events(inserted_ids))
+
+    # Le cache Redis de /events devenait obsolète pendant sa durée de vie
+    # (120 s) : un rafraîchissement manuel juste après une ingestion ne montrait
+    # rien de neuf. On le purge dès que des événements sont arrivés.
+    if total:
+        _spawn(_invalidate_events_cache())
+
     logger.info("Ingestion complete: %d events saved", total)
     return summary
+
+
+async def _invalidate_events_cache() -> None:
+    """Purge les réponses /events mises en cache. Silencieux si Redis est absent."""
+    try:
+        from app.api.routes.events import invalidate_events_cache
+        removed = await invalidate_events_cache()
+        if removed:
+            logger.info("Cache Redis /events purgé : %d clés", removed)
+    except Exception as exc:
+        logger.warning("Purge du cache Redis impossible : %s", exc)

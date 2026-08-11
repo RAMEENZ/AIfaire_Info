@@ -44,6 +44,26 @@ except ImportError:
         return None
 
 
+async def invalidate_events_cache() -> int:
+    """Supprime toutes les réponses /events en cache. Renvoie le nombre de clés.
+
+    Appelée en fin d'ingestion : sans cela, un rafraîchissement manuel juste
+    après un run continuait de servir la réponse d'avant pendant la durée de vie
+    du cache (REDIS_EVENTS_TTL, 120 s par défaut).
+    """
+    redis = await _get_redis()
+    if not redis:
+        return 0
+    removed = 0
+    try:
+        async for key in redis.scan_iter(match="events:*", count=200):
+            await redis.delete(key)
+            removed += 1
+    except Exception as exc:
+        logger.warning("Invalidation du cache /events échouée : %s", exc)
+    return removed
+
+
 def _events_cache_key(**params) -> str:
     raw = json.dumps(params, sort_keys=True, default=str)
     return f"events:{hashlib.md5(raw.encode()).hexdigest()}"
@@ -88,6 +108,24 @@ def _truncate_resume(text: Optional[str]) -> Optional[str]:
     if space > _RESUME_PREVIEW_CHARS * 0.6:
         cut = cut[:space]
     return cut.rstrip(" ,;:.") + "…"
+
+
+# Un code département sert de PRÉFIXE dans un LIKE : sans validation, « 7 »
+# correspond à « 75056 », « 76540 »… et renvoie silencieusement les
+# départements 70 à 79. /feed.rss validait déjà, /events et /stats/geo non.
+DEPT_RE = re.compile(r"^(\d{2,3}|2[AB])$")
+
+
+def _validate_dept(dept: Optional[str]) -> Optional[str]:
+    if dept is None:
+        return None
+    dept = dept.strip().upper()
+    if not DEPT_RE.match(dept):
+        raise HTTPException(
+            status_code=422,
+            detail="dept doit être un code département : 2 chiffres, 2A/2B, ou 3 chiffres (DOM)",
+        )
+    return dept
 
 
 VALID_CATEGORIES = CATEGORY_SET
@@ -171,6 +209,7 @@ async def list_events(
     if national_only:
         stmt = stmt.where(Event.geom.is_(None))
 
+    dept = _validate_dept(dept)
     if dept:
         stmt = stmt.where(Event.lieu_code_insee.like(f"{dept}%"))
 
@@ -515,9 +554,13 @@ async def stream_events(
         if invalid:
             raise HTTPException(status_code=422, detail=f"Invalid categories: {invalid}")
 
-    # Refuse d'ouvrir un flux de plus si le plafond est atteint : le client
-    # retombera sur le polling SWR. Évite d'épuiser le pool de connexions DB.
-    if not _acquire_sse_slot():
+    # Pré-contrôle : refuse d'emblée un flux de plus quand le plafond est
+    # atteint, pour répondre un vrai 503 (le client retombe sur le polling SWR).
+    # La comptabilité réelle, elle, se fait DANS le générateur : réservée ici,
+    # une place n'aurait jamais été rendue si le flux n'était pas consommé — le
+    # compteur ne redescendait plus et le temps réel restait fermé jusqu'au
+    # redémarrage.
+    if _sse_active_connections >= settings.MAX_SSE_CONNECTIONS:
         raise HTTPException(
             status_code=503,
             detail="Trop de connexions temps réel simultanées, réessayez plus tard",
@@ -525,6 +568,10 @@ async def stream_events(
 
     async def generate():
         last_seen = datetime.now(timezone.utc)
+        if not _acquire_sse_slot():
+            yield ("event: error\ndata: "
+                   + json.dumps({"reason": "too_many_connections"}) + "\n\n")
+            return
         try:
             yield f"event: connected\ndata: {json.dumps({'ts': last_seen.isoformat()})}\n\n"
 
@@ -647,9 +694,7 @@ async def get_local_brief(
     graves d'abord) et la répartition par catégorie ; la mise en forme est du
     ressort de l'interface.
     """
-    if not re.fullmatch(r"\d{2,3}|2[AB]", dept.upper()):
-        raise HTTPException(status_code=422, detail="Code département invalide")
-    dept = dept.upper()
+    dept = _validate_dept(dept) or ""
 
     since = datetime.now(timezone.utc) - timedelta(hours=heures)
     base = (
@@ -793,6 +838,7 @@ async def atom_feed(
         stmt = stmt.where(Event.categorie.in_(categories))
     if gravite_min is not None:
         stmt = stmt.where(Event.gravite >= gravite_min)
+    dept = _validate_dept(dept)
     if dept:
         stmt = stmt.where(Event.lieu_code_insee.like(f"{dept}%"))
     stmt = stmt.order_by(Event.gravite.desc(), Event.date_publication.desc()).limit(limit)

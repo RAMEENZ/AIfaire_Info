@@ -6,6 +6,7 @@
     docker compose exec backend python -m app.maintenance test-brief [--hours 24]
     docker compose exec backend python -m app.maintenance test-extraction [--limit 15]
     docker compose exec backend python -m app.maintenance clean-extractions [--dry-run]
+    docker compose exec backend python -m app.maintenance audit-commercial [--limit 400]
 
 Les deux commandes `test-*` servent à juger les prompts sur les données
 réelles : elles appellent le modèle mais n'écrivent RIEN en base.
@@ -414,6 +415,61 @@ async def clean_extractions(dry_run: bool = False) -> dict:
     }
 
 
+async def audit_commercial(limit: int = 400) -> dict:
+    """Compte les articles marchands par flux, sur les événements en base.
+
+    Répond à la question que le filtre ne tranche pas : la pollution vient-elle
+    de quelques flux qu'il vaudrait mieux retirer, ou est-elle diffuse ? Aucun
+    appel au modèle, aucune écriture.
+    """
+    from app.pipeline.commercial import is_commercial
+
+    async with AsyncSessionLocal() as session:
+        rows = (await session.execute(
+            select(Event)
+            .where(Event.source == "presse_rss")
+            .order_by(Event.date_publication.desc())
+            .limit(limit)
+        )).scalars().all()
+
+    if not rows:
+        print("Aucun article de presse en base.")
+        return {}
+
+    par_auteur: Counter = Counter()
+    total_par_auteur: Counter = Counter()
+    exemples: dict[str, list[str]] = {}
+    for e in rows:
+        auteur = (e.auteur or "source inconnue").strip()
+        total_par_auteur[auteur] += 1
+        if is_commercial(e.titre, e.resume_ia or ""):
+            par_auteur[auteur] += 1
+            exemples.setdefault(auteur, []).append(e.titre)
+
+    marchands = sum(par_auteur.values())
+    n = len(rows)
+    print(f"=== {marchands}/{n} articles marchands ({100 * marchands / n:.0f} %) ===\n")
+    if not marchands:
+        print("Aucun contenu marchand détecté sur cet échantillon.")
+        return {"total": n, "marchands": 0}
+
+    print(f"{'Source':<38} {'marchands':>10} {'total':>7} {'part':>6}")
+    for auteur, k in par_auteur.most_common():
+        total = total_par_auteur[auteur]
+        print(f"{auteur[:38]:<38} {k:>10} {total:>7} {100 * k / total:>5.0f} %")
+
+    print("\nExemples :")
+    for auteur, titres in list(exemples.items())[:5]:
+        for titre in titres[:2]:
+            print(f"  [{auteur[:24]}] {titre[:96]}")
+
+    print(
+        "\nUne source dont la part dépasse ~30 % mérite d'être retirée de "
+        "presse_rss plutôt que filtrée article par article."
+    )
+    return {"total": n, "marchands": marchands, "par_source": dict(par_auteur)}
+
+
 def _arg_int(argv: list[str], nom: str, defaut: int) -> int:
     """Lit `--nom N` dans argv ; retourne `defaut` si absent ou illisible."""
     if nom in argv:
@@ -442,6 +498,9 @@ def _main(argv: list[str]) -> int:
         return 0
     if cmd == "test-extraction":
         asyncio.run(test_extraction(limit=_arg_int(argv, "--limit", 15)))
+        return 0
+    if cmd == "audit-commercial":
+        asyncio.run(audit_commercial(limit=_arg_int(argv, "--limit", 400)))
         return 0
     if cmd == "clean-extractions":
         asyncio.run(clean_extractions(dry_run="--dry-run" in argv))

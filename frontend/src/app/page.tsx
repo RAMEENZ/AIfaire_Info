@@ -845,6 +845,7 @@ export default function HomePage() {
             selectedEventId={selectedEvent?.id ?? null}
             onSelectEvent={setSelectedEvent}
             onRetry={refreshEvents}
+            serverQuery={serverQuery}
             liveEventIds={new Set(liveEvents.map((e) => e.id))}
             onSearchChange={setServerQuery}
             totalAvailable={eventsData?.total ?? 0}
