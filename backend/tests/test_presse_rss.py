@@ -328,3 +328,51 @@ def test_flux_outre_mer_toujours_couverts():
     for territoire in ("guadeloupe", "guyane", "reunion", "mayotte", "polynesie",
                        "martinique", "nouvellecaledonie", "saint"):
         assert territoire in urls, f"plus aucun flux pour {territoire}"
+
+
+# ── Suffixe de source des agrégateurs ───────────────────────────────────────
+
+@pytest.mark.parametrize("titre,attendu", [
+    ("Trois blessés dans une collision à Colmar - Ouest-France",
+     "Trois blessés dans une collision à Colmar"),
+    ("Municipales : ce qu'il faut retenir du scrutin - Le Figaro",
+     "Municipales : ce qu'il faut retenir du scrutin"),
+    # Sources à trait d'union : le séparateur est le tiret ENTOURÉ d'espaces.
+    ("Incendie maîtrisé après six heures d'intervention - Nice-Matin",
+     "Incendie maîtrisé après six heures d'intervention"),
+    ("Grève : le trafic SNCF perturbé jeudi - Sud-Ouest",
+     "Grève : le trafic SNCF perturbé jeudi"),
+])
+def test_suffixe_source_retire(titre, attendu):
+    from app.connectors.presse_rss import _sans_suffixe_source
+    assert _sans_suffixe_source(titre) == attendu
+
+
+@pytest.mark.parametrize("titre", [
+    "Un accident sur l'A7 fait trois blessés graves",  # aucun séparateur
+    "PSG - Marseille",                                  # tête trop courte
+    "Le conseil municipal a voté le budget - " + "x" * 60,  # « source » trop longue
+])
+def test_suffixe_source_preserve_les_titres_legitimes(titre):
+    from app.connectors.presse_rss import _sans_suffixe_source
+    assert _sans_suffixe_source(titre) == titre
+
+
+def test_suffixe_source_permet_la_deduplication():
+    """C'est la raison d'être du retrait : Google Actualités republie un article
+    que sa source publie aussi en direct, et le titre suffixé produisait deux
+    clés distinctes — donc deux créneaux LLM pour un même fait."""
+    from app.connectors.presse_rss import _sans_suffixe_source, _title_key
+
+    via_google = _sans_suffixe_source("Trois blessés dans une collision à Colmar - Ouest-France")
+    assert _title_key(via_google) == _title_key("Trois blessés dans une collision à Colmar")
+
+
+def test_flux_agregateurs_reference_des_flux_existants():
+    """Une entrée de _FLUX_AGREGATEURS qui ne correspond à aucun flux ne
+    s'appliquerait jamais — un renommage la rendrait silencieusement inerte."""
+    from app.connectors.presse_rss import RSS_FEEDS, _FLUX_AGREGATEURS
+
+    noms = {f["name"] for f in RSS_FEEDS}
+    orphelins = _FLUX_AGREGATEURS - noms
+    assert not orphelins, f"agrégateurs sans flux correspondant : {orphelins}"

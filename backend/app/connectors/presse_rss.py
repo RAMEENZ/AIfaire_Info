@@ -18,6 +18,28 @@ from app.connectors.base import BaseConnector
 # généralement depuis une VM domestique ou un VPS résidentiel.
 RSS_FEEDS: list[dict[str, Any]] = [
     # ── Flux ajoutes (presse nationale + Outre-mer) ──
+    # ── Ajouts du 11/08/2026 (liste fournie, chaque URL vérifiée en direct) ──
+    # Les adresses proposées pointaient souvent sur la PAGE qui liste les flux
+    # d'un site plutôt que sur un flux ; ce sont les flux réels qui figurent ici.
+    {"name": "France Info (radio)",   "url": "https://www.radiofrance.fr/franceinfo/rss",                "region": None},
+    {"name": "France Culture",        "url": "https://www.radiofrance.fr/franceculture/rss",             "region": None},
+    {"name": "Radio France : monde",  "url": "https://www.radiofrance.fr/rss/monde",                     "region": None},
+    {"name": "Radio France : politique", "url": "https://www.radiofrance.fr/rss/politique",              "region": None},
+    {"name": "Radio France : société",   "url": "https://www.radiofrance.fr/rss/societe",                "region": None},
+    {"name": "RMC : actualités",      "url": "https://rmc.bfmtv.com/rss/actualites/",                    "region": None},
+    {"name": "RMC : société",         "url": "https://rmc.bfmtv.com/rss/actualites/societe/",            "region": None},
+    {"name": "20 Minutes : à la une", "url": "https://www.20minutes.fr/feeds/rss-une.xml",               "region": None},
+    {"name": "Courrier international", "url": "https://www.courrierinternational.com/feed/all/rss.xml",  "region": None},
+    {"name": "La Presse Libre",       "url": "https://lapresselibre.info/api/articles/rss",              "region": None},
+    {"name": "economie.gouv.fr",      "url": "https://www.economie.gouv.fr/rss/toutesactualites",        "region": None},
+    {"name": "France Num",            "url": "https://www.francenum.gouv.fr/flux-rss-principal",         "region": None},
+    {"name": "Yahoo Actualités France", "url": "https://fr.news.yahoo.com/rss/france",                   "region": None},
+    # Agrégateurs : leurs liens sont des redirections opaques
+    # (news.google.com/rss/articles/CBMi…), donc ni texte intégral ni code
+    # INSEE lisible dans l'URL. Le plafond en round-robin par flux limite leur
+    # poids à un ou deux articles par cycle. Voir _FLUX_AGREGATEURS.
+    {"name": "Google Actualités : à la une", "url": "https://news.google.com/rss?hl=fr&gl=FR&ceid=FR:fr", "region": None},
+    {"name": "Google Actualités : France",   "url": "https://news.google.com/rss/search?tbm=nws&q=France&hl=fr&gl=FR&ceid=FR:fr", "region": None},
     {"name": "Le Journal du Dimanche", "url": "https://www.lejdd.fr/rss.xml", "region": None},
     {"name": "L'Express", "url": "https://www.lexpress.fr/rss/alaune.xml", "region": None},
     {"name": "Slate", "url": "https://www.slate.fr/rss.xml", "region": None},
@@ -1462,6 +1484,38 @@ _EDITORIAL_PREFIX_RE = _re.compile(
 )
 
 
+# Google Actualités accole « - <Source> » à chaque titre (« Centrafrique :
+# l'ambassadeur de France visé - Le Figaro »). La déduplication par titre ne
+# reconnaît alors PAS l'article que Le Figaro publie aussi en direct, et le
+# même fait occupe deux des créneaux LLM du plafond. Le retrait est réservé aux
+# flux d'agrégateurs : appliqué à tout le corpus, il fusionnerait à tort des
+# titres distincts se terminant par un tiret.
+_FLUX_AGREGATEURS = frozenset({
+    "Google News France", "Google News Régions",
+    "Google Actualités : à la une", "Google Actualités : France",
+})
+# Le séparateur d'attribution est un tiret ENTOURÉ d'espaces. Cette exigence
+# distingue « … - Ouest-France » du trait d'union interne aux noms de titres —
+# Ouest-France, Sud-Ouest, Nice-Matin, Paris-Normandie en portent tous un.
+_SEPARATEUR_SOURCE_RE = _re.compile(r"\s+[-–—]\s+")
+
+
+def _sans_suffixe_source(titre: str) -> str:
+    """Retire le « - <Source> » final d'un titre d'agrégateur."""
+    dernier = None
+    for m in _SEPARATEUR_SOURCE_RE.finditer(titre):
+        dernier = m
+    if dernier is None:
+        return titre
+    tete = titre[:dernier.start()].strip()
+    source = titre[dernier.end():].strip()
+    # Un nom de média est court, et ce qui reste doit rester un titre : sans ces
+    # deux bornes, « PSG - Marseille » perdrait la moitié de son sens.
+    if 2 <= len(source) <= 40 and len(tete.split()) >= 4:
+        return tete
+    return titre
+
+
 def _title_key(title: str) -> str:
     """Clé de normalisation pour déduplication par titre.
 
@@ -1577,6 +1631,8 @@ async def _fetch_feed(
             title: str = getattr(entry, "title", "").strip()
             if not title:
                 continue
+            if feed_name in _FLUX_AGREGATEURS:
+                title = _sans_suffixe_source(title)
             link: str = getattr(entry, "link", "") or ""
             if not link:
                 continue
