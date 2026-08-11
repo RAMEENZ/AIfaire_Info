@@ -269,3 +269,62 @@ def test_les_flux_morts_ont_ete_retires():
     urls = " ".join(c.get("url", "") for c in RSS_FEEDS)
     for mort in ("lesinguliersete.fr", "d3.lequipe.fr", "overclock.net/forums"):
         assert mort not in urls, mort
+
+
+# ── Intégrité de la liste de flux ───────────────────────────────────────────
+
+def test_aucune_url_en_double():
+    """Une URL présente deux fois, c'est une requête payée deux fois pour rien."""
+    from collections import Counter
+    from app.connectors.presse_rss import RSS_FEEDS
+
+    doublons = {u for u, n in Counter(f["url"] for f in RSS_FEEDS).items() if n > 1}
+    assert not doublons, f"URL en double : {doublons}"
+
+
+def test_aucun_nom_en_double():
+    """Le nom identifie le flux dans le rapport de santé et dans les logs.
+
+    Deux flux distincts sous la même étiquette (« Le Dépêche Évreux », relevé
+    le 11/08/2026) rendent un diagnostic impossible à interpréter.
+    """
+    from collections import Counter
+    from app.connectors.presse_rss import RSS_FEEDS
+
+    doublons = {n for n, c in Counter(f["name"] for f in RSS_FEEDS).items() if c > 1}
+    assert not doublons, f"noms en double : {doublons}"
+
+
+def test_urls_mortes_non_reintroduites():
+    """Motifs constatés morts le 11/08/2026, vérifiés depuis deux réseaux.
+
+    Le domaine la1ere.francetvinfo.fr sert la page HTML sur /rss pour les
+    territoires qui ont migré vers la1ere.franceinfo.fr — mais PAS pour tous :
+    la Nouvelle-Calédonie et Saint-Martin y répondent encore normalement. D'où
+    une liste explicite plutôt qu'un motif de domaine, qui les casserait.
+    """
+    from app.connectors.presse_rss import RSS_FEEDS
+
+    mortes = {
+        "https://plus.lefigaro.fr/page/flux-rss",          # page listant les flux
+        "https://www.vie-publique.fr/rss/tous",            # mur anti-bot
+        "https://www.santepubliquefrance.fr/rss.xml",      # flux vide
+        "https://la1ere.francetvinfo.fr/guadeloupe/rss",
+        "https://la1ere.francetvinfo.fr/guyane/rss",
+        "https://la1ere.francetvinfo.fr/reunion/rss",
+        "https://la1ere.francetvinfo.fr/mayotte/rss",
+        "https://la1ere.francetvinfo.fr/polynesie/rss",
+        "https://la1ere.francetvinfo.fr/martinique/rss",
+    }
+    presentes = {f["url"] for f in RSS_FEEDS} & mortes
+    assert not presentes, f"URL mortes réintroduites : {presentes}"
+
+
+def test_flux_outre_mer_toujours_couverts():
+    """Le nettoyage ne doit pas faire disparaître un territoire de la carte."""
+    from app.connectors.presse_rss import RSS_FEEDS
+
+    urls = " ".join(f["url"] for f in RSS_FEEDS)
+    for territoire in ("guadeloupe", "guyane", "reunion", "mayotte", "polynesie",
+                       "martinique", "nouvellecaledonie", "saint"):
+        assert territoire in urls, f"plus aucun flux pour {territoire}"

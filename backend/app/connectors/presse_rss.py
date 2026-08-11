@@ -35,10 +35,9 @@ RSS_FEEDS: list[dict[str, Any]] = [
     # 07/2026 : les chemins /rss/*.xml renvoient 403 — migrés vers /feeds/rss-*.xml
     {"name": "20 Minutes",          "url": "https://www.20minutes.fr/feeds/rss-france.xml",          "region": None},
     {"name": "Le Monde",            "url": "https://www.lemonde.fr/rss/une.xml",                     "region": None},
-    {"name": "Le Figaro",           "url": "https://plus.lefigaro.fr/page/flux-rss",                 "region": None},
+    {"name": "Le Figaro",           "url": "https://www.lefigaro.fr/rss/figaro_actualites.xml",                 "region": None},
     {"name": "Libération",          "url": "https://www.liberation.fr/arc/outboundfeeds/rss-all/",  "region": None},
     {"name": "L'Humanité",          "url": "https://www.humanite.fr/feed/",                          "region": None},
-    {"name": "Vie Publique",        "url": "https://www.vie-publique.fr/rss/tous",                   "region": None},
     {"name": "Google News France",  "url": "https://news.google.com/rss/search?q=france+actualit%C3%A9&hl=fr&gl=FR&ceid=FR:fr",         "region": None},
     {"name": "Google News Régions", "url": "https://news.google.com/rss/search?q=r%C3%A9gion+commune+france&hl=fr&gl=FR&ceid=FR:fr",    "region": None},
 
@@ -55,7 +54,7 @@ RSS_FEEDS: list[dict[str, Any]] = [
     # Gouvernement.fr (info.gouv.fr) : retiré 07/2026 — WAF 403 permanent sur le
     # flux RSS. L'actualité officielle reste couverte par Service-Public et
     # Vie Publique ci-dessous.
-    {"name": "Santé Publique France", "url": "https://www.santepubliquefrance.fr/rss.xml",           "region": None},
+    {"name": "Santé Publique France", "url": "https://www.santepubliquefrance.fr/rss/actualites.xml",           "region": None},
     # Ministère de l'Intérieur : retiré 07/2026 — WAF 403 permanent sur le flux.
 
     # ── ACTUALITÉS RÉGIONALES — RÉSEAU ACTU.FR ──────────────────────────────
@@ -74,13 +73,12 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Actu Corse",                   "url": "https://actu.fr/corse/rss.xml",                          "region": "Corse"},
 
     # ── DOM-TOM — LA 1ÈRE (France Télévisions) ───────────────────────────────
-    {"name": "La 1ère Guadeloupe",        "url": "https://la1ere.francetvinfo.fr/guadeloupe/rss",               "region": "Guadeloupe"},
-    {"name": "La 1ère Martinique",        "url": "https://la1ere.francetvinfo.fr/martinique/rss",               "region": "Martinique"},
-    {"name": "La 1ère Guyane",            "url": "https://la1ere.francetvinfo.fr/guyane/rss",                   "region": "Guyane"},
-    {"name": "La 1ère Réunion",           "url": "https://la1ere.francetvinfo.fr/reunion/rss",                  "region": "La Réunion"},
-    {"name": "La 1ère Mayotte",           "url": "https://la1ere.francetvinfo.fr/mayotte/rss",                  "region": "Mayotte"},
+    {"name": "La 1ère Guadeloupe",        "url": "https://la1ere.franceinfo.fr/guadeloupe/actu/rss",               "region": "Guadeloupe"},
+    {"name": "La 1ère Guyane",            "url": "https://la1ere.franceinfo.fr/guyane/actu/rss",                   "region": "Guyane"},
+    {"name": "La 1ère Réunion",           "url": "https://la1ere.franceinfo.fr/reunion/actu/rss",                  "region": "La Réunion"},
+    {"name": "La 1ère Mayotte",           "url": "https://la1ere.franceinfo.fr/mayotte/actu/rss",                  "region": "Mayotte"},
     {"name": "La 1ère Nouvelle-Calédonie","url": "https://la1ere.francetvinfo.fr/nouvellecaledonie/rss",        "region": "Nouvelle-Calédonie"},
-    {"name": "La 1ère Polynésie",         "url": "https://la1ere.francetvinfo.fr/polynesie/rss",                "region": "Polynésie française"},
+    {"name": "La 1ère Polynésie",         "url": "https://la1ere.franceinfo.fr/polynesie/actu/rss",                "region": "Polynésie française"},
     {"name": "La 1ère St-Pierre",         "url": "https://la1ere.franceinfo.fr/saintpierremiquelon/actu/rss",   "region": "Saint-Pierre-et-Miquelon"},
     {"name": "La 1ère St-Martin",         "url": "https://la1ere.francetvinfo.fr/saint-martin/rss",             "region": "Saint-Martin"},
 
@@ -558,8 +556,8 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Le Démocrate vernonnais", "url": "https://actu.fr/le-democrate-vernonnais/rss.xml", "region": "Normandie"},
 
     # ── LE DÉPÊCHE ÉVREUX ─────────────────────────────────────────────────────────────────
-    {"name": "Le Dépêche Évreux", "url": "https://actu.fr/la-depeche-evreux/rss.xml", "region": "Normandie"},
-    {"name": "Le Dépêche Évreux", "url": "https://www.evreux.fr/actualites/feed/", "region": "Normandie"},
+    {"name": "La Dépêche d'Évreux", "url": "https://actu.fr/la-depeche-evreux/rss.xml", "region": "Normandie"},
+    {"name": "Ville d'Évreux", "url": "https://www.evreux.fr/actualites/feed/", "region": "Normandie"},
 
     # ── LE GLOB JOURNAL ─────────────────────────────────────────────────────────────────
     {"name": "Le Glob Journal", "url": "https://leglob-journal.fr/feed/", "region": "Pays de la Loire"},
@@ -677,12 +675,8 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Le Ploërmelais", "url": "https://actu.fr/le-ploermelais/rss.xml", "region": "Bretagne"},
 
     # ── LE POINT ─────────────────────────────────────────────────────────────────
-    {"name": "Le Point : Lyon", "url": "https://www.lepoint.fr/arc/outboundfeeds/rss/tags_slug/lyon/", "region": "Auvergne-Rhône-Alpes"},
     {"name": "Le Point : Marseille", "url": "https://www.lepoint.fr/arc/outboundfeeds/rss/tags_slug/marseille/", "region": "Provence-Alpes-Côte d'Azur"},
-    {"name": "Le Point : Nantes", "url": "https://www.lepoint.fr/arc/outboundfeeds/rss/tags_slug/nantes/", "region": "Pays de la Loire"},
     {"name": "Le Point : Paris", "url": "https://www.lepoint.fr/arc/outboundfeeds/rss/tags_slug/paris/", "region": "Île-de-France"},
-    {"name": "Le Point : Rennes", "url": "https://www.lepoint.fr/arc/outboundfeeds/rss/tags_slug/rennes/", "region": "Bretagne"},
-    {"name": "Le Point : Toulon", "url": "https://www.lepoint.fr/arc/outboundfeeds/rss/tags_slug/toulon/", "region": "Provence-Alpes-Côte d'Azur"},
 
     # ── LE PROGRÈS ─────────────────────────────────────────────────────────────────
     {"name": "Le Progrès : Ain", "url": "https://www.leprogres.fr/ain/rss", "region": "Auvergne-Rhône-Alpes"},
@@ -871,15 +865,10 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "L’Hebdo de Sèvre et Maine", "url": "https://actu.fr/l-hebdo-de-sevre-et-maine/rss.xml", "region": "Pays de la Loire"},
 
     # ── L’HUMANITÉ ─────────────────────────────────────────────────────────────────
-    {"name": "L’Humanité : Bretagne", "url": "https://www.humanite.fr/mot-cle/bretagne/feed", "region": "Bretagne"},
     {"name": "L’Humanité : Corse", "url": "https://www.humanite.fr/mot-cle/corse/feed", "region": "Corse"},
-    {"name": "L’Humanité : Hauts-de-France", "url": "https://www.humanite.fr/mot-cle/hauts-de-france/feed", "region": "Hauts-de-France"},
     {"name": "L’Humanité : Lyon", "url": "https://www.humanite.fr/mot-cle/lyon/feed", "region": "Auvergne-Rhône-Alpes"},
     {"name": "L’Humanité : Marseille", "url": "https://www.humanite.fr/mot-cle/marseille/feed", "region": "Provence-Alpes-Côte d'Azur"},
-    {"name": "L’Humanité : Nice", "url": "https://www.humanite.fr/mot-cle/nice/feed", "region": "Provence-Alpes-Côte d'Azur"},
-    {"name": "L’Humanité : Outre-mer", "url": "https://www.humanite.fr/mot-cle/outre-mer/feed", "region": None},
     {"name": "L’Humanité : Paris", "url": "https://www.humanite.fr/mot-cle/paris/feed", "region": "Île-de-France"},
-    {"name": "L’Humanité : Rennes", "url": "https://www.humanite.fr/mot-cle/rennes/feed", "region": "Bretagne"},
     {"name": "L’Humanité : Île-de-France", "url": "https://www.humanite.fr/mot-cle/ile-de-france/feed", "region": "Île-de-France"},
 
     # ── L’IMPARTIAL ─────────────────────────────────────────────────────────────────
@@ -1318,7 +1307,6 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Daily Art Magazine",     "url": "https://www.dailyartmagazine.com/feed/",         "region": None},
 
     # ── DESIGN ────────────────────────────────────────────────────────────────
-    {"name": "Grapheine",          "url": "https://www.grapheine.com/feed",                     "region": None},
     {"name": "Étapes",             "url": "https://etapes.com/feed/",                           "region": None},
     {"name": "Abduzeedo",          "url": "https://abduzeedo.com/rss.xml",                      "region": None},
 
@@ -1337,7 +1325,6 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Overclocking.com",   "url": "https://overclocking.com/feed/",                     "region": None},
     # Overclock.net retiré 11/08/2026 : répond 409 avec 0 entrée (défi
     # anti-bot), depuis deux réseaux. Le flux ne redeviendra pas lisible.
-    {"name": "PC Tuning (GitHub)", "url": "https://github.com/valleyofdoom/PC-Tuning/releases.atom", "region": None},
 ]
 
 UA = "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
