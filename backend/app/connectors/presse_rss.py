@@ -202,7 +202,6 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Angers VilleActu", "url": "https://www.angers.villactu.fr/feed/", "region": "Pays de la Loire"},
 
     # ── ANNUDÀ ─────────────────────────────────────────────────────────────────
-    {"name": "Annudà : ViaStella", "url": "http://flussi.annuda.saynete.net/corse_viastella_rss.xml", "region": "Corse"},
     {"name": "Annudà : presse", "url": "http://flussi.annuda.saynete.net/corse_presse_rss.xml", "region": "Corse"},
 
     # ── AQUITAINE ONLINE ─────────────────────────────────────────────────────────────────
@@ -414,7 +413,6 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Free Dom", "url": "https://freedom.fr/feed/", "region": "La Réunion"},
 
     # ── FREQUENZA NOSTRA ─────────────────────────────────────────────────────────────────
-    {"name": "Frequenza Nostra : ausha", "url": "https://feed.ausha.co/nr0vlHJvw4MO", "region": "Corse"},
 
     # ── GOMET’ ─────────────────────────────────────────────────────────────────
     {"name": "Gomet’", "url": "https://gomet.net/feed/", "region": "Provence-Alpes-Côte d'Azur"},
@@ -510,7 +508,6 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "La Nouvelle République : Indre", "url": "https://www.lanouvellerepublique.fr/api/v1/rss/5e20725dcc4d8d75408b458d", "region": "Centre-Val de Loire"},
     {"name": "La Nouvelle République : Indre-et-Loire", "url": "https://www.lanouvellerepublique.fr/api/v1/rss/5e206fd2fb1714762f8b4592", "region": "Centre-Val de Loire"},
     {"name": "La Nouvelle République : Loir-et-Cher", "url": "https://www.lanouvellerepublique.fr/api/v1/rss/5e2072c23915ea8c028b4582", "region": "Centre-Val de Loire"},
-    {"name": "La Nouvelle République : Val de Loire TV", "url": "https://www.valdeloire.tv/feed/", "region": "Centre-Val de Loire"},
     {"name": "La Nouvelle République : Vienne", "url": "https://www.lanouvellerepublique.fr/api/v1/rss/5e20732239a34f77578b457c", "region": "Nouvelle-Aquitaine"},
 
     # ── LA NOUVELLE RÉPUBLIQUE DES PYRÉNÉES ─────────────────────────────────────────────────────────────────
@@ -1071,7 +1068,6 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "RCFM : à la une", "url": "https://www.ici.fr/rss/rcfm/a-la-une.xml", "region": "Corse"},
 
     # ── RCI ─────────────────────────────────────────────────────────────────
-    {"name": "RCI : émissions", "url": "https://rci.websiteradio.co/rss-feed-7", "region": "Corse"},
 
     # ── RCI - RADIO CARAÏBES INTERNATIONAL ─────────────────────────────────────────────────────────────────
     {"name": "RCI - Radio Caraïbes International : Guadeloupe", "url": "https://rci.fm/guadeloupe/fb/articles_rss_mq", "region": "Guadeloupe"},
@@ -1285,22 +1281,16 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "mLyon", "url": "https://mlyon.fr/xml/news", "region": "Auvergne-Rhône-Alpes"},
 
     # ── FORMULE 1 ─────────────────────────────────────────────────────────────
-    {"name": "Motorsport F1",      "url": "https://fr.motorsport.com/rss/f1/news/",            "region": None},
-    {"name": "F1 Only",            "url": "https://f1only.fr/feed/",                            "region": None},
     # L'Équipe Auto/Moto retiré 11/08/2026 : d3.lequipe.fr ne résout plus
     # (échec DNS depuis deux réseaux) — le sous-domaine a disparu.
 
     # ── JEUX VIDÉO ────────────────────────────────────────────────────────────
-    {"name": "Jeux Vidéo.com",     "url": "https://www.jeuxvideo.com/rss/rss.xml",              "region": None},
-    {"name": "Gamekult",           "url": "https://www.gamekult.com/feed.xml",                  "region": None},
     # 07/2026 : les flux par rubrique (/esport/feed/, /divertissement/feed) sont
     # morts — seul le flux global subsiste.
-    {"name": "Dexerto",            "url": "https://www.dexerto.fr/feed/",                       "region": None},
 
     # ── INFO POSITIVE ─────────────────────────────────────────────────────────
     {"name": "Positivr",           "url": "https://positivr.fr/feed/",                          "region": None},
     {"name": "L'Optimisme",        "url": "https://www.loptimisme.com/feed/",                   "region": None},
-    {"name": "Good News Network",  "url": "https://www.goodnewsnetwork.org/feed/",              "region": None},
 
     # ── TECHNOLOGIE ───────────────────────────────────────────────────────────
     {"name": "Frandroid",          "url": "https://www.frandroid.com/feed",                     "region": None},
@@ -1308,14 +1298,12 @@ RSS_FEEDS: list[dict[str, Any]] = [
     {"name": "Journal du Geek",    "url": "https://www.journaldugeek.com/feed/",                "region": None},
 
     # ── STREAMING ─────────────────────────────────────────────────────────────
-    {"name": "Univers Freebox",    "url": "https://www.universfreebox.com/rss",                 "region": None},
     # Netflix Blog FR : retiré 07/2026 — plus aucun flux RSS (les chemins /feed
     # et /rss renvoient du HTML).
 
     # ── YOUTUBE ───────────────────────────────────────────────────────────────
     # YouTube Journal du Geek : retiré 07/2026 — channel_id invalide (404) et
     # introuvable ; le site est déjà couvert par son flux principal ci-dessus.
-    {"name": "YouTube : Frandroid",       "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCOyUCj6Wx9skJggzZFUDZyA", "region": None},
 
     # ── AUTOMOBILE ────────────────────────────────────────────────────────────
     # 07/2026 : /rss/ renvoie 410 Gone — le flux officiel passe par FeedBurner.
@@ -1326,25 +1314,18 @@ RSS_FEEDS: list[dict[str, Any]] = [
     # ── ART ───────────────────────────────────────────────────────────────────
     {"name": "Beaux Arts Magazine",    "url": "https://www.beauxarts.com/feed/",                "region": None},
     {"name": "Connaissance des Arts",  "url": "https://www.connaissancedesarts.com/feed/",      "region": None},
-    {"name": "Daily Art Magazine",     "url": "https://www.dailyartmagazine.com/feed/",         "region": None},
 
     # ── DESIGN ────────────────────────────────────────────────────────────────
-    {"name": "Étapes",             "url": "https://etapes.com/feed/",                           "region": None},
-    {"name": "Abduzeedo",          "url": "https://abduzeedo.com/rss.xml",                      "region": None},
 
     # ── INFORMATIQUE / IT ─────────────────────────────────────────────────────
     {"name": "Le Monde Informatique", "url": "https://www.lemondeinformatique.fr/rss/rss.xml", "region": None},
-    {"name": "Developpez.com",        "url": "https://www.developpez.com/index/rss",            "region": None},
     # 07/2026 : Next INpact est devenu Next (next.ink), flux WordPress standard.
     {"name": "Next (ex-INpact)",      "url": "https://next.ink/feed/",                          "region": None},
 
     # ── HARDWARE ──────────────────────────────────────────────────────────────
     # Cowcotland : retiré 07/2026 — aucune variante de flux ne répond (404/403).
-    {"name": "Comptoir Hardware",  "url": "https://www.comptoir-hardware.com/home.xml",         "region": None},
-    {"name": "Tom's Hardware FR",  "url": "https://www.tomshardware.fr/feed/",                  "region": None},
 
     # ── OPTIMISATION & TWEAKING ───────────────────────────────────────────────
-    {"name": "Overclocking.com",   "url": "https://overclocking.com/feed/",                     "region": None},
     # Overclock.net retiré 11/08/2026 : répond 409 avec 0 entrée (défi
     # anti-bot), depuis deux réseaux. Le flux ne redeviendra pas lisible.
 ]

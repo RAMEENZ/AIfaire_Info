@@ -17,7 +17,7 @@ Vue cartographique unifiée de l'actualité publique française en quasi temps r
 | Météo-France Vigilance | Météo, Crue | Open data |
 | Vigicrues | Crue | API publique GeoJSON |
 | USGS FDSNWS (RéNaSS) | Séisme | API publique |
-| 865 flux RSS (presse, officiel, thématique) | Toutes | RSS |
+| 848 flux RSS (presse, officiel, thématique) | Toutes | RSS |
 
 _Enedis (coupures d'électricité) a été retiré en 07/2026 : le portail open data a migré et le dataset temps réel a disparu._
 

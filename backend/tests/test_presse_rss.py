@@ -426,3 +426,44 @@ async def test_flux_ordinaire_conserve_sa_description():
     assert items[0]["description"] != ""
     # Flux ordinaire : le suffixe de source n'est pas retire non plus.
     assert items[0]["titre"].endswith("Le Journal du Centre")
+
+
+def test_sources_hors_sujet_non_reintroduites():
+    """Sources retirées le 12/08/2026 après lecture de leurs titres réels.
+
+    Le critère de Faire.info : la source produit-elle des faits qui SE PASSENT
+    en France, ou de l'actualité nationale française ? Un blog de design en
+    anglais, une grille de programmes radio ou des tests de matériel ne
+    répondent ni à l'un ni à l'autre — ils encombrent le fil et consomment des
+    créneaux du plafond LLM sans jamais rien apporter à la carte.
+    """
+    from urllib.parse import urlparse
+    from app.connectors.presse_rss import RSS_FEEDS
+
+    hotes_retires = {
+        "abduzeedo.com", "www.dailyartmagazine.com", "www.goodnewsnetwork.org",
+        "overclocking.com", "www.comptoir-hardware.com", "www.tomshardware.fr",
+        "www.jeuxvideo.com", "www.gamekult.com", "www.dexerto.fr", "f1only.fr",
+        "fr.motorsport.com", "etapes.com", "www.developpez.com",
+        "www.universfreebox.com", "www.youtube.com", "rci.websiteradio.co",
+        "www.valdeloire.tv",
+    }
+    presents = {urlparse(f["url"]).hostname for f in RSS_FEEDS} & hotes_retires
+    assert not presents, f"sources hors sujet réintroduites : {presents}"
+
+
+def test_les_voisins_legitimes_ont_survecu():
+    """Deux hôtes retirés partageaient leur domaine avec une VRAIE source.
+
+    Supprimer par hôte aurait emporté « Annudà : presse » (actualité corse) et
+    « Lyon Première » (bulletins d'information lyonnais) avec la grille de
+    programmes et le podcast qui les voisinaient.
+    """
+    from app.connectors.presse_rss import RSS_FEEDS
+
+    urls = {f["url"] for f in RSS_FEEDS}
+    assert "http://flussi.annuda.saynete.net/corse_presse_rss.xml" in urls
+    assert "https://feed.ausha.co/B4dp7hpNwv9p" in urls
+    # …et leurs voisins, eux, sont bien partis.
+    assert "http://flussi.annuda.saynete.net/corse_viastella_rss.xml" not in urls
+    assert "https://feed.ausha.co/nr0vlHJvw4MO" not in urls

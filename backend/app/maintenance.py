@@ -92,7 +92,7 @@ async def backfill_url_locations(dry_run: bool = False) -> dict:
 
 
 async def check_feeds(verbose: bool = False) -> dict:
-    """Sonde les 877 flux RSS et reporte leur santé (vivant / vide / 4xx / 5xx /
+    """Sonde tous les flux RSS et reporte leur santé (vivant / vide / 4xx / 5xx /
     erreur réseau). Sert à repérer les flux morts à élaguer."""
     import httpx
     import feedparser
