@@ -376,3 +376,53 @@ def test_flux_agregateurs_reference_des_flux_existants():
     noms = {f["name"] for f in RSS_FEEDS}
     orphelins = _FLUX_AGREGATEURS - noms
     assert not orphelins, f"agrégateurs sans flux correspondant : {orphelins}"
+
+
+# ── Descriptions des agrégateurs ────────────────────────────────────────────
+
+def _rss_google() -> bytes:
+    """Un item Google Actualités tel qu'il arrive réellement : titre suffixé du
+    nom de la source, et description formée d'une LISTE d'articles apparentés."""
+    from datetime import datetime, timezone
+    d = datetime.now(timezone.utc).strftime("%a, %d %b %Y %H:%M:%S +0000")
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>Google</title>
+  <item>
+    <title>Canicule dans la Nievre : la prefecture renforce les interdictions - Le Journal du Centre</title>
+    <link>https://news.google.com/rss/articles/CBMiabc</link>
+    <description>&lt;ol&gt;&lt;li&gt;&lt;a href="x"&gt;Canicule dans la Nievre&lt;/a&gt;&lt;font&gt;Le Journal du Centre&lt;/font&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="y"&gt;DIRECT. Canicule : 78 departements&lt;/a&gt;&lt;font&gt;BFMTV&lt;/font&gt;&lt;/li&gt;&lt;/ol&gt;</description>
+    <pubDate>{d}</pubDate>
+  </item></channel></rss>""".encode()
+
+
+async def test_agregateur_description_ignoree():
+    """La description d'un agregateur est une liste d'articles APPARENTES.
+
+    Releve du 11/08/2026 : depouillee de son HTML, elle donne
+    « Titre1 Source1 Titre2 Source2… ». Le nom de la source finissait recopie
+    dans le resume (« …a la recherche des disparus franceinfo »), et surtout le
+    modele recevait les titres d'AUTRES articles comme contexte du premier.
+    """
+    cfg = {"name": "Google Actualités : à la une",
+           "url": "https://news.google.com/rss", "region": None}
+    client = FakeClient(FakeResponse(200, _rss_google()))
+    items, _ = await _fetch_feed(client, cfg, {})
+
+    assert len(items) == 1
+    it = items[0]
+    assert it["titre"] == "Canicule dans la Nievre : la prefecture renforce les interdictions"
+    assert it["description"] == ""
+    assert "BFMTV" not in it["description"]
+
+
+async def test_flux_ordinaire_conserve_sa_description():
+    """Le retrait vise les agregateurs, pas la presse : un vrai chapo est la
+    matiere la plus utile dont dispose le modele."""
+    client = FakeClient(FakeResponse(200, _rss_google()))
+    cfg = {"name": "Actu Loire-Atlantique",
+           "url": "https://actu.fr/rss.xml", "region": None}
+    items, _ = await _fetch_feed(client, cfg, {})
+
+    assert items[0]["description"] != ""
+    # Flux ordinaire : le suffixe de source n'est pas retire non plus.
+    assert items[0]["titre"].endswith("Le Journal du Centre")

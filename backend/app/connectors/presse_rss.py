@@ -1631,7 +1631,8 @@ async def _fetch_feed(
             title: str = getattr(entry, "title", "").strip()
             if not title:
                 continue
-            if feed_name in _FLUX_AGREGATEURS:
+            agregateur = feed_name in _FLUX_AGREGATEURS
+            if agregateur:
                 title = _sans_suffixe_source(title)
             link: str = getattr(entry, "link", "") or ""
             if not link:
@@ -1650,6 +1651,17 @@ async def _fetch_feed(
                     if val and isinstance(val, str):
                         summary = _strip_html(val)[:500]
                         break
+
+            # La « description » d'un agrégateur n'est pas un chapô : c'est une
+            # liste HTML d'articles APPARENTÉS. Dépouillée de ses balises, elle
+            # donne « Titre1 Source1 Titre2 Source2… ». Deux dégâts constatés le
+            # 11/08/2026 : le nom de la source finissait recopié dans le résumé
+            # (« …à la recherche des disparus franceinfo »), et surtout le
+            # modèle recevait les titres d'AUTRES articles comme contexte du
+            # premier. Le titre, lui, est propre une fois son suffixe retiré :
+            # on s'en contente.
+            if agregateur:
+                summary = ""
 
             date_pub = _parse_rss_date(entry)
             if date_pub < cutoff:
