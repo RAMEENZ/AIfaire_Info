@@ -57,6 +57,7 @@ Pour déclencher manuellement : `POST /api/ingest/run` (clé `INGEST_API_KEY`). 
 - **Alerte de staleness** : contrôle horaire de fraîcheur (`app/pipeline/freshness.py`) — si aucun événement n'est ingéré depuis 26 h, notification `WEBHOOK_URL` (anti-spam : une alerte par 12 h, réarmée dès le retour à la normale). Complète autoheal : si le redémarrage ne guérit pas, vous êtes prévenu au lieu d'une boucle silencieuse.
 - **Logs persistants** : en plus de stdout, le backend écrit dans `LOG_DIR` (monté sur `./logs`, rotation 5 × 10 Mo). Les logs Docker `json-file` meurent avec le conteneur — l'autopsie de la panne de 07/2026 a été impossible pour cette raison.
 - **Collecte RSS discrète** : au plus 3 requêtes simultanées vers un même domaine, **et** un intervalle minimal entre deux (`FEED_HOST_MIN_INTERVAL_SECONDS`, défaut 0,3 s). La concurrence seule borne les requêtes simultanées, pas le débit : trois en parallèle qui se renouvellent aussitôt restent des dizaines d'appels en quelques secondes. Le dimensionnement est contraint par le plus gros hôte — actu.fr et ses 114 flux, soit 34 s à tenir dans les 120 s de `CONNECTOR_FETCH_TIMEOUT_SECONDS`.
+- **robots.txt respecté avant le fetch d'article** (`RESPECT_ROBOTS_TXT`, défaut `true`) : le `robots.txt` de l'hôte est consulté avant tout téléchargement de contenu complet — jamais avant la lecture du flux RSS lui-même, que l'éditeur publie pour être lu. L'analyse suit la **RFC 9309** et non la convention de 1996 : un groupe court jusqu'à la prochaine ligne `User-agent`, une ligne vide ne le termine pas. `RobotFileParser` de la bibliothèque standard applique encore l'ancienne règle, ce qui faisait disparaître l'interdiction chez les éditeurs qui aèrent leur fichier — exactement les plus stricts (Le Télégramme). Un `5xx` est traité comme une interdiction totale. Sont vérifiés non seulement notre propre agent, mais la liste des agents d'IA courants (`MistralAI-User`, `ClaudeBot`, `GPTBot`, `CCBot`…) : plusieurs éditeurs, dont Mediapart, nomment ceux-là sans avoir jamais écrit le nôtre. Réponses mises en cache 6 h par hôte. **Coût mesuré sur un cycle complet de 64 événements : −7,6 % de longueur de résumé, −9,5 % de tags** — l'alarme des premiers relevés (−25 % sur 12 événements) était un effet d'échantillon.
 - **En-têtes de navigateur** : un User-Agent Firefox envoyé seul, sans en-tête d'acceptation, est une signature de robot. `Accept-Encoding` est en revanche **laissé à httpx** : l'annoncer à la main (`br`) fait répondre les serveurs en Brotli, que le client ne sait pas décoder faute du paquet — le corps arrive en binaire sous un HTTP 200 et le flux paraît vide, sans qu'aucune erreur ne soit levée.
 - **Rapport de santé des flux** : `GET /api/health/feeds` liste les flux RSS en échec (compteur, dernière erreur, mis de côté ou non) — le tri des flux morts devient une lecture de quelques minutes. Complémentaire du sondage complet `python -m app.maintenance check-feeds`.
 - **Métrique de localisation** : `/api/metrics` expose `localized_pct_24h` (% d'événements géolocalisés sur 24 h) — une chute brutale signale une régression silencieuse du géocodeur ou de l'extraction LLM.
@@ -331,6 +332,7 @@ bulles de carte.
 | `DEFAULT_SINCE_HOURS` | `48` | Fenêtre d'affichage par défaut |
 | `MAX_PRESSE_ARTICLES` | `120` | Plafond articles presse traités par cycle (chacun passe par le LLM) |
 | `FETCH_FULL_ARTICLES` | `true` | Fetch du contenu complet avant extraction IA (désactiver si bande passante limitée) |
+| `RESPECT_ROBOTS_TXT` | `true` | Consulte le `robots.txt` de l'hôte avant le fetch d'article (analyse RFC 9309, cache 6 h). Sans effet sur la lecture des flux RSS |
 | `CONNECTOR_FETCH_TIMEOUT_SECONDS` | `120` | Timeout fetch par connecteur — au-delà, le connecteur est abandonné sans bloquer les autres |
 | `WEBHOOK_URL` | _(vide)_ | URL webhook alertes connecteurs (Discord, Slack, ntfy…) |
 | `WEBHOOK_THRESHOLD` | `3` | Nb d'échecs consécutifs déclenchant le webhook |
@@ -381,7 +383,7 @@ app/
 │   ├── meteo_france.py
 │   ├── vigicrues.py
 │   ├── renass.py    # USGS FDSNWS
-│   └── presse_rss.py  # 870+ flux RSS avec dédup, ETag et limite par hôte
+│   └── presse_rss.py  # 848 flux RSS avec dédup, ETag et limite par hôte
 ├── pipeline/
 │   ├── extractor.py # Mistral AI + fallback Ollama + fallback règles (cache SHA256)
 │   ├── geocoder.py  # BAN (communes) + centroïdes départementaux statiques + tables régions/DOM-TOM (cache 1024)
