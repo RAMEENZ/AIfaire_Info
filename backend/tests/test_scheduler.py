@@ -37,13 +37,35 @@ def test_next_ingest_time_none_when_not_running():
 
 # ── Rythme d'ingestion (INGEST_HOURS) ───────────────────────────────────────
 
-def test_rythme_par_defaut_toutes_les_cinq_heures_des_7h():
-    """07h, 12h, 17h, 22h : un passage toutes les 5 heures à partir de 7 h.
-    Le cycle ne se poursuit pas la nuit — 24 n'étant pas divisible par 5, la
-    série dériverait de jour en jour et perdrait son ancrage matinal."""
-    assert sch.ingest_hours() == (7, 12, 17, 22)
-    ecarts = [b - a for a, b in zip((7, 12, 17, 22), (12, 17, 22))]
-    assert set(ecarts) == {5}
+def test_rythme_par_defaut_reveil_midi_fin_de_journee():
+    """07h, 12h, 19h : trois passages calés sur le rythme de publication de la
+    presse plutôt que sur un intervalle régulier."""
+    assert sch.ingest_hours() == (7, 12, 19)
+
+
+def test_l_ecart_nocturne_reste_sous_le_seuil_de_fraicheur():
+    """De 19h à 07h, douze heures sans ingestion complète. Le healthcheck
+    déclare le conteneur malade au-delà de HEALTHZ_MAX_DATA_AGE_HOURS : si un
+    jour les heures s'écartent au point de dépasser ce seuil, le site
+    passerait « unhealthy » chaque nuit sans qu'aucune panne n'ait eu lieu."""
+    from app.config import settings
+
+    heures = sch.ingest_hours()
+    ecarts = [b - a for a, b in zip(heures, heures[1:])]
+    ecarts.append(24 - heures[-1] + heures[0])  # le saut de nuit
+    assert max(ecarts) < settings.HEALTHZ_MAX_DATA_AGE_HOURS
+
+
+def test_chaque_brief_suit_une_ingestion():
+    """Un brief planifié sans ingestion en amont ne ferait que reformuler le
+    précédent. Chacun doit suivre une ingestion, d'assez près pour la refléter
+    et d'assez loin pour la laisser finir."""
+    ingestions = sch.ingest_hours()
+    for brief in sch.brief_hours():
+        precedentes = [h for h in ingestions if h < brief]
+        assert precedentes, f"le brief de {brief}h ne suit aucune ingestion"
+        ecart = brief - max(precedentes)
+        assert 1 <= ecart <= 4, f"brief de {brief}h : {ecart} h après l'ingestion"
 
 
 def test_les_heures_sont_lues_dans_la_configuration(monkeypatch):
@@ -63,7 +85,7 @@ def test_une_configuration_illisible_retombe_sur_le_defaut(monkeypatch, valeur):
     """Une faute de frappe dans le .env ne doit pas laisser l'ordonnanceur muet :
     le site se figerait sans que rien ne le signale."""
     monkeypatch.setattr(sch.settings, "INGEST_HOURS", valeur)
-    assert sch.ingest_hours() == (7, 12, 17, 22)
+    assert sch.ingest_hours() == (7, 12, 19)
 
 
 def test_les_valeurs_valides_survivent_aux_invalides(monkeypatch):
@@ -102,4 +124,4 @@ def test_les_heures_de_brief_sont_configurables(monkeypatch):
 
 def test_une_configuration_de_brief_illisible_retombe_sur_le_defaut(monkeypatch):
     monkeypatch.setattr(sch.settings, "BRIEF_HOURS", "nawak")
-    assert sch.brief_hours() == (9, 13, 20, 23)
+    assert sch.brief_hours() == (9, 14, 21)

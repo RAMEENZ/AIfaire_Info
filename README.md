@@ -39,9 +39,9 @@ _Enedis (coupures d'électricité) a été retiré en 07/2026 : le portail open 
 [Sources] → [Connectors] → [Extractor IA / règles] → [Geocoder BAN] → [Dédup] → [PostgreSQL+PostGIS] → [API FastAPI] → [Next.js + Leaflet]
 ```
 
-Briefs : **9h00, 13h00, 20h00, 23h00** — chacun suit de peu une ingestion (`BRIEF_HOURS`). Un brief est marqué hebdomadaire en base (`is_weekly`) au lieu d'être deviné par la présence du mot « semaine » dans son texte.
+Briefs : **9h00, 14h00, 21h00** — chacun suit son ingestion de deux heures, de quoi laisser l'enrichissement se terminer (`BRIEF_HOURS`). Un brief est marqué hebdomadaire en base (`is_weekly`) au lieu d'être deviné par la présence du mot « semaine » dans son texte.
 
-Ingestions automatiques : **7h00, 12h00, 17h00, 22h00** (heure Paris) — un passage toutes les 5 heures à partir de 7 h. Les heures sont configurables (`INGEST_HOURS`, défaut `7,12,17,22`) ; le cycle ne se poursuit pas la nuit, 24 n'étant pas divisible par 5 la série dériverait de jour en jour et perdrait son ancrage matinal. S'y ajoute un **passage horaire léger** (à :30) des sources d'alerte temps réel — météo, crues, séismes — sans coût LLM (`HOURLY_ALERT_INGESTION`), qui couvre donc aussi la nuit.  
+Ingestions automatiques : **7h00, 12h00, 19h00** (heure Paris) — réveil, mi-journée, fin de journée, calées sur le rythme de publication de la presse plutôt que sur un intervalle régulier. Les heures sont configurables (`INGEST_HOURS`, défaut `7,12,19`) ; le plus grand écart, de 19h à 7h, fait douze heures, bien en deçà du seuil de fraîcheur qui déclare le conteneur malade. S'y ajoute un **passage horaire léger** (à :30) des sources d'alerte temps réel — météo, crues, séismes — sans coût LLM (`HOURLY_ALERT_INGESTION`), qui couvre donc aussi la nuit.  
 Purge quotidienne : **3h00** — TTL variable par source : 36h météo/vigicrues, 72h presse, 30j séismes. Juste avant la purge, les comptes quotidiens (jour × catégorie × département) sont figés dans `daily_stats` (exposés par `GET /api/stats/history`) : les tendances longues survivent à la purge.
 
 Pour déclencher manuellement : `POST /api/ingest/run` (clé `INGEST_API_KEY`). Le bouton "Ingérer" de la StatusBar est réservé au dev/local (l'endpoint étant protégé par clé en production) : il est masqué par défaut et s'active via `NEXT_PUBLIC_ENABLE_INGEST_BUTTON=true`.
@@ -325,8 +325,8 @@ bulles de carte.
 | `INGEST_API_KEY` | _(vide)_ | Clé POST `/api/ingest/run` (vide = pas d'auth, dev uniquement) |
 | `ENABLE_DOCS` | `false` | Swagger `/docs` — mettre `true` en local pour explorer l'API |
 | `SCHEDULER_TIMEZONE` | `Europe/Paris` | Timezone APScheduler |
-| `INGEST_HOURS` | `7,12,17,22` | Heures des ingestions complètes (heure locale). Valeurs illisibles ou hors 0-23 ignorées, repli sur le défaut |
-| `BRIEF_HOURS` | `9,13,20,23` | Heures de génération du brief, même format |
+| `INGEST_HOURS` | `7,12,19` | Heures des ingestions complètes (heure locale). Valeurs illisibles ou hors 0-23 ignorées, repli sur le défaut |
+| `BRIEF_HOURS` | `9,14,21` | Heures de génération du brief, même format |
 | `FILTER_COMMERCIAL_CONTENT` | `true` | Écarte les articles d'affiliation des flux de presse |
 | `DEFAULT_SINCE_HOURS` | `48` | Fenêtre d'affichage par défaut |
 | `MAX_PRESSE_ARTICLES` | `120` | Plafond articles presse traités par cycle (chacun passe par le LLM) |
@@ -390,7 +390,7 @@ app/
 │   ├── freshness.py # Alerte webhook si plus rien n'est ingéré (staleness)
 │   ├── stats.py     # Agrégats quotidiens daily_stats (avant purge)
 │   ├── purge.py     # TTL par source (36h–30j)
-│   └── scheduler.py # APScheduler — ingestions 7h/12h/19h + alertes horaires, briefs 9h/13h/20h, purge 3h
+│   └── scheduler.py # APScheduler — ingestions 7h/12h/19h + alertes horaires, briefs 9h/14h/21h, purge 3h
 ├── api/routes/
 │   ├── events.py    # GET /events, GET /events/{id}, POST /ingest/run
 │   └── health.py    # GET /health (statut connecteurs + prochain run)

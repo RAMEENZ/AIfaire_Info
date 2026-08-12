@@ -16,12 +16,12 @@ _scheduler: AsyncIOScheduler | None = None
 
 # Repli si INGEST_HOURS est vide ou illisible : mieux vaut un rythme par défaut
 # qu'un ordonnanceur muet, qui laisserait le site se figer sans bruit.
-_INGEST_HOURS_DEFAUT = (7, 12, 17, 22)
-_BRIEF_HOURS_DEFAUT = (9, 13, 20, 23)
+_INGEST_HOURS_DEFAUT = (7, 12, 19)
+_BRIEF_HOURS_DEFAUT = (9, 14, 21)
 
 
 def _parse_hours(brut: str, defaut: tuple[int, ...], nom: str) -> tuple[int, ...]:
-    """Analyse une liste d'heures « 7,12,17,22 ». Voir ingest_hours."""
+    """Analyse une liste d'heures « 7,12,19 ». Voir ingest_hours."""
     heures: set[int] = set()
     for morceau in (brut or "").split(","):
         morceau = morceau.strip()
@@ -153,8 +153,8 @@ def get_scheduler() -> AsyncIOScheduler:
             },
         )
 
-        # Ingestions complètes : heures lues dans INGEST_HOURS (défaut 07h, 12h,
-        # 17h, 22h — un passage toutes les 5 heures à partir de 7 h).
+        # Ingestions complètes : heures lues dans INGEST_HOURS (défaut 07h,
+        # 12h, 19h — réveil, mi-journée, fin de journée).
         for hour in ingest_hours():
             _scheduler.add_job(
                 _run_ingestion_job,

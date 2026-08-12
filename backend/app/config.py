@@ -30,20 +30,23 @@ class Settings(BaseSettings):
     SCHEDULER_TIMEZONE: str = "Europe/Paris"
 
     # Heures des ingestions complètes (heure locale du fuseau ci-dessus).
-    # Par défaut 07h, 12h, 17h, 22h : un passage toutes les 5 heures à partir
-    # de 7 h du matin. Le cycle ne peut pas se poursuivre à l'identique la nuit
-    # — 24 n'est pas divisible par 5, la série dériverait de jour en jour et
-    # perdrait son ancrage matinal. Les quatre passages diurnes couvrent donc
-    # la journée, et les sources d'alerte (météo, crues, séismes) restent
-    # relevées toutes les heures par HOURLY_ALERT_INGESTION, y compris la nuit.
-    # Format : heures séparées par des virgules, ex. "7,12,17,22" ou "6,11,16,21,2".
-    INGEST_HOURS: str = "7,12,17,22"
+    # 07h au réveil, 12h à la mi-journée, 19h en fin de journée : trois
+    # passages qui suivent le rythme de publication de la presse plutôt qu'un
+    # intervalle régulier. Le plus grand écart, de 19h à 07h, fait douze
+    # heures — bien en deçà des HEALTHZ_MAX_DATA_AGE_HOURS qui déclarent le
+    # conteneur malade. Les sources d'alerte (météo, crues, séismes) restent
+    # de toute façon relevées toutes les heures par HOURLY_ALERT_INGESTION,
+    # nuit comprise.
+    # Format : heures séparées par des virgules, ex. "7,12,19" ou "6,11,16,21,2".
+    INGEST_HOURS: str = "7,12,19"
 
-    # Heures de génération du brief. Chacune suit de peu une ingestion : 09h
-    # après celle de 07h, 13h après 12h, 20h après 17h, 23h après 22h. Le
-    # passage de 22h n'était exploité par aucun brief. Même format et mêmes
-    # garde-fous que INGEST_HOURS.
-    BRIEF_HOURS: str = "9,13,20,23"
+    # Heures de génération du brief : chacune suit son ingestion de deux
+    # heures, largement de quoi laisser l'enrichissement se terminer (une
+    # ingestion de MAX_PRESSE_ARTICLES articles prend de l'ordre du quart
+    # d'heure). Un brief planifié sans ingestion en amont ne ferait que
+    # reformuler le précédent. Même format et mêmes garde-fous que
+    # INGEST_HOURS.
+    BRIEF_HOURS: str = "9,14,21"
 
     MAX_EVENTS_LIMIT: int = 1000
     DEFAULT_EVENTS_LIMIT: int = 500
