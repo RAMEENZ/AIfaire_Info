@@ -10,7 +10,7 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("FAIRE Info runtime error:", error);
+    console.error("(ai)Faire Info runtime error:", error);
   }, [error]);
 
   return (

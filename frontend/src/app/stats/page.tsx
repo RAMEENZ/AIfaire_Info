@@ -7,6 +7,7 @@ import { fr } from "date-fns/locale";
 
 import { CATEGORY_CONFIG, SOURCE_LABELS, API_BASE_URL, readableTextColor } from "@/lib/constants";
 import type { StatsData } from "@/lib/api";
+import Wordmark from "@/components/Wordmark";
 
 function BarChart({ data, colorFn }: { data: [string, number][]; colorFn?: (key: string) => string }) {
   const max = Math.max(...data.map(([, v]) => v), 1);
@@ -87,7 +88,7 @@ export default function StatsPage() {
           </svg>
           Retour
         </Link>
-        <span className="text-blue-700 font-black text-lg tracking-tight">FAIRE</span>
+        <Wordmark taille="sm" avecInfo={false} />
         <h1 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Statistiques</h1>
         <Link href="/tendances" className="ml-auto text-xs text-gray-500 hover:text-blue-600 transition-colors">
           Tendances →

@@ -1,6 +1,6 @@
 {
-  "name": "FAIRE Info — Alertes géolocalisées",
-  "short_name": "FAIRE Info",
+  "name": "(ai)Faire Info — Alertes géolocalisées",
+  "short_name": "(ai)Faire Info",
   "description": "Visualisez en temps réel les événements météo, crues, séismes, transports et actualités en France.",
   "start_url": "/",
   "display": "standalone",

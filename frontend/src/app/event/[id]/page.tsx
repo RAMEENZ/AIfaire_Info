@@ -8,6 +8,7 @@ import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
 import { API_BASE_URL, CATEGORY_CONFIG, GRAVITE_CONFIG } from "@/lib/constants";
+import Wordmark from "@/components/Wordmark";
 import { Event } from "@/lib/types";
 
 const fetcher = async (url: string): Promise<Event> => {
@@ -50,8 +51,7 @@ export default function EventPage() {
           </svg>
           Voir sur la carte
         </a>
-        <span className="text-blue-700 dark:text-blue-400 font-black text-lg tracking-tight">FAIRE</span>
-        <span className="text-gray-500 dark:text-gray-400 text-sm font-medium">Info</span>
+        <Wordmark taille="sm" />
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-8">

@@ -7,6 +7,7 @@ import { fr } from "date-fns/locale";
 
 import { CATEGORY_CONFIG, API_BASE_URL, readableTextColor } from "@/lib/constants";
 import { DEPT_CODE_TO_NAME } from "@/lib/departments";
+import Wordmark from "@/components/Wordmark";
 
 // Ligne brute de /api/stats/history : agrégat jour × catégorie × département
 // (département "" = national/non localisé). Alimenté chaque nuit avant la
@@ -195,7 +196,7 @@ export default function TendancesPage() {
           </svg>
           Retour
         </Link>
-        <span className="text-blue-700 font-black text-lg tracking-tight">FAIRE</span>
+        <Wordmark taille="sm" avecInfo={false} />
         <h1 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Tendances</h1>
         <Link href="/stats" className="ml-auto text-xs text-gray-500 hover:text-blue-600 transition-colors">
           Statistiques →

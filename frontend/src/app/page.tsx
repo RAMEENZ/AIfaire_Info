@@ -15,6 +15,7 @@ import ShortcutsHelp from "@/components/ShortcutsHelp";
 import Toaster from "@/components/Toaster";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import PushSettings from "@/components/PushSettings";
+import Wordmark from "@/components/Wordmark";
 import { fetchEvents, fetchHealth, fetchMapEvents, triggerIngest } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { API_BASE_URL, ALL_CATEGORIES, EVENTS_PAGE_SIZE, GRAVITE_CONFIG, REFRESH_INTERVAL, csvSafe, readableTextColor } from "@/lib/constants";
@@ -382,7 +383,7 @@ export default function HomePage() {
     );
   }, [allEvents]);
   useEffect(() => {
-    const base = "FAIRE Info";
+    const base = "(ai)Faire Info";
     if (urgentCount > 0) {
       document.title = `🔴 ${urgentCount} urgence${urgentCount > 1 ? "s" : ""} — ${base}`;
     } else {
@@ -498,9 +499,8 @@ export default function HomePage() {
       <header className="flex flex-col gap-1.5 px-3 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm z-10 flex-shrink-0">
         {/* Bande 1 — identité, outils, état */}
         <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-2 mr-4">
-          <span className="text-blue-700 dark:text-blue-300 font-black text-xl tracking-tight">FAIRE</span>
-          <span className="text-gray-500 dark:text-gray-400 text-sm font-medium hidden sm:inline">Info</span>
+        <div className="flex items-center mr-4">
+          <Wordmark taille="md" infoResponsive />
         </div>
         {maxGravite >= 2 && (
           <span

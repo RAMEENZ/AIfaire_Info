@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FAIRE Info — Agrégateur d'information géolocalisé",
+  title: "(ai)Faire Info — Agrégateur d'information géolocalisé",
   description:
     "Visualisez en temps réel les événements météo, crues, séismes, transports et actualités en France.",
   icons: {
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   },
   manifest: "/manifest.json",
   openGraph: {
-    title: "FAIRE Info",
+    title: "(ai)Faire Info",
     description: "Actualités et alertes géolocalisées en France en temps réel",
     type: "website",
     locale: "fr_FR",

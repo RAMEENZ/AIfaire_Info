@@ -1,4 +1,4 @@
-# FAIRE Info — Rapport complet du projet
+# (ai)Faire Info — Rapport complet du projet
 
 *Agrégateur d'information géolocalisé pour la France — état au 3 août 2026*
 
@@ -6,7 +6,7 @@
 
 ## 1. Résumé exécutif
 
-**FAIRE Info** est une application web qui **agrège en quasi temps réel l'actualité
+**(ai)Faire Info** est une application web qui **agrège en quasi temps réel l'actualité
 publique française** (météo, crues, séismes, énergie, santé, transport, ordre
 public, faits divers, sport, économie, politique, culture…) provenant de sources
 officielles et de la presse, **la catégorise et la géolocalise automatiquement**,
@@ -631,4 +631,4 @@ docker-compose.yml
 ---
 
 *Document généré automatiquement à partir de l'analyse du code source.
-FAIRE Info — API v1.0.0.*
+(ai)Faire Info — API v1.0.0.*

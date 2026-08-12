@@ -1,4 +1,4 @@
-/* Service worker de FAIRE Info — mode hors ligne minimal et prudent.
+/* Service worker de (ai)Faire Info — mode hors ligne minimal et prudent.
  *
  * Principes (une app d'alertes se consulte souvent en connexion dégradée) :
  *  - Le réseau reste PRIORITAIRE partout : le cache n'est qu'un filet. Aucune
@@ -56,10 +56,10 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: "FAIRE Info", body: event.data.text() };
+    payload = { title: "(ai)Faire Info", body: event.data.text() };
   }
   event.waitUntil(
-    self.registration.showNotification(payload.title || "FAIRE Info", {
+    self.registration.showNotification(payload.title || "(ai)Faire Info", {
       body: payload.body || "",
       icon: "/icon.svg",
       badge: "/icon.svg",
