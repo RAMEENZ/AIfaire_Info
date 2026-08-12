@@ -7,8 +7,8 @@
  * l'occasion de le centraliser.
  *
  * Le « (ai) » porte le jeu de mots : lu d'un trait, « (ai)Faire » donne
- * « affaire ». Il est donc rendu VISIBLE mais subordonné — plus léger, plus
- * petit, dans un bleu atténué — pour que « Faire » reste le nom que l'œil
+ * « affaire ». Il est donc rendu VISIBLE mais subordonné — plus petit, plus
+ * léger, dans un bleu plus clair — pour que « Faire » reste le nom que l'œil
  * retient, et que la parenthèse se découvre à la lecture.
  */
 
@@ -39,7 +39,13 @@ export default function Wordmark({
       {/* aria-hidden sur les parenthèses seules serait excessif : le lecteur
           d'écran doit entendre le nom complet, parenthèses comprises, comme
           il est écrit. */}
-      <span className={`${t.ai} font-semibold text-blue-500/70 dark:text-blue-400/70 tracking-tight`}>
+      {/* La subordination du « (ai) » passe par la TAILLE et la GRAISSE, pas
+          par un contraste affaibli. La première version l'atténuait en
+          opacité (blue-500/70), ce qui donnait #76a8f9 sur blanc : 2,4:1,
+          quand WCAG AA en exige 4,5. La CI d'accessibilité l'a rattrapé sur
+          les pages Statistiques et Tendances. blue-600 tient 5,2:1 tout en
+          restant nettement plus clair que le blue-700 de « Faire ». */}
+      <span className={`${t.ai} font-semibold text-blue-600 dark:text-blue-400 tracking-tight`}>
         (ai)
       </span>
       <span className={`${t.faire} font-black text-blue-700 dark:text-blue-300 tracking-tight`}>
