@@ -296,11 +296,21 @@ async def test_extraction(limit: int = 15) -> dict:
             "auteur": e.auteur,
         })
 
-        resume = brut["resume_ia"]
-        cats[brut["categorie"]] += 1
-        tags_total += len(brut["tags"])
-        if not brut["tags"]:
+        # Les métriques de qualité portent sur le PIPELINE, pas sur l'appel nu
+        # au modèle : c'est le pipeline qui écrit en base et alimente la carte.
+        # Elles décrivaient jusqu'ici `brut`, obtenu sans texte intégral et à
+        # partir du résumé DÉJÀ enrichi de l'événement stocké — donc ni les
+        # entrées ni le chemin de la production (relevé du 11/08/2026 : le
+        # respect de robots.txt, qui prive 78 % des flux de texte intégral,
+        # n'apparaissait nulle part dans ce bilan).
+        resume = final.get("resume_ia") or ""
+        cats[final.get("categorie") or "?"] += 1
+        tags_finaux = final.get("tags") or []
+        tags_total += len(tags_finaux)
+        if not tags_finaux:
             sans_tags += 1
+        # lieu_type n'existe que dans la sortie du modèle : maybe_extract ne le
+        # recopie pas dans l'événement. Il reste donc mesuré sur `brut`.
         if not brut.get("lieu_type"):
             sans_lieu_type += 1
 
@@ -335,14 +345,15 @@ async def test_extraction(limit: int = 15) -> dict:
         print(f"\n— {e.titre}")
         lieu_final = final.get("lieu_nom") or "national"
         rattrape = "  ← récupéré par le pipeline" if modele_national and not final_national else ""
-        print(f"  catégorie {brut['categorie']:<12} lieu {lieu_final} "
-              f"({brut.get('lieu_type') or 'type non fourni'})  gravité {brut['gravite']}{rattrape}")
+        print(f"  catégorie {(final.get('categorie') or '?'):<12} lieu {lieu_final} "
+              f"({brut.get('lieu_type') or 'type non fourni'})  "
+              f"gravité {final.get('gravite', 0)}{rattrape}")
         if not via_llm:
             print("            ⚠ jugé non français : le pipeline n'appelle PAS le modèle "
                   "sur cet article, il retombe sur les règles")
         elif lieu_final != brut["lieu_nom"]:
             print(f"            (le modèle disait « {brut['lieu_nom']} »)")
-        print(f"  tags      {', '.join(brut['tags']) or '(aucun)'}")
+        print(f"  tags      {', '.join(tags_finaux) or '(aucun)'}")
         print(textwrap.fill(resume, width=96,
                             initial_indent="  résumé    ", subsequent_indent="            "))
 
@@ -352,6 +363,13 @@ async def test_extraction(limit: int = 15) -> dict:
         return f"{100 * k / n:.0f} %"
 
     print(f"\n=== Bilan sur {n} articles ===")
+    # Limite structurelle, à dire plutôt qu'à laisser découvrir : l'événement
+    # stocké ne garde pas le chapô RSS d'origine, seulement son résumé déjà
+    # enrichi. Le modèle reçoit donc ici une matière MEILLEURE que lors d'une
+    # ingestion fraîche, et ce bilan flatte la qualité d'autant. Il compare des
+    # prompts entre eux ; il ne mesure pas ce que produit une première passe.
+    print("  (rejeu sur des résumés déjà enrichis : ce bilan compare des")
+    print("   prompts, il ne mesure pas une ingestion fraîche)")
     print(f"  écartés du modèle (jugés non FR): {pct(hors_llm)}"
           + ("   ← extraction par règles, bien plus grossière" if hors_llm else ""))
     print(f"  « actualite » (fourre-tout)     : {pct(cats['actualite'])}")
