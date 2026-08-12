@@ -781,7 +781,7 @@ def _build_atom(events: list[Event], self_url: str) -> str:
         return f"{{{_ATOM_NS}}}{name}"
 
     feed = ET.Element(_tag("feed"))
-    ET.SubElement(feed, _tag("title")).text = "FAIRE Info — Actualités"
+    ET.SubElement(feed, _tag("title")).text = "(ai)Faire Info — Actualités"
     self_link = ET.SubElement(feed, _tag("link"))
     self_link.set("rel", "self")
     self_link.set("href", self_url)
