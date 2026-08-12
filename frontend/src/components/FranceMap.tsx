@@ -253,7 +253,12 @@ function GeoSearch() {
   }, [map, query]);
 
   return (
-    <form onSubmit={handleSearch} className="absolute top-2 left-2 z-[1000] flex gap-1">
+    // Décalé à droite du contrôle de zoom de Leaflet, qui occupe les 30 px de
+    // gauche. Posé en `left-2`, ce formulaire le recouvrait : son z-index
+    // supérieur interceptait les clics, et `elementFromPoint` au centre du
+    // bouton « zoom + » renvoyait cet <input>. Le bouton était donc mort —
+    // on pouvait dézoomer, pas zoomer (relevé le 12/08/2026).
+    <form onSubmit={handleSearch} className="absolute top-2 left-12 z-[1000] flex gap-1">
       <input
         type="text"
         value={query}

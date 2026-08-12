@@ -54,7 +54,10 @@ export default function StatsBar({ localCount, nationalCount, newestEventDate, e
         </span>
 
         <span className="text-gray-500 dark:text-gray-400">
-          · {nationalCount} national{nationalCount !== 1 ? "aux" : ""}
+          {/* « national » fait « nationaux » : le pluriel remplace la
+              terminaison, il ne s'y ajoute pas. Accoler « aux » donnait
+              « nationalaux », visible dans le bandeau de statistiques. */}
+          · {nationalCount} {nationalCount !== 1 ? "nationaux" : "national"}
         </span>
 
         {time && (
