@@ -63,7 +63,7 @@ async def check_data_freshness() -> bool:
 
     age = f"{(now - _tz(newest)).total_seconds() / 3600:.0f} h" if newest else "jamais"
     text = (
-        f"🚨 FAIRE INFO : aucun événement ingéré depuis {age} "
+        f"🚨 (ai)Faire Info : aucun événement ingéré depuis {age} "
         f"(seuil : {settings.HEALTHZ_MAX_DATA_AGE_HOURS} h). "
         f"Le pipeline ne produit plus — vérifier `docker compose ps` et les logs."
     )
