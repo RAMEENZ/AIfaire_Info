@@ -45,6 +45,18 @@ services:
     # cloudflared et nginx le joignent par le réseau Docker interne (backend:8000).
     ports:
       - "127.0.0.1:8000:8000"
+    # Transmet le .env au conteneur. Sans cela, seules les variables listées
+    # sous `environment:` parvenaient au backend : dix-huit réglages présentés
+    # comme configurables dans le README — INGEST_HOURS, BRIEF_HOURS,
+    # RESPECT_ROBOTS_TXT, HEALTHZ_*, SCHEDULER_TIMEZONE… — ne pouvaient en
+    # réalité être changés qu'en modifiant config.py. Le `env_file` de
+    # pydantic-settings ne rattrapait rien : il lit un .env DANS le conteneur,
+    # qui n'y est pas monté.
+    # `environment:` reste prioritaire sur `env_file` (règle Compose) : les
+    # valeurs construites ci-dessous, DATABASE_URL en tête, gardent la main.
+    env_file:
+      - path: .env
+        required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://faire_info:${POSTGRES_PASSWORD:?Definis POSTGRES_PASSWORD dans .env}@db:5432/faire_info
       CORS_ORIGINS: ${CORS_ORIGINS:-*}

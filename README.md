@@ -314,6 +314,13 @@ bulles de carte.
 
 ### Variables d'environnement backend
 
+Toutes se posent dans le `.env` à la racine, que `docker-compose` transmet au
+conteneur (`env_file`). Attention : jusqu'au 22/08/2026, seules les variables
+explicitement listées sous `environment:` y parvenaient — dix-huit réglages de
+ce tableau, dont `INGEST_HOURS` et `RESPECT_ROBOTS_TXT`, étaient documentés
+comme configurables sans l'être réellement. Les valeurs construites par
+`docker-compose` (`DATABASE_URL` notamment) restent prioritaires sur le `.env`.
+
 | Variable | Défaut | Description |
 |---|---|---|
 | `DATABASE_URL` | `postgresql+asyncpg://...` | URL PostgreSQL async |

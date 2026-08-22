@@ -98,7 +98,22 @@ export async function fetchMapEvents(params: {
 // Fiches déjà récupérées, gardées d'un rendu à l'autre : les marqueurs sont
 // remontés à chaque rafraîchissement de la carte, sans ce cache la même fiche
 // serait redemandée à chaque réouverture de la bulle.
+//
+// BORNÉ : l'application est une PWA qu'on laisse ouverte, et le cache ne se
+// vidait jamais. Parcourir la carte pendant une journée y accumulait une fiche
+// par marqueur cliqué, résumé compris, sans limite. Au-delà du plafond on
+// évince la plus ancienne — un Map JavaScript conserve l'ordre d'insertion,
+// sa première clé est donc la plus vieille.
+const _MAX_FICHES = 200;
 const eventDetailCache = new Map<string, Event>();
+
+function _memoriserFiche(id: string, event: Event): void {
+  if (eventDetailCache.size >= _MAX_FICHES) {
+    const plusAncienne = eventDetailCache.keys().next().value;
+    if (plusAncienne !== undefined) eventDetailCache.delete(plusAncienne);
+  }
+  eventDetailCache.set(id, event);
+}
 
 /**
  * Fiche complète d'un événement (résumé IA, tags, champs de confiance).
@@ -113,7 +128,7 @@ export async function fetchEventDetail(id: string): Promise<Event> {
   const response = await fetch(`${API_BASE_URL}/events/${id}`, { next: { revalidate: 0 } });
   if (!response.ok) throw new Error(`Erreur API /events/${id} : ${response.status}`);
   const event = (await response.json()) as Event;
-  eventDetailCache.set(id, event);
+  _memoriserFiche(id, event);
   return event;
 }
 
