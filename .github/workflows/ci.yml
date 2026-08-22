@@ -127,6 +127,12 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Build
         working-directory: frontend
+        # Les variables NEXT_PUBLIC_ sont inlinées au build : celle-ci doit
+        # donc être posée ICI, et pas au démarrage du serveur de test.
+        # e2e/autodiscovery.spec.ts vérifie que og:image en dérive — une
+        # `metadataBase` absente ferait retomber Next sur localhost.
+        env:
+          NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
         run: npm run build
       - name: Run E2E tests
         working-directory: frontend

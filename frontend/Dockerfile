@@ -6,6 +6,10 @@ WORKDIR /app
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 
+# Origine publique : racine des URL absolues des métadonnées (og:image).
+ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
+ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
+
 COPY package*.json ./
 RUN npm install && npm cache clean --force
 

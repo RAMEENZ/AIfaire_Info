@@ -17,6 +17,7 @@ import OfflineIndicator from "@/components/OfflineIndicator";
 import PushSettings from "@/components/PushSettings";
 import Wordmark from "@/components/Wordmark";
 import { fetchEvents, fetchHealth, fetchMapEvents, triggerIngest } from "@/lib/api";
+import { lireDept, lireFiltres, lireRecherche, serialiserEtat } from "@/lib/urlEtat";
 import { toast } from "@/lib/toast";
 import { API_BASE_URL, ALL_CATEGORIES, EVENTS_PAGE_SIZE, GRAVITE_CONFIG, REFRESH_INTERVAL, csvSafe, readableTextColor } from "@/lib/constants";
 import {
@@ -105,25 +106,18 @@ const MapWrapper = dynamic(() => import("@/components/MapWrapper"), {
   ),
 });
 
-function readFiltersFromURL(): EventFilters {
-  if (typeof window === "undefined") {
-    return { categories: ALL_CATEGORIES, gravite_min: 0, depuis_heures: 48 };
-  }
-  const p = new URLSearchParams(window.location.search);
-  const cats = p.get("cats");
-  const categories: Categorie[] = cats
-    ? (cats.split(",").filter((c) => ALL_CATEGORIES.includes(c as Categorie)) as Categorie[])
-    : ALL_CATEGORIES;
-  const gravite_min = Math.max(0, Math.min(3, parseInt(p.get("g") ?? "0", 10) || 0));
-  const depuis_heures_raw = parseInt(p.get("h") ?? "48", 10);
-  const depuis_heures = [24, 48, 168, 720].includes(depuis_heures_raw) ? depuis_heures_raw : 48;
-  return { categories, gravite_min, depuis_heures };
-}
+// Au premier rendu serveur, `window` n'existe pas : on repart des valeurs par
+// défaut, l'état réel étant relu côté client.
+const rechercheCourante = () => (typeof window === "undefined" ? "" : window.location.search);
+
+const readFiltersFromURL = (): EventFilters => lireFiltres(rechercheCourante());
+const readDeptFromURL = (): string | null => lireDept(rechercheCourante());
+const readQueryFromURL = (): string => lireRecherche(rechercheCourante());
 
 export default function HomePage() {
   const [filters, setFilters] = useState<EventFilters>(readFiltersFromURL);
   const [darkMode, setDarkMode] = useState(false);
-  const [selectedDept, setSelectedDept] = useState<string | null>(null);
+  const [selectedDept, setSelectedDept] = useState<string | null>(readDeptFromURL);
   // Département épinglé : persiste entre les sessions (localStorage) et
   // ré-applique le filtre départemental au chargement.
   const [pinnedDept, setPinnedDept] = useState<string | null>(null);
@@ -133,33 +127,36 @@ export default function HomePage() {
     const stored = localStorage.getItem("pinnedDept");
     if (stored && DEPT_CODE_TO_NAME[stored]) {
       setPinnedDept(stored);
-      setSelectedDept(stored);
+      // Un département dans l'URL l'emporte sur le département épinglé :
+      // recevoir « la carte du Finistère » et voir s'afficher son propre
+      // département épinglé rendrait tout lien partagé inutilisable.
+      if (!readDeptFromURL()) setSelectedDept(stored);
     }
   }, []);
-
-  useEffect(() => {
-    const p = new URLSearchParams();
-    if (filters.categories.length !== ALL_CATEGORIES.length) {
-      p.set("cats", filters.categories.join(","));
-    }
-    if (filters.gravite_min > 0) p.set("g", String(filters.gravite_min));
-    if (filters.depuis_heures !== 48) p.set("h", String(filters.depuis_heures));
-    const qs = p.toString();
-    const newUrl = qs ? `?${qs}` : window.location.pathname;
-    window.history.replaceState(null, "", newUrl);
-  }, [filters]);
 
   // Recherche côté serveur : porte sur toute la base et non sur les seuls
   // événements déjà chargés (auparavant « incendie Gard » ne trouvait rien si
   // l'événement n'était pas dans la page courante). Valeur déjà anti-rebondie
-  // par EventFeed.
-  const [serverQuery, setServerQuery] = useState("");
+  // par EventFeed, et relue depuis l'URL pour qu'une recherche se partage.
+  const [serverQuery, setServerQuery] = useState<string>(readQueryFromURL);
 
   // Une recherche mérite une fenêtre temporelle large : chercher dans les
   // 48 dernières heures seulement raterait l'essentiel de ce que l'utilisateur
   // a en tête.
   const SEARCH_WINDOW_HOURS = 720;
   const effectiveSinceHours = serverQuery ? Math.max(filters.depuis_heures, SEARCH_WINDOW_HOURS) : filters.depuis_heures;
+
+  // L'URL reflète ce qui est affiché, pour qu'une vue se partage telle quelle.
+  // Le département et la recherche en étaient absents : « la carte du Finistère
+  // filtrée sur les crues » n'était pas un lien qu'on pouvait envoyer.
+  useEffect(() => {
+    const qs = serialiserEtat({ filters, dept: selectedDept, q: serverQuery });
+    const newUrl = qs ? `?${qs}` : window.location.pathname;
+    // replaceState et non pushState : chaque frappe dans la recherche
+    // empilerait sinon une entrée d'historique, et le bouton « retour »
+    // deviendrait inutilisable.
+    window.history.replaceState(null, "", newUrl);
+  }, [filters, selectedDept, serverQuery]);
 
   // SWR key uses stable primitive values (no datetime string that changes every render)
   const swrKey = ["events", filters.categories, filters.gravite_min, effectiveSinceHours, serverQuery, historyDate?.toISOString() ?? null];
@@ -719,6 +716,7 @@ export default function HomePage() {
             onResetFilters={handleResetFilters}
             isLoading={eventsLoading}
             eventCounts={eventCounts}
+            selectedDept={selectedDept}
           />
         </div>
       </header>

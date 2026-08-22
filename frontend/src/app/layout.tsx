@@ -2,7 +2,14 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { API_BASE_URL } from "@/lib/constants";
 
+// Racine des URL absolues des métadonnées (og:image notamment). Sans elle,
+// Next retombe sur http://localhost:3000 : les robots d'aperçu de WhatsApp,
+// Slack ou Mastodon iraient alors chercher l'image sur LEUR propre machine,
+// et la carte de partage resterait vide — le défaut qu'on corrige ici.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "(ai)Faire Info — Agrégateur d'information géolocalisé",
   description:
     "Visualisez en temps réel les événements météo, crues, séismes, transports et actualités en France.",

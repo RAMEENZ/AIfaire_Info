@@ -4,6 +4,7 @@ import { useState } from "react";
 import useSWR from "swr";
 import { ALL_CATEGORIES, API_BASE_URL, CATEGORY_CONFIG, readableTextColor } from "@/lib/constants";
 import { Categorie, EventFilters } from "@/lib/types";
+import { urlFlux } from "@/lib/urlEtat";
 import type { TrendItem } from "@/lib/api";
 
 const DEFAULT_FILTERS: EventFilters = {
@@ -21,6 +22,8 @@ interface FilterBarProps {
   onResetFilters?: () => void;
   isLoading: boolean;
   eventCounts?: Partial<Record<Categorie, number>>;
+  /** Département sélectionné, repris dans le lien d'abonnement au flux. */
+  selectedDept?: string | null;
 }
 
 const GRAVITE_OPTIONS: { value: number; label: string }[] = [
@@ -46,6 +49,7 @@ export default function FilterBar({
   onResetFilters,
   isLoading,
   eventCounts,
+  selectedDept,
 }: FilterBarProps) {
   // Feature 3: custom date range
   const [showDateRange, setShowDateRange] = useState(false);
@@ -278,11 +282,32 @@ export default function FilterBar({
         </button>
       )}
 
+      {/* Abonnement au flux, reprenant les filtres affichés. Le flux savait
+          déjà filtrer par catégorie, gravité et département, mais rien ne
+          l'offrait dans l'interface : la fonctionnalité la plus complète du
+          projet était aussi la seule sans point d'entrée. */}
+      <a
+        href={urlFlux(API_BASE_URL, { filters, dept: selectedDept ?? null })}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1 text-xs px-2.5 py-1.5 md:px-2 md:py-1 rounded border border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors ml-auto"
+        title="S'abonner en RSS aux événements correspondant aux filtres affichés"
+      >
+        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6.18 15.64a2.18 2.18 0 012.18 2.18C8.36 19 7.38 20 6.18 20 5 20 4 19 4 17.82a2.18 2.18 0 012.18-2.18zM4 4.44A15.56 15.56 0 0119.56 20h-2.83A12.73 12.73 0 004 7.27V4.44zm0 5.66a9.9 9.9 0 019.9 9.9h-2.83A7.07 7.07 0 004 12.93V10.1z" />
+        </svg>
+        <span className="hidden sm:inline">S&apos;abonner</span>
+      </a>
+
       {/* Refresh */}
       <button
         onClick={onRefresh}
         disabled={isLoading}
-        className="flex items-center gap-1 text-xs px-3 py-1 rounded border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ml-auto"
+        // `ml-auto` retiré : il est désormais porté par le lien d'abonnement,
+        // qui ouvre le groupe de droite. Deux `ml-auto` dans la même rangée
+        // auraient réparti l'espace ENTRE les deux boutons au lieu de les
+        // regrouper.
+        className="flex items-center gap-1 text-xs px-3 py-1 rounded border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         // « Actualiser les données » laissait croire que le bouton relançait
         // la collecte. Il ne fait que relire la base : si la dernière collecte
         // date de midi, il redonnera exactement les mêmes événements.
