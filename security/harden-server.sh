@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# harden-server.sh — Durcissement du serveur hôte FAIRE INFO (Debian/Ubuntu).
+# harden-server.sh — Durcissement du serveur hôte (ai)Faire Info (Debian/Ubuntu).
 #
 # Architecture : le site est exposé UNIQUEMENT via Cloudflare Tunnel (cloudflared
 # ouvre une connexion SORTANTE). AUCUN port web entrant n'est nécessaire.
@@ -70,7 +70,7 @@ warn "Assure-toi d'avoir déjà une clé publique dans ~/.ssh/authorized_keys !"
 SSHD_HARDEN=/etc/ssh/sshd_config.d/99-hardening.conf
 mkdir -p /etc/ssh/sshd_config.d
 cat > "${SSHD_HARDEN}" <<'EOF'
-# Durcissement FAIRE INFO — clé only
+# Durcissement (ai)Faire Info — clé only
 PermitRootLogin prohibit-password
 PasswordAuthentication no
 KbdInteractiveAuthentication no

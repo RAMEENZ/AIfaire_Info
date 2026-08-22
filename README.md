@@ -223,6 +223,17 @@ alembic revision -m "..."   # nouvelle migration (opérations op.* explicites)
 
 En production : `docker compose exec backend alembic upgrade head`.
 
+> **Trois mécanismes coexistent, et c'est le point le plus fragile du dépôt.**
+> Au démarrage, `init_db()` appelle `create_all` (crée les tables d'après
+> `models.py`) puis `migrate_db()` exécute du DDL écrit à la main
+> (`ALTER TABLE … IF NOT EXISTS`). Alembic, lui, n'est **jamais** lancé
+> automatiquement : ses quatre révisions décrivent des tables que `create_all`
+> a déjà produites. Rien n'est cassé — d'où le `alembic stamp head` ci-dessus,
+> qui évite le conflit — mais une colonne ajoutée demain a trois domiciles
+> possibles, et celui que ce README recommande n'est pas celui qui s'exécute.
+> Unifier demande de toucher au schéma d'une base en production : à faire
+> délibérément, pas au détour d'un correctif.
+
 ### Frontend
 
 ```bash

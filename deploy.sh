@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# deploy.sh — déploiement idempotent de FAIRE Info (Docker Compose).
+# deploy.sh — déploiement idempotent de (ai)Faire Info (Docker Compose).
 #
 # Enchaîne : pull → build → recreate, puis REFUSE de valider le déploiement si
 #   - APP_ENV n'est pas "production" (avant ET après recréation), ou

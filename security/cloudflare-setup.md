@@ -1,4 +1,4 @@
-# Sécurité Cloudflare — FAIRE INFO
+# Sécurité Cloudflare — (ai)Faire Info
 
 Tout le trafic du site entre par **Cloudflare** (`cf-ray` présent dans les
 réponses). C'est donc **la meilleure première ligne de défense** : le rate
