@@ -6,6 +6,7 @@ import { fr } from "date-fns/locale";
 
 import { ALL_CATEGORIES, CATEGORY_CONFIG, GRAVITE_CONFIG, SOURCE_LABELS, readableTextColor } from "@/lib/constants";
 import { SORT_OPTIONS, SortMode, sortComparator } from "@/lib/sortEvents";
+import { ecrireStockage, lireStockage } from "@/lib/stockage";
 import { Categorie, Event } from "@/lib/types";
 
 type Tab = "all" | "local" | "national";
@@ -456,7 +457,7 @@ export default function EventFeed({
   // l'initialiseur d'état) : le composant est pré-rendu côté serveur où
   // localStorage n'existe pas.
   useEffect(() => {
-    const stored = localStorage.getItem("faire-info-sort");
+    const stored = lireStockage("faire-info-sort");
     if (stored === "gravite" || stored === "recent" || stored === "pertinence") {
       setSortMode(stored);
     }
@@ -464,11 +465,9 @@ export default function EventFeed({
 
   const changeSortMode = (mode: SortMode) => {
     setSortMode(mode);
-    try {
-      localStorage.setItem("faire-info-sort", mode);
-    } catch {
-      /* stockage plein / mode privé : préférence non persistée */
-    }
+    // `ecrireStockage` absorbe déjà l'échec d'écriture (quota, mode privé) :
+    // plus de try/catch ici.
+    ecrireStockage("faire-info-sort", mode);
   };
 
   useEffect(() => {

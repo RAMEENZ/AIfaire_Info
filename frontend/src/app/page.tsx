@@ -18,6 +18,7 @@ import PushSettings from "@/components/PushSettings";
 import Wordmark from "@/components/Wordmark";
 import { fetchEvents, fetchHealth, fetchMapEvents, triggerIngest } from "@/lib/api";
 import { lireDept, lireFiltres, lireRecherche, serialiserEtat } from "@/lib/urlEtat";
+import { lireStockage, ecrireStockage, effacerStockage } from "@/lib/stockage";
 import { toast } from "@/lib/toast";
 import { API_BASE_URL, ALL_CATEGORIES, EVENTS_PAGE_SIZE, GRAVITE_CONFIG, REFRESH_INTERVAL, csvSafe, readableTextColor } from "@/lib/constants";
 import {
@@ -124,7 +125,7 @@ export default function HomePage() {
   const [historyDate, setHistoryDate] = useState<Date | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("pinnedDept");
+    const stored = lireStockage("pinnedDept");
     if (stored && DEPT_CODE_TO_NAME[stored]) {
       setPinnedDept(stored);
       // Un département dans l'URL l'emporte sur le département épinglé :
@@ -277,7 +278,7 @@ export default function HomePage() {
 
   // Dark mode: sync with localStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem("theme");
+    const stored = lireStockage("theme");
     const isDark =
       stored === "dark" ||
       (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches);
@@ -289,10 +290,10 @@ export default function HomePage() {
       const next = !prev;
       if (next) {
         document.documentElement.classList.add("dark");
-        localStorage.setItem("theme", "dark");
+        ecrireStockage("theme", "dark");
       } else {
         document.documentElement.classList.remove("dark");
-        localStorage.setItem("theme", "light");
+        ecrireStockage("theme", "light");
       }
       return next;
     });
@@ -445,10 +446,10 @@ export default function HomePage() {
     if (!selectedDept) return;
     setPinnedDept((prev) => {
       if (prev === selectedDept) {
-        localStorage.removeItem("pinnedDept");
+        effacerStockage("pinnedDept");
         return null;
       }
-      localStorage.setItem("pinnedDept", selectedDept);
+      ecrireStockage("pinnedDept", selectedDept);
       return selectedDept;
     });
   }, [selectedDept]);
@@ -456,7 +457,7 @@ export default function HomePage() {
   const clearDept = useCallback(() => {
     setSelectedDept(null);
     setPinnedDept((prev) => {
-      if (prev) localStorage.removeItem("pinnedDept");
+      if (prev) effacerStockage("pinnedDept");
       return null;
     });
   }, []);
