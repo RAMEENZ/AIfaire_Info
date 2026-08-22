@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { API_BASE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "(ai)Faire Info — Agrégateur d'information géolocalisé",
@@ -11,6 +12,17 @@ export const metadata: Metadata = {
     apple: "/icon.svg",
   },
   manifest: "/manifest.json",
+  // Autodécouverte du flux : sans ce <link>, le flux Atom existait mais aucun
+  // lecteur ne pouvait le trouver depuis l'adresse du site. L'URL est dérivée
+  // d'API_BASE_URL (« /api » derrière nginx en production, hôte:port en dev)
+  // plutôt que codée en dur, sinon le lien serait faux dans l'un des deux cas.
+  alternates: {
+    types: {
+      "application/atom+xml": [
+        { url: `${API_BASE_URL}/feed.rss`, title: "(ai)Faire Info — Actualités" },
+      ],
+    },
+  },
   openGraph: {
     title: "(ai)Faire Info",
     description: "Actualités et alertes géolocalisées en France en temps réel",

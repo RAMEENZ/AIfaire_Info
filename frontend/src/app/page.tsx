@@ -858,6 +858,9 @@ export default function HomePage() {
       <StatusBar
         connectors={healthData?.connectors ?? []}
         nextIngestAt={healthData?.next_ingest_at ?? null}
+        ingestHours={healthData?.ingest_hours}
+        ingestTimezone={healthData?.ingest_timezone}
+        hourlyAlerts={healthData?.hourly_alerts}
         onTriggerIngest={INGEST_BUTTON_ENABLED ? handleTriggerIngest : undefined}
       />
 

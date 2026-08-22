@@ -11,7 +11,7 @@ from app.config import settings
 from app.database import get_db
 from app.models import ConnectorStatus, Event
 from app.pipeline.ingestor import CONNECTORS, ingestion_in_progress
-from app.pipeline.scheduler import get_next_ingest_time
+from app.pipeline.scheduler import get_next_ingest_time, ingest_hours
 from app.schemas import HealthResponse, ConnectorStatusSchema
 
 logger = logging.getLogger(__name__)
@@ -112,6 +112,9 @@ async def health_check(db: AsyncSession = Depends(get_db)) -> HealthResponse:
         connectors=connectors,
         checked_at=datetime.now(timezone.utc),
         next_ingest_at=next_ingest_at,
+        ingest_hours=list(ingest_hours()),
+        ingest_timezone=settings.SCHEDULER_TIMEZONE,
+        hourly_alerts=settings.HOURLY_ALERT_INGESTION,
     )
 
 

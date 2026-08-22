@@ -500,3 +500,25 @@ async def test_test_extraction_n_interroge_pas_le_modele_hors_france(client, mon
 
     await maintenance.test_extraction(limit=1)
     assert appels == []
+
+
+async def test_health_expose_le_rythme_de_collecte(client, monkeypatch):
+    """`/api/health` publie les heures de collecte pour que l'interface les
+    affiche sans les recopier.
+
+    L'interface affichait « Prochaine MàJ dans 2 h » sans jamais dire à quel
+    rythme. Le propriétaire du site a dû poser la question. Coder « 7h, 12h,
+    19h » en dur côté frontend l'aurait fait diverger d'INGEST_HOURS à la
+    première modification, en silence — d'où la publication par l'API.
+    """
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "INGEST_HOURS", "6,18")
+    monkeypatch.setattr(settings, "HOURLY_ALERT_INGESTION", False)
+
+    data = (await client.get("/api/health")).json()
+
+    # Les heures suivent le réglage : c'est tout l'intérêt de les servir.
+    assert data["ingest_hours"] == [6, 18]
+    assert data["ingest_timezone"] == settings.SCHEDULER_TIMEZONE
+    assert data["hourly_alerts"] is False

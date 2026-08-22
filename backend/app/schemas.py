@@ -59,3 +59,9 @@ class HealthResponse(BaseModel):
     connectors: List[ConnectorStatusSchema]
     checked_at: datetime
     next_ingest_at: Optional[datetime] = None
+    # Rythme de collecte, exposé pour que l'interface puisse l'afficher sans
+    # le recopier. Le recopier en dur côté frontend le ferait diverger dès la
+    # première modification d'INGEST_HOURS, sans que rien ne le signale.
+    ingest_hours: List[int] = []
+    ingest_timezone: str = ""
+    hourly_alerts: bool = False

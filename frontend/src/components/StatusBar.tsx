@@ -5,11 +5,16 @@ import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
 import { SOURCE_LABELS } from "@/lib/constants";
+import { libelleRythme } from "@/lib/rythme";
 import { ConnectorStatus } from "@/lib/types";
 
 interface StatusBarProps {
   connectors: ConnectorStatus[];
   nextIngestAt?: string | null;
+  /** Rythme de collecte, tel que renvoyé par /api/health. */
+  ingestHours?: number[];
+  ingestTimezone?: string;
+  hourlyAlerts?: boolean;
   onTriggerIngest?: () => Promise<void>;
 }
 
@@ -34,8 +39,77 @@ function formatLastRun(iso: string | null): string {
   }
 }
 
+/**
+ * Prochaine collecte, et le rythme complet derrière.
+ *
+ * Deux défauts corrigés ici. L'indicateur était en `hidden md:inline` : il
+ * disparaissait sous 768 px, c'est-à-dire précisément là où se fait
+ * l'essentiel de la consultation. Et le détail ne pouvait pas tenir dans un
+ * `title` : une infobulle native ne s'ouvre qu'au survol souris, donc jamais
+ * au tap — elle aurait été inerte sur mobile, exactement pour le public qu'on
+ * cherchait à servir.
+ *
+ * D'où le même bouton que ConnectorDot : survol, focus clavier et tap.
+ */
+function ProchaineMaj({ iso, rythme }: { iso: string; rythme: string }) {
+  const { ouvert, handlers } = useInfobulle();
+  const quand = formatNextIngest(iso);
+  // Sans rythme (backend antérieur, scheduler arrêté), l'indicateur reste un
+  // simple texte : pas de bouton qui n'ouvrirait rien.
+  if (!rythme) {
+    return <span className="text-gray-500 dark:text-gray-400">MàJ {quand}</span>;
+  }
+  return (
+    <button
+      type="button"
+      className="relative text-gray-500 dark:text-gray-400 cursor-default"
+      {...handlers}
+      aria-label={`Prochaine mise à jour ${quand}. ${rythme}`}
+      aria-expanded={ouvert}
+    >
+      {/* Sous 768 px la barre est étroite : on abrège le libellé, sans
+          retirer l'information. */}
+      <span className="hidden md:inline">Prochaine </span>MàJ {quand}
+      {ouvert && (
+        <span className="absolute bottom-full right-0 mb-2 z-50 w-60 rounded-md bg-gray-900 text-white text-xs p-2.5 shadow-lg pointer-events-none block text-left">
+          {rythme}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/**
+ * Ouverture d'une infobulle au survol, au focus ET au tap.
+ *
+ * Le piège : sur écran tactile, un tap émet `mouseenter` PUIS `click`. Avec un
+ * unique état basculé par le clic, la séquence ouvrait puis refermait aussitôt
+ * — l'infobulle ne s'affichait jamais au doigt. C'était le cas des pastilles
+ * de connecteurs depuis l'origine.
+ *
+ * D'où deux états distincts : le survol (transitoire) et l'épinglage (décidé
+ * par un clic). L'infobulle est ouverte si l'un des deux l'est.
+ */
+function useInfobulle() {
+  const [survol, setSurvol] = useState(false);
+  const [epingle, setEpingle] = useState(false);
+  return {
+    ouvert: survol || epingle,
+    handlers: {
+      onMouseEnter: () => setSurvol(true),
+      onMouseLeave: () => setSurvol(false),
+      onFocus: () => setSurvol(true),
+      onBlur: () => {
+        setSurvol(false);
+        setEpingle(false);
+      },
+      onClick: () => setEpingle((v) => !v),
+    },
+  };
+}
+
 function ConnectorDot({ connector }: { connector: ConnectorStatus }) {
-  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const { ouvert: tooltipVisible, handlers } = useInfobulle();
   const label = SOURCE_LABELS[connector.name] ?? connector.name;
   const color = STATUS_COLOR[connector.status];
 
@@ -45,11 +119,7 @@ function ConnectorDot({ connector }: { connector: ConnectorStatus }) {
     <button
       type="button"
       className="relative flex items-center gap-1.5 cursor-default"
-      onMouseEnter={() => setTooltipVisible(true)}
-      onMouseLeave={() => setTooltipVisible(false)}
-      onFocus={() => setTooltipVisible(true)}
-      onBlur={() => setTooltipVisible(false)}
-      onClick={() => setTooltipVisible((v) => !v)}
+      {...handlers}
       aria-label={`${label} : ${STATUS_LABEL[connector.status]}`}
       aria-expanded={tooltipVisible}
     >
@@ -115,8 +185,16 @@ function formatNextIngest(iso: string | null | undefined): string {
   }
 }
 
-export default function StatusBar({ connectors, nextIngestAt, onTriggerIngest }: StatusBarProps) {
+export default function StatusBar({
+  connectors,
+  nextIngestAt,
+  ingestHours,
+  ingestTimezone,
+  hourlyAlerts,
+  onTriggerIngest,
+}: StatusBarProps) {
   const [ingestState, setIngestState] = useState<"idle" | "running" | "done" | "error">("idle");
+  const rythme = libelleRythme(ingestHours, ingestTimezone, hourlyAlerts);
 
   const hasError = connectors.some((c) => c.status === "error");
   const hasWarning = connectors.some((c) => c.status === "warning");
@@ -155,9 +233,7 @@ export default function StatusBar({ connectors, nextIngestAt, onTriggerIngest }:
 
       <div className="ml-auto flex items-center gap-3">
         {nextIngestAt && ingestState === "idle" && (
-          <span className="hidden md:inline text-gray-500 dark:text-gray-400">
-            Prochaine MàJ {formatNextIngest(nextIngestAt)}
-          </span>
+          <ProchaineMaj iso={nextIngestAt} rythme={rythme} />
         )}
         {onTriggerIngest && (
           <button

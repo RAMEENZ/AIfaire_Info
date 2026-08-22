@@ -283,7 +283,10 @@ export default function FilterBar({
         onClick={onRefresh}
         disabled={isLoading}
         className="flex items-center gap-1 text-xs px-3 py-1 rounded border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ml-auto"
-        title="Actualiser les données"
+        // « Actualiser les données » laissait croire que le bouton relançait
+        // la collecte. Il ne fait que relire la base : si la dernière collecte
+        // date de midi, il redonnera exactement les mêmes événements.
+        title="Recharger depuis le serveur — ne relance pas la collecte des sources"
       >
         <svg
           className={`w-3 h-3 ${isLoading ? "animate-spin" : ""}`}

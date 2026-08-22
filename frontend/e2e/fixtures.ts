@@ -131,7 +131,16 @@ export async function mockApi(page: Page, options: MockOptions = {}): Promise<Ap
           });
     }
     if (url.pathname.includes("/health")) {
-      return json({ connectors: [], checked_at: now.toISOString(), next_ingest_at: null });
+      return json({
+        connectors: [],
+        checked_at: now.toISOString(),
+        // Une prochaine collecte datée est nécessaire pour que la StatusBar
+        // affiche « MàJ … » : avec null, l'indicateur ne se rend pas du tout.
+        next_ingest_at: new Date(now.getTime() + 3_600_000).toISOString(),
+        ingest_hours: [7, 12, 19],
+        ingest_timezone: "Europe/Paris",
+        hourly_alerts: true,
+      });
     }
     if (url.pathname.includes("/trends")) return json({ trends: [], generated_at: now.toISOString() });
     if (url.pathname.includes("/events/timeline")) {
