@@ -67,6 +67,11 @@ export interface HealthResponse {
   connectors: ConnectorStatus[];
   next_ingest_at: string | null;
   checked_at: string;
+  /** Heures des collectes complètes, dans `ingest_timezone`. */
+  ingest_hours?: number[];
+  ingest_timezone?: string;
+  /** Passage horaire des sources d'alerte (météo, crues, séismes). */
+  hourly_alerts?: boolean;
 }
 
 export interface EventFilters {

@@ -353,7 +353,8 @@ async def _save_events(events: list[dict[str, Any]]) -> list[str]:
 
 
 # Plafond du nombre d'items traités simultanément. Le vrai back-pressure vient
-# des sémaphores internes (geocoder=8, Mistral=10, Ollama=2, fetch=15) ; ce
+# des sémaphores internes (geocoder=8, Mistral=MISTRAL_MAX_CONCURRENCY, Ollama=2,
+# fetch=15) — la valeur Mistral est un réglage, elle n'a pas sa place en dur ici ; ce
 # plafond se contente d'éviter une explosion du nombre de coroutines sur de gros
 # lots, sans étrangler les items qui ne font ni géocodage ni extraction.
 _PROCESS_SEMAPHORE = asyncio.Semaphore(32)

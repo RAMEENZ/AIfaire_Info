@@ -1,4 +1,4 @@
-# 🛡️ Sécurité — FAIRE INFO
+# 🛡️ Sécurité — (ai)Faire Info
 
 Mesures de durcissement adaptées à l'architecture réelle du projet :
 site exposé **uniquement via Cloudflare Tunnel** (connexion sortante,

@@ -45,6 +45,18 @@ services:
     # cloudflared et nginx le joignent par le réseau Docker interne (backend:8000).
     ports:
       - "127.0.0.1:8000:8000"
+    # Transmet le .env au conteneur. Sans cela, seules les variables listées
+    # sous `environment:` parvenaient au backend : dix-huit réglages présentés
+    # comme configurables dans le README — INGEST_HOURS, BRIEF_HOURS,
+    # RESPECT_ROBOTS_TXT, HEALTHZ_*, SCHEDULER_TIMEZONE… — ne pouvaient en
+    # réalité être changés qu'en modifiant config.py. Le `env_file` de
+    # pydantic-settings ne rattrapait rien : il lit un .env DANS le conteneur,
+    # qui n'y est pas monté.
+    # `environment:` reste prioritaire sur `env_file` (règle Compose) : les
+    # valeurs construites ci-dessous, DATABASE_URL en tête, gardent la main.
+    env_file:
+      - path: .env
+        required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://faire_info:${POSTGRES_PASSWORD:?Definis POSTGRES_PASSWORD dans .env}@db:5432/faire_info
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
@@ -97,6 +109,11 @@ services:
       args:
         # URL relative → nginx route /api/ vers le backend (fonctionne en local ET via tunnel)
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api}
+        # Origine publique du site. Sert de racine aux URL absolues des
+        # métadonnées : og:image doit être absolue et joignable depuis
+        # l'extérieur, sinon les aperçus de partage restent vides. À adapter
+        # si le domaine change (NEXT_PUBLIC_SITE_URL dans .env).
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://aifaire.ramenz.qzz.io}
     # Bind sur localhost uniquement : le front passe par nginx (réseau interne),
     # jamais en direct depuis Internet. Ferme l'accès brut http://IP:3000.
     ports:

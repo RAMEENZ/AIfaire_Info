@@ -26,6 +26,14 @@ _FETCH_SEMAPHORE = asyncio.Semaphore(15)
 # Nombre maximal de redirections suivies manuellement (chacune revalidée SSRF).
 _MAX_REDIRECTS = 5
 
+# Taille maximale du corps téléchargé. Rien ne la bornait : `resp.text` chargeait
+# la réponse entière en mémoire, et jusqu'à 15 téléchargements tournent en
+# parallèle (_FETCH_SEMAPHORE). Une page anormalement lourde — ou un serveur
+# hostile répondant un flux sans fin — suffisait à faire enfler le processus.
+# 5 Mio laissent passer très largement le plus copieux des articles de presse :
+# le texte utile dépasse rarement 50 Kio, le reste étant du balisage.
+_MAX_BODY_BYTES = 5 * 1024 * 1024
+
 _HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; FaireInfo/1.0)",
     "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
@@ -98,6 +106,34 @@ async def _is_safe_url(url: str) -> bool:
         return False
 
 
+async def _lire_borne(resp: httpx.Response, url: str) -> str | None:
+    """Lit le corps de la réponse, en abandonnant au-delà de _MAX_BODY_BYTES.
+
+    Un `Content-Length` annoncé trop grand suffit à refuser d'emblée ; sinon on
+    accumule les morceaux et on s'arrête au dépassement — un serveur peut très
+    bien ne pas annoncer de taille, ou en annoncer une fausse.
+    """
+    annonce = resp.headers.get("content-length")
+    if annonce and annonce.isdigit() and int(annonce) > _MAX_BODY_BYTES:
+        logger.debug("fetch_article_text: %s annonce %s octets, ignoré", url, annonce)
+        return None
+
+    morceaux: list[bytes] = []
+    total = 0
+    async for morceau in resp.aiter_bytes():
+        total += len(morceau)
+        if total > _MAX_BODY_BYTES:
+            logger.debug("fetch_article_text: %s dépasse %d octets, ignoré", url, _MAX_BODY_BYTES)
+            return None
+        morceaux.append(morceau)
+
+    brut = b"".join(morceaux)
+    # `resp.text` n'est pas disponible sur une réponse streamée non lue en
+    # entier : on décode nous-mêmes, avec l'encodage annoncé et un repli
+    # tolérant — un octet invalide ne doit pas faire perdre tout l'article.
+    return brut.decode(resp.encoding or "utf-8", errors="replace")
+
+
 def _cache_put(url: str, text: str) -> None:
     if len(_article_cache) >= _MAX_ARTICLE_CACHE:
         keys = list(_article_cache)
@@ -136,23 +172,28 @@ async def fetch_article_text(url: str) -> str | None:
                 headers=_HEADERS,
             ) as client:
                 current_url = url
-                resp = None
+                html = None
                 for _ in range(_MAX_REDIRECTS + 1):
-                    resp = await client.get(current_url)
-                    if resp.is_redirect and resp.has_redirect_location:
-                        # urljoin gère les Location relatives (ex. "/article/2").
-                        next_url = urljoin(current_url, resp.headers["location"])
-                        if not await _is_safe_url(next_url):
-                            logger.debug("fetch_article_text: blocked redirect to %s", next_url)
-                            return None
-                        current_url = next_url
-                        continue
+                    # `stream` plutôt que `get` : le corps n'est lu que par
+                    # morceaux, ce qui permet d'abandonner dès le dépassement
+                    # au lieu de découvrir la taille une fois tout en mémoire.
+                    async with client.stream("GET", current_url) as resp:
+                        if resp.is_redirect and resp.has_redirect_location:
+                            # urljoin gère les Location relatives (ex. "/article/2").
+                            next_url = urljoin(current_url, resp.headers["location"])
+                            if not await _is_safe_url(next_url):
+                                logger.debug("fetch_article_text: blocked redirect to %s", next_url)
+                                return None
+                            current_url = next_url
+                            continue
+                        resp.raise_for_status()
+                        html = await _lire_borne(resp, current_url)
                     break
                 else:
                     logger.debug("fetch_article_text: too many redirects for %s", url)
                     return None
-                resp.raise_for_status()
-                html = resp.text
+                if html is None:
+                    return None
         except Exception as exc:
             logger.debug("fetch_article_text: GET failed for %s: %s", url, exc)
             return None

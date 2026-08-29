@@ -184,7 +184,7 @@ Voir [`security/README.md`](security/README.md) pour les scripts de durcissement
 ### Prérequis
 - Docker + Docker Compose
 - Python 3.13+
-- Node.js 20+
+- Node.js 22+
 
 ### Base de données (PostgreSQL + PostGIS)
 
@@ -222,6 +222,17 @@ alembic revision -m "..."   # nouvelle migration (opérations op.* explicites)
 ```
 
 En production : `docker compose exec backend alembic upgrade head`.
+
+> **Trois mécanismes coexistent, et c'est le point le plus fragile du dépôt.**
+> Au démarrage, `init_db()` appelle `create_all` (crée les tables d'après
+> `models.py`) puis `migrate_db()` exécute du DDL écrit à la main
+> (`ALTER TABLE … IF NOT EXISTS`). Alembic, lui, n'est **jamais** lancé
+> automatiquement : ses quatre révisions décrivent des tables que `create_all`
+> a déjà produites. Rien n'est cassé — d'où le `alembic stamp head` ci-dessus,
+> qui évite le conflit — mais une colonne ajoutée demain a trois domiciles
+> possibles, et celui que ce README recommande n'est pas celui qui s'exécute.
+> Unifier demande de toucher au schéma d'une base en production : à faire
+> délibérément, pas au détour d'un correctif.
 
 ### Frontend
 
@@ -313,6 +324,13 @@ interface qui n'existe pas — c'est ce qui avait laissé passer la régression 
 bulles de carte.
 
 ### Variables d'environnement backend
+
+Toutes se posent dans le `.env` à la racine, que `docker-compose` transmet au
+conteneur (`env_file`). Attention : jusqu'au 22/08/2026, seules les variables
+explicitement listées sous `environment:` y parvenaient — dix-huit réglages de
+ce tableau, dont `INGEST_HOURS` et `RESPECT_ROBOTS_TXT`, étaient documentés
+comme configurables sans l'être réellement. Les valeurs construites par
+`docker-compose` (`DATABASE_URL` notamment) restent prioritaires sur le `.env`.
 
 | Variable | Défaut | Description |
 |---|---|---|

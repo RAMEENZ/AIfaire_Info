@@ -40,7 +40,12 @@ export default defineConfig({
   ],
   // Sert le build de production : c'est lui qui part en déploiement.
   webServer: {
+    // NEXT_PUBLIC_SITE_URL est inlinée au BUILD, pas au démarrage : elle est
+    // ici pour le cas où le serveur reconstruit, et surtout pour documenter
+    // la valeur qu'attend e2e/autodiscovery.spec.ts. La CI construit avec la
+    // même (cf. .github/workflows/ci.yml).
     command: "npm run start",
+    env: { NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3000" },
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

@@ -36,11 +36,21 @@ def _sans_attente(monkeypatch):
     # et l'espacement s'y ajouterait sans rien démontrer. Les tests de cadence
     # la réactivent explicitement (fixture _cadence).
     monkeypatch.setattr(mistral_client.settings, "MISTRAL_MIN_INTERVAL_SECONDS", 0)
-    return dormi
+    # Le client partagé est un état de MODULE : sans remise à zéro, le faux
+    # client d'un test survivrait au suivant, qui croirait poser ses propres
+    # réponses tout en lisant celles du précédent.
+    mistral_client._CLIENT = None
+    yield dormi
+    mistral_client._CLIENT = None
 
 
 def _client_qui_repond(sequence: list[httpx.Response], appels: list):
     class FauxClient:
+        # `is_closed` : le client réel est désormais partagé entre les appels
+        # (une poignée de main TLS par article, sinon), et mistral_client
+        # interroge cet attribut pour savoir s'il doit en recréer un.
+        is_closed = False
+
         async def __aenter__(self): return self
         async def __aexit__(self, *a): return False
         async def post(self, *args, **kwargs):

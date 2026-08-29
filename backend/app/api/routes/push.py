@@ -4,7 +4,7 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -91,5 +91,8 @@ async def unsubscribe(payload: UnsubscribeIn, db: AsyncSession = Depends(get_db)
 @router.get("/push/status")
 async def status(db: AsyncSession = Depends(get_db)) -> dict:
     """Nombre d'abonnements — utile pour la supervision, sans donnée personnelle."""
-    total = len((await db.execute(select(PushSubscription.id))).all())
-    return {"enabled": push_enabled(), "subscriptions": total}
+    # COUNT côté base. La version précédente ramenait toutes les lignes pour en
+    # mesurer la longueur : sur un endpoint public et non authentifié, c'est
+    # offrir un travail proportionnel au nombre d'abonnés à qui le demande.
+    total = await db.scalar(select(func.count()).select_from(PushSubscription))
+    return {"enabled": push_enabled(), "subscriptions": total or 0}

@@ -12,6 +12,7 @@ from app.api.routes.events import router as events_router
 from app.api.routes.health import router as health_router, healthz_router
 from app.api.routes.push import router as push_router
 from app.pipeline.geocoder import close_geo_client
+from app.pipeline.mistral_client import close_client as close_mistral_client
 from app.pipeline.scheduler import start_scheduler, stop_scheduler, startup_ingestion
 
 logging.basicConfig(
@@ -44,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    logger.info("Starting FAIRE INFO backend (env=%s)", settings.APP_ENV)
+    logger.info("Starting (ai)Faire Info backend (env=%s)", settings.APP_ENV)
 
     # Avertissement de sécurité : mot de passe DB par défaut en production
     if settings.APP_ENV == "production" and "password" in settings.DATABASE_URL:
@@ -78,11 +79,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     stop_scheduler()
     await close_geo_client()
-    logger.info("FAIRE INFO backend stopped")
+    await close_mistral_client()
+    logger.info("(ai)Faire Info backend stopped")
 
 
 app = FastAPI(
-    title="FAIRE INFO API",
+    title="(ai)Faire Info API",
     description="Agrégateur d'information géolocalisé pour la France",
     version="1.0.0",
     lifespan=lifespan,
@@ -120,7 +122,7 @@ GIT_SHA = os.environ.get("GIT_SHA", "")
 @app.get("/")
 async def root() -> dict:
     return {
-        "service": "FAIRE INFO API",
+        "service": "(ai)Faire Info API",
         "status": "running",
         "version": API_VERSION,
         "commit": GIT_SHA or None,

@@ -500,3 +500,49 @@ async def test_test_extraction_n_interroge_pas_le_modele_hors_france(client, mon
 
     await maintenance.test_extraction(limit=1)
     assert appels == []
+
+
+async def test_health_expose_le_rythme_de_collecte(client, monkeypatch):
+    """`/api/health` publie les heures de collecte pour que l'interface les
+    affiche sans les recopier.
+
+    L'interface affichait « Prochaine MàJ dans 2 h » sans jamais dire à quel
+    rythme. Le propriétaire du site a dû poser la question. Coder « 7h, 12h,
+    19h » en dur côté frontend l'aurait fait diverger d'INGEST_HOURS à la
+    première modification, en silence — d'où la publication par l'API.
+    """
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "INGEST_HOURS", "6,18")
+    monkeypatch.setattr(settings, "HOURLY_ALERT_INGESTION", False)
+
+    data = (await client.get("/api/health")).json()
+
+    # Les heures suivent le réglage : c'est tout l'intérêt de les servir.
+    assert data["ingest_hours"] == [6, 18]
+    assert data["ingest_timezone"] == settings.SCHEDULER_TIMEZONE
+    assert data["hourly_alerts"] is False
+
+
+async def test_feed_accepte_les_parametres_du_bouton_abonnement(client):
+    """Le lien « S'abonner » construit côté frontend doit être accepté tel quel.
+
+    Le piège est la forme des catégories : FastAPI attend `categories` RÉPÉTÉ.
+    Un unique « categories=a,b » serait lu comme une seule catégorie nommée
+    « a,b » et rejeté en 422 — le bouton mènerait à une page d'erreur, sans
+    que rien côté frontend ne le signale.
+    """
+    await _insert_events(client.session_factory, 3)
+
+    r = await client.get(
+        "/api/feed.rss"
+        "?categories=meteo&categories=transport"
+        "&gravite_min=2&depuis_heures=168&dept=29"
+    )
+    assert r.status_code == 200, r.text
+    assert "application/atom+xml" in r.headers["content-type"]
+
+    # Et la forme fautive doit bien être refusée : c'est ce qui justifie
+    # l'assertion `not.toContain("%2C")` du test frontend.
+    mauvais = await client.get("/api/feed.rss?categories=meteo,transport")
+    assert mauvais.status_code == 422

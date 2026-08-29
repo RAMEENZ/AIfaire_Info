@@ -1,10 +1,14 @@
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
 # NEXT_PUBLIC_ vars are inlined at build time by Next.js — must pass as ARG
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+
+# Origine publique : racine des URL absolues des métadonnées (og:image).
+ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
+ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
 
 COPY package*.json ./
 RUN npm install && npm cache clean --force
@@ -13,7 +17,7 @@ COPY . .
 RUN npm run build
 
 
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 
