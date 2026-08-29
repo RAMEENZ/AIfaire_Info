@@ -184,7 +184,7 @@ Voir [`security/README.md`](security/README.md) pour les scripts de durcissement
 ### Prérequis
 - Docker + Docker Compose
 - Python 3.13+
-- Node.js 20+
+- Node.js 22+
 
 ### Base de données (PostgreSQL + PostGIS)
 
