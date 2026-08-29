@@ -10,7 +10,6 @@ tests vérifient donc AUSSI que la revalidation SSRF de chaque saut a survécu �
 la réécriture. C'est la protection qui coûterait le plus cher à perdre en
 silence.
 """
-import httpx
 import pytest
 
 from app.pipeline import fetcher
