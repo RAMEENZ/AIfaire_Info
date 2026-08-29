@@ -337,3 +337,58 @@ au-dessus de ce qu'on observe habituellement sur un projet de cette taille.**
 | 9 | Planifier l'unification du schéma (constat G) | ~1 j | Éteindre le risque que le dépôt désigne lui-même comme le sien |
 
 Les points 1 à 4 tiennent en une heure et referment la moitié du tableau de bord.
+
+---
+
+## 11. Suites données (même branche)
+
+Les recommandations 1, 2 et 4 sont appliquées dans cette branche. Les constats A
+et B sont donc clos, et le fichier ci-dessus se lit comme l'état **avant**
+correction.
+
+| Recommandation | État | Vérification |
+|---|---|---|
+| 1 — supprimer l'import mort | ✅ appliquée | `ruff check .` passe, `pytest` : 541 passés |
+| 2 — corriger `.env.example` | ✅ appliquée | `Settings(_env_file=…)` charge ; deux tests de non-régression ajoutés |
+| 3 — fusionner #63, #60, #64 | ⏸ en attente | Écrit sur `main` : demande une décision explicite (voir ci-dessous) |
+| 4 — passer à Node 22 | ✅ appliquée | jsdom 30 + Node 22 : **70 tests passent** (mesuré) |
+
+Détails :
+
+- **Correctif 2** ne se limite pas à retirer les quatre clés mortes. Le fichier
+  d'exemple omettait aussi les **19 réglages** que `config.py` expose réellement
+  — dont `INGEST_HOURS`, `BRIEF_HOURS` et `RESPECT_ROBOTS_TXT`, devenus
+  configurables le 22/08 mais jamais documentés à cet endroit. Ils y figurent
+  désormais avec leur valeur par défaut. Un en-tête explique la règle qui rendait
+  le piège possible : ce fichier étant lu *comme un fichier .env*, toute clé qui
+  n'est pas un réglage du backend doit y rester commentée — ce qui vaut aussi
+  pour `POSTGRES_PASSWORD` et `CLOUDFLARE_TUNNEL_TOKEN`, qui relèvent du `.env`
+  de la racine.
+
+- **Deux tests verrouillent le correctif 2** (`tests/test_config.py`) : l'un
+  vérifie que chaque clé active de `.env.example` correspond à un champ de
+  `Settings`, l'autre charge réellement le fichier. J'ai confirmé qu'ils
+  échouent bien en réintroduisant `SCHEDULER_HOUR_MORNING`, puis restauré le
+  fichier.
+
+- **Correctif 4** repose sur une mesure et non sur une hypothèse : jsdom 30.0.1
+  installé sous Node 22.22.2 fait passer les 70 tests, là où la CI en Node 20
+  échouait sur `webidl.util.markAsUncloneable is not a function`. La PR #62 est
+  donc débloquée par ce seul changement de version.
+  **Réserve honnête** : le démon Docker n'est pas disponible dans cet
+  environnement, la construction de l'image `node:22-alpine` n'a donc **pas** pu
+  être vérifiée ici. Le build Next 15 lui-même tourne sans erreur sous Node 22
+  (c'est celui qui a servi aux tests de bout en bout), et le job « Images
+  Docker » de la CI couvrira le reste.
+
+### Pourquoi la recommandation 3 n'est pas appliquée
+
+Fusionner #63, #60 et #64 écrit sur `main`, ce qui sort du cadre d'un correctif
+sur branche de travail. S'y ajoute une contrainte d'ordre : **#60 et #64 ne
+peuvent pas passer au vert avant que le correctif 1 n'atteigne `main`**, puisque
+c'est le lint de la branche de base qu'elles héritent. La séquence est donc :
+
+1. fusionner la présente branche dans `main` ;
+2. relancer la CI de #60 et #64 — elles doivent virer au vert sans autre
+   changement ;
+3. fusionner #63, #60 et #64.
