@@ -31,7 +31,13 @@ test("un département invalide est ignoré, sans carte vide", async ({ page }) =
   // L'application doit fonctionner normalement plutôt que d'appliquer un
   // filtre qui ne renverrait jamais rien.
   await expect(page.getByRole("button", { name: "Actualiser" })).toBeVisible();
-  expect(page.url()).not.toContain("dept=999");
+  // L'URL est réécrite par un effet (serialiserEtat + replaceState), pas au
+  // rendu : la lire d'un coup juste après l'apparition du bouton, c'est
+  // parier sur l'ordre des deux. Le pari a été perdu en CI le 29/08/2026,
+  // sur un commit où rien du frontend n'avait bougé. On attend la valeur au
+  // lieu de l'échantillonner — l'assertion porte sur le même fait, sans la
+  // course.
+  await expect.poll(() => page.url()).not.toContain("dept=999");
 });
 
 test("la recherche saisie se retrouve dans l'URL", async ({ page }) => {
