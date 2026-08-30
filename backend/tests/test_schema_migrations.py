@@ -5,15 +5,19 @@ Trois mécanismes coexistaient — `create_all` au démarrage, du DDL manuel dan
 colonne ajoutée avait trois domiciles possibles, et celui que le README
 recommandait n'était pas celui qui s'exécutait.
 
-Ces tests verrouillent les deux propriétés qui rendent l'unification sûre :
+Ces tests verrouillent les trois propriétés qui rendent l'unification sûre :
 
 1. **Une base neuve migrée == `models.py`.** Sans quoi la chaîne de migrations
    et l'ORM divergeraient en silence, et deux installations n'auraient pas le
    même schéma. C'est déjà arrivé : avant ce travail, 0002 et 0003 déclaraient
    des `server_default` absents des modèles.
 2. **Une base construite par l'ANCIEN chemin est estampillée, pas reconstruite.**
-   C'est le cas de la production. Le jour de la bascule, la migration doit être
-   inerte : même schéma, mêmes données.
+   Le jour de la bascule, la migration doit être inerte : même schéma, mêmes
+   données.
+3. **Une base estampillée à une révision INTERMÉDIAIRE rejoint la tête sans
+   rien casser.** C'était l'état réel de la production : bâtie par l'ancien
+   chemin, puis estampillée à `0004` en suivant un `alembic stamp head` que le
+   README recommandait alors. Ni tout à fait (1), ni tout à fait (2).
 
 Ils ne s'exécutent que si `TEST_DATABASE_URL` est défini (la CI fournit un
 service PostGIS) et créent leur propre base jetable, pour ne pas marcher sur
@@ -223,3 +227,72 @@ async def test_rejouer_les_migrations_ne_fait_rien(base_neuve):
     assert await _version_alembic(base_neuve) == version
     inattendus = [e for e in await _ecarts(base_neuve) if _etiquette(e) not in _ECARTS_ATTENDUS]
     assert not inattendus
+
+
+async def test_base_estampillee_a_une_revision_intermediaire(base_neuve):
+    """L'état RÉEL de la production le jour de la bascule — et le seul que les
+    quatre tests précédents ne couvraient pas.
+
+    Le README recommandait autrefois un `alembic stamp head` après installation.
+    La production l'avait suivi : sa base était bâtie par l'ancien couple
+    `create_all` + `migrate_db()`, index trigrammes compris, **et** estampillée
+    à `0004`. Ni « base neuve », ni « base sans `alembic_version` » : entre les
+    deux.
+
+    Ce chemin a fonctionné en production (`0004` → `0005` le 30/08/2026), mais
+    rien ne l'interdisait de casser en silence. Une révision future qui
+    supposerait une base vide, ou qui referait ce que `migrate_db()` avait déjà
+    fait sans garde, échouerait ici et nulle part ailleurs.
+    """
+    from alembic import command
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    from sqlalchemy import text
+
+    from app.database import Base, _ALEMBIC_INI, run_migrations
+    import app.models  # noqa: F401
+
+    intermediaire = "0004_brief_is_weekly"
+
+    async with base_neuve.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+        # `migrate_db()` créait aussi ces index, hors de tout historique de
+        # migration. Les poser ici rend le `CREATE INDEX IF NOT EXISTS` de 0005
+        # vraiment inerte, ce qu'il doit être sur une base déjà servie.
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+        for col in ("titre", "resume_ia", "lieu_nom", "auteur"):
+            await conn.execute(text(
+                f"CREATE INDEX IF NOT EXISTS ix_events_{col}_trgm "
+                f"ON events USING gin ({col} gin_trgm_ops)"
+            ))
+        await conn.execute(text(
+            "INSERT INTO events (id, source, source_url, titre, date_publication, "
+            "categorie, gravite, lieu_niveau, lieu_confiance_geo, score_confiance, "
+            "created_at, tags) VALUES ('evt-0004','presse_rss','https://exemple.fr/b',"
+            "'Un titre', now(), 'meteo', 2, 'commune', 0.9, 1.0, now(), '{}')"
+        ))
+
+    def estampiller(conn):
+        cfg = Config(str(_ALEMBIC_INI))
+        cfg.attributes["connection"] = conn
+        command.stamp(cfg, intermediaire)
+
+    async with base_neuve.begin() as conn:
+        await conn.run_sync(estampiller)
+
+    assert await _version_alembic(base_neuve) == intermediaire
+    avant = {_etiquette(e) for e in await _ecarts(base_neuve)}
+
+    await run_migrations()
+
+    tete = ScriptDirectory.from_config(Config(str(_ALEMBIC_INI))).get_current_head()
+    assert await _version_alembic(base_neuve) == tete, "la base doit rejoindre le dernier niveau"
+
+    # Le schéma ne doit pas avoir bougé : tout ce qui restait à appliquer
+    # existait déjà, posé par `migrate_db()`.
+    apres = {_etiquette(e) for e in await _ecarts(base_neuve)}
+    assert apres == avant, f"la bascule a modifié le schéma : {apres ^ avant}"
+
+    async with base_neuve.connect() as conn:
+        res = await conn.execute(text("SELECT count(*) FROM events WHERE id='evt-0004'"))
+        assert res.scalar_one() == 1, "la bascule ne doit toucher aucune donnée"
