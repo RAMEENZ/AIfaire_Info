@@ -65,7 +65,26 @@ nettoyer() {
   docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
 }
 trap nettoyer EXIT
-fail() { log "ALERTE : $1"; notify "EXERCICE de restauration KO : $1"; exit 1; }
+# AUCUN échec ne doit être muet. Les trois premiers échecs de cet exercice
+# n'ont pu être diagnostiqués qu'à la main, faute que le script dise ce qu'il
+# voyait : rôle propriétaire absent, puis serveur temporaire de
+# l'initialisation, puis délai dépassé sans un mot sur l'état du conteneur.
+# L'état et le journal du conteneur partent donc avec toute alerte, quelle
+# qu'elle soit. Sans conteneur (clé absente, aucune sauvegarde), ces commandes
+# échouent en silence et on ne perd rien.
+diagnostic_conteneur() {
+  docker inspect -f 'conteneur : statut={{.State.Status}} code={{.State.ExitCode}}' \
+    "${CONTAINER}" 2>/dev/null | sed 's/^/    /' >&2 || return 0
+  echo "    ── journal du conteneur ──" >&2
+  docker logs --tail 25 "${CONTAINER}" 2>&1 | sed 's/^/    /' >&2 || true
+}
+
+fail() {
+  log "ALERTE : $1"
+  diagnostic_conteneur
+  notify "EXERCICE de restauration KO : $1"
+  exit 1
+}
 
 psql_drill() { docker exec -i "${CONTAINER}" psql -U "${DB_USER}" -X -q "$@"; }
 
@@ -109,9 +128,17 @@ docker run -d --name "${CONTAINER}" \
 # et dans le journal du conteneur, `listening on IPv4 address "0.0.0.0"`
 # n'apparaît qu'APRÈS « PostgreSQL init process complete ». L'ouverture du port
 # TCP est donc le signal exact de « l'initialisation est finie ».
-deadline=$(( $(date +%s) + BOOT_TIMEOUT ))
+debut=$(date +%s)
+deadline=$(( debut + BOOT_TIMEOUT ))
 until docker exec "${CONTAINER}" pg_isready -h 127.0.0.1 -U "${DB_USER}" -d "${DB_NAME}" >/dev/null 2>&1; do
-  (( $(date +%s) < deadline )) || fail "le serveur de test n'accepte pas les connexions après ${BOOT_TIMEOUT}s"
+  attendu=$(( $(date +%s) - debut ))
+  (( $(date +%s) < deadline )) \
+    || fail "le serveur de test n'accepte pas les connexions en TCP après ${BOOT_TIMEOUT}s"
+  # Un signe de vie toutes les 15 s : une attente muette d'une minute et demie
+  # ne dit pas si l'initialisation progresse ou si le conteneur est mort.
+  if (( attendu > 0 && attendu % 15 == 0 )); then
+    log "  … initialisation en cours (${attendu}s)"
+  fi
   sleep 1
 done
 log "Serveur de test prêt (${PG_IMAGE}) — initialisation terminée."
@@ -136,8 +163,6 @@ if ! openssl enc -d -aes-256-cbc -pbkdf2 -pass "file:${KEY_FILE}" -in "${LATEST}
   # le défaut même qu'il est censé supprimer.
   log "Sortie de psql :"
   tail -5 "${journal}" >&2 || true
-  log "Journal du conteneur de test :"
-  docker logs --tail 20 "${CONTAINER}" 2>&1 | sed 's/^/    /' >&2 || true
   rm -f "${journal}"
   fail "la restauration de ${LATEST} a échoué (déchiffrement, décompression ou SQL)"
 fi
