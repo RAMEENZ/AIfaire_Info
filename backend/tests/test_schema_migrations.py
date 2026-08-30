@@ -256,6 +256,13 @@ async def test_base_estampillee_a_une_revision_intermediaire(base_neuve):
 
     async with base_neuve.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # `spatial_index=False` étant désormais posé sur la colonne, `create_all`
+        # ne crée plus l'index de GeoAlchemy2. La production l'a : on le remet,
+        # sans quoi cette reconstitution ne serait plus fidèle et 0006 n'aurait
+        # rien à faire ici.
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_events_geom ON events USING gist (geom)"
+        ))
         # `migrate_db()` créait aussi ces index, hors de tout historique de
         # migration. Les poser ici rend le `CREATE INDEX IF NOT EXISTS` de 0005
         # vraiment inerte, ce qu'il doit être sur une base déjà servie.
@@ -288,11 +295,71 @@ async def test_base_estampillee_a_une_revision_intermediaire(base_neuve):
     tete = ScriptDirectory.from_config(Config(str(_ALEMBIC_INI))).get_current_head()
     assert await _version_alembic(base_neuve) == tete, "la base doit rejoindre le dernier niveau"
 
-    # Le schéma ne doit pas avoir bougé : tout ce qui restait à appliquer
-    # existait déjà, posé par `migrate_db()`.
+    # Une seule modification de schéma attendue, et elle est voulue : 0006
+    # supprime le doublon d'index GiST de GeoAlchemy2. Tout le reste de ce qui
+    # restait à appliquer existait déjà, posé par `migrate_db()`.
     apres = {_etiquette(e) for e in await _ecarts(base_neuve)}
-    assert apres == avant, f"la bascule a modifié le schéma : {apres ^ avant}"
+    assert avant - apres == {("remove_index", "idx_events_geom")}, (
+        f"écarts disparus inattendus : {avant - apres}"
+    )
+    assert not apres - avant, f"écarts apparus : {apres - avant}"
 
     async with base_neuve.connect() as conn:
         res = await conn.execute(text("SELECT count(*) FROM events WHERE id='evt-0004'"))
         assert res.scalar_one() == 1, "la bascule ne doit toucher aucune donnée"
+
+
+async def test_un_seul_index_gist_sur_geom(base_neuve):
+    """`events.geom` portait deux index GiST identiques depuis l'origine :
+    `ix_events_geom`, déclaré dans `models.py`, et `idx_events_geom`, que
+    GeoAlchemy2 attache d'office à toute colonne `Geometry`. Chaque insertion
+    d'événement géolocalisé en écrivait deux pour un gain de lecture nul.
+
+    La révision 0006 supprime celui de GeoAlchemy2. Ce test verrouille les deux
+    moitiés du correctif : la suppression, et le `spatial_index=False` qui
+    empêche l'index de revenir sur une base neuve.
+    """
+    from sqlalchemy import text
+
+    from app.database import run_migrations
+
+    await run_migrations()
+    async with base_neuve.connect() as conn:
+        res = await conn.execute(text(
+            "SELECT indexname FROM pg_indexes "
+            "WHERE tablename = 'events' AND indexdef LIKE '%%USING gist%%'"
+        ))
+        noms = {r[0] for r in res}
+    assert noms == {"ix_events_geom"}, f"index GiST sur events : {sorted(noms)}"
+
+
+async def test_le_doublon_geom_est_supprime_sur_une_base_existante(base_neuve):
+    """Le cas de la production : l'index de GeoAlchemy2 y est bien présent, et
+    0006 doit l'enlever sans toucher à celui qu'on garde."""
+    from sqlalchemy import text
+
+    from app.database import Base, run_migrations
+    import app.models  # noqa: F401
+
+    async with base_neuve.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+        # `spatial_index=False` étant désormais posé dans les modèles,
+        # `create_all` ne crée plus le doublon : on le remet à la main pour
+        # reconstituer l'état antérieur.
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_events_geom ON events USING gist (geom)"
+        ))
+
+    async def gist():
+        async with base_neuve.connect() as conn:
+            res = await conn.execute(text(
+                "SELECT indexname FROM pg_indexes "
+                "WHERE tablename = 'events' AND indexdef LIKE '%%USING gist%%'"
+            ))
+            return {r[0] for r in res}
+
+    assert await gist() == {"ix_events_geom", "idx_events_geom"}, "le doublon doit être là au départ"
+
+    await run_migrations()
+
+    assert await gist() == {"ix_events_geom"}

@@ -35,8 +35,14 @@ class Event(Base):
     lieu_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     lieu_niveau: Mapped[str] = mapped_column(String(32), nullable=False, default="national")
     lieu_confiance_geo: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # spatial_index=False : GeoAlchemy2 attache d'office un index GiST à toute
+    # colonne Geometry (`idx_events_geom`). Il faisait doublon avec celui
+    # déclaré plus bas (`ix_events_geom`), à l'identique — deux index GiST sur
+    # la même colonne, écrits tous les deux à chaque insertion. La révision
+    # 0006 supprime celui de GeoAlchemy2 ; ce drapeau l'empêche de revenir sur
+    # une base neuve, et garde `models.py` en accord avec le schéma migré.
     geom: Mapped[Optional[object]] = mapped_column(
-        Geometry("POINT", srid=4326), nullable=True
+        Geometry("POINT", srid=4326, spatial_index=False), nullable=True
     )
 
     resume_ia: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

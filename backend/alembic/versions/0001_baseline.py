@@ -23,7 +23,9 @@ Ce que cette baseline contient, et pourquoi :
   `Geometry`. Ce doublon existe en production depuis l'origine. Il est
   reproduit ici À DESSEIN : le rôle d'une baseline est de décrire ce qui EST,
   pas ce qui aurait dû être. Le supprimer est un correctif légitime — mais
-  c'est une autre migration, avec sa propre justification.
+  c'est une autre migration, avec sa propre justification. Elle existe
+  désormais : 0006 supprime `idx_events_geom`. Cette baseline continue de le
+  créer, pour que rejouer l'historique reproduise bien l'état d'alors.
 
 Revision ID: 0001_baseline
 Revises:
