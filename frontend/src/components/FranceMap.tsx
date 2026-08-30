@@ -80,7 +80,7 @@ function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): num
 function MapLegend() {
   const [open, setOpen] = useState(false);
   return (
-    <div className="absolute bottom-7 right-2 z-[1000]">
+    <div className="absolute bottom-7 right-2 z-1000">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-7 h-7 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md text-gray-600 dark:text-gray-300 hover:text-blue-700 text-xs font-bold flex items-center justify-center"
@@ -90,13 +90,13 @@ function MapLegend() {
         ?
       </button>
       {open && (
-        <div className="absolute bottom-9 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 w-52 text-xs">
+        <div className="absolute bottom-9 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xs border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 w-52 text-xs">
           <p className="font-semibold text-gray-600 dark:text-gray-300 mb-2 uppercase tracking-wide text-[10px]">Catégories</p>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1 mb-3">
             {(Object.entries(CATEGORY_CONFIG) as [string, typeof CATEGORY_CONFIG[keyof typeof CATEGORY_CONFIG]][]).map(([key, cfg]) => (
               <div key={key} className="flex items-center gap-1.5">
                 <span
-                  className="w-5 h-5 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-white font-bold shrink-0"
                   style={{ backgroundColor: cfg.color, fontSize: 8 }}
                 >
                   {cfg.letter}
@@ -110,7 +110,7 @@ function MapLegend() {
             {([0, 1, 2, 3] as const).map((g) => (
               <div key={g} className="flex items-center gap-1.5">
                 <span
-                  className="w-3 h-3 rounded-full flex-shrink-0"
+                  className="w-3 h-3 rounded-full shrink-0"
                   style={{ backgroundColor: GRAVITE_CONFIG[g].color }}
                 />
                 <span className="text-gray-600 dark:text-gray-300">{GRAVITE_CONFIG[g].label}</span>
@@ -258,20 +258,20 @@ function GeoSearch() {
     // supérieur interceptait les clics, et `elementFromPoint` au centre du
     // bouton « zoom + » renvoyait cet <input>. Le bouton était donc mort —
     // on pouvait dézoomer, pas zoomer (relevé le 12/08/2026).
-    <form onSubmit={handleSearch} className="absolute top-2 left-12 z-[1000] flex gap-1">
+    <form onSubmit={handleSearch} className="absolute top-2 left-12 z-1000 flex gap-1">
       <input
         type="text"
         value={query}
         onChange={(e) => { setQuery(e.target.value); setNotFound(false); }}
         placeholder="Rechercher une ville…"
-        className={`px-2 py-1 text-xs rounded border shadow-md bg-white dark:bg-gray-800 w-36 focus:outline-none transition-colors ${
+        className={`px-2 py-1 text-xs rounded border shadow-md bg-white dark:bg-gray-800 w-36 focus:outline-hidden transition-colors ${
           notFound ? "border-red-400 placeholder-red-400" : "border-gray-200 dark:border-gray-700 focus:border-blue-400"
         }`}
       />
       <button
         type="submit"
         disabled={loading || !query.trim()}
-        className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 shadow-md bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 disabled:opacity-40 transition-colors"
+        className="px-2 py-1 text-xs rounded-sm border border-gray-200 dark:border-gray-700 shadow-md bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 disabled:opacity-40 transition-colors"
         title="Rechercher"
         aria-label="Rechercher une ville sur la carte"
       >
@@ -454,7 +454,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
       </MapContainer>
 
       {/* Bouton toggle couche risque départements */}
-      <div className="absolute top-2 right-2 z-[1000]">
+      <div className="absolute top-2 right-2 z-1000">
         <button
           onClick={() => setShowRiskLayer((v) => !v)}
           className={`px-2.5 py-1 text-[11px] font-medium rounded border shadow-md transition-colors ${
@@ -469,7 +469,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
       </div>
 
       {/* Feature 2: Heatmap toggle button */}
-      <div className="absolute bottom-16 right-2 z-[1000]">
+      <div className="absolute bottom-16 right-2 z-1000">
         <button
           onClick={() => setShowHeatmap((v) => !v)}
           className={`px-2 py-1 rounded text-xs font-medium border shadow-md transition-colors ${
@@ -484,7 +484,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
       </div>
 
       {/* Feature 4: Zone watch toggle + controls */}
-      <div className="absolute bottom-24 right-2 z-[1000] flex flex-col items-end gap-1">
+      <div className="absolute bottom-24 right-2 z-1000 flex flex-col items-end gap-1">
         <button
           onClick={() => {
             setWatchMode((v) => {
@@ -505,7 +505,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
           📍 Zone
         </button>
         {watchZone && (
-          <div className="bg-white dark:bg-gray-800 border border-indigo-200 rounded shadow-md px-2 py-1.5 flex flex-col gap-1 text-[10px] text-gray-700 dark:text-gray-200 w-36">
+          <div className="bg-white dark:bg-gray-800 border border-indigo-200 rounded-sm shadow-md px-2 py-1.5 flex flex-col gap-1 text-[10px] text-gray-700 dark:text-gray-200 w-36">
             <div className="flex justify-between items-center">
               <span className="font-medium text-indigo-700">Rayon : {watchZone.radius} km</span>
               <button
@@ -533,15 +533,15 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
           </div>
         )}
         {watchMode && !watchZone && (
-          <p className="bg-white/90 border border-indigo-200 rounded shadow-md px-2 py-1 text-[10px] text-indigo-700 w-36 text-center">
+          <p className="bg-white/90 border border-indigo-200 rounded-sm shadow-md px-2 py-1 text-[10px] text-indigo-700 w-36 text-center">
             Cliquez sur la carte pour définir le centre
           </p>
         )}
       </div>
 
       {/* Panneau de navigation DOM-TOM */}
-      <div className="absolute bottom-7 left-2 z-[1000]">
-        <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-lg shadow-md px-2 py-1.5">
+      <div className="absolute bottom-7 left-2 z-1000">
+        <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xs border border-gray-200 dark:border-gray-700 rounded-lg shadow-md px-2 py-1.5">
           <p className="text-[9px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">DOM-TOM</p>
           <div className="flex flex-wrap gap-1 max-w-[200px]">
             {DOM_TOM.map((t) => {
@@ -552,7 +552,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
                 <button
                   key={t.code}
                   onClick={() => flyTo(t.center, t.zoom)}
-                  className="relative px-1.5 py-0.5 text-[10px] font-medium bg-gray-50 dark:bg-gray-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-gray-200 dark:border-gray-700 rounded text-gray-600 dark:text-gray-300 hover:text-blue-700 transition-colors"
+                  className="relative px-1.5 py-0.5 text-[10px] font-medium bg-gray-50 dark:bg-gray-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-gray-200 dark:border-gray-700 rounded-sm text-gray-600 dark:text-gray-300 hover:text-blue-700 transition-colors"
                   title={alertColor ? `${t.name} — ${territoryEvents.length} alerte(s)` : `Aller sur ${t.name}`}
                 >
                   {t.name}
@@ -567,7 +567,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
             })}
             <button
               onClick={() => flyTo(FRANCE_CENTER, FRANCE_DEFAULT_ZOOM)}
-              className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+              className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-sm transition-colors"
               title="Retour France métropolitaine"
             >
               ← Métropole
@@ -580,7 +580,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
 
       {events.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl px-6 py-5 text-center shadow-md max-w-xs">
+          <div className="bg-white/80 backdrop-blur-xs rounded-xl px-6 py-5 text-center shadow-md max-w-xs">
             <div className="text-3xl mb-2">📍</div>
             <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">
               Aucun événement localisé
@@ -595,7 +595,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
       {/* Feature 4: zone active but all events filtered out note */}
       {watchZone && visibleEvents.length === 0 && events.length > 0 && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
-          <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-xl px-5 py-4 text-center shadow-md max-w-xs">
+          <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xs rounded-xl px-5 py-4 text-center shadow-md max-w-xs">
             <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1">Aucun événement dans la zone</p>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Augmentez le rayon ou déplacez le centre

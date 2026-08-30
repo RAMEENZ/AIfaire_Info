@@ -494,7 +494,7 @@ export default function HomePage() {
         disposition découle de ce que les éléments SONT, pas d'une correction
         appliquée à partir d'une certaine taille d'écran.
       */}
-      <header className="flex flex-col gap-1.5 px-3 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm z-10 flex-shrink-0">
+      <header className="flex flex-col gap-1.5 px-3 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-xs z-10 shrink-0">
         {/* Bande 1 — identité, outils, état */}
         <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center mr-4">
@@ -525,7 +525,7 @@ export default function HomePage() {
               .catch(() => toast("Impossible de copier le lien", "error"));
           }}
           aria-label="Copier le lien avec les filtres actuels"
-          className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+          className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
           title="Copier le lien avec les filtres actuels"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -540,7 +540,7 @@ export default function HomePage() {
               toast(`${allEvents.length} événement${allEvents.length > 1 ? "s" : ""} exporté${allEvents.length > 1 ? "s" : ""} en CSV`, "success");
             }}
             aria-label={`Télécharger ${allEvents.length} événements en CSV`}
-            className="hidden lg:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            className="hidden lg:flex items-center gap-1 text-xs px-2 py-1 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             title={`Télécharger ${allEvents.length} événements en CSV`}
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -561,7 +561,7 @@ export default function HomePage() {
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Flux RSS Atom (filtre catégories actuel)"
-          className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           title="Flux RSS Atom (filtre catégories actuel)"
         >
           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -573,7 +573,7 @@ export default function HomePage() {
         </a>
         <a
           href="/stats"
-          className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           title="Statistiques"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -583,7 +583,7 @@ export default function HomePage() {
         </a>
         <a
           href="/tendances"
-          className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           title="Tendances (historique quotidien)"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -597,7 +597,7 @@ export default function HomePage() {
             onClick={() => setMobileMenuOpen((v) => !v)}
             aria-label="Plus d'options"
             aria-expanded={mobileMenuOpen}
-            className="flex items-center justify-center w-8 h-8 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+            className="flex items-center justify-center w-8 h-8 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
@@ -664,7 +664,7 @@ export default function HomePage() {
         <button
           onClick={toggleDark}
           aria-label={darkMode ? "Passer en mode clair" : "Passer en mode sombre"}
-          className="flex items-center justify-center w-7 h-7 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          className="flex items-center justify-center w-7 h-7 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           title={darkMode ? "Passer en mode clair" : "Passer en mode sombre"}
         >
           {darkMode ? (
@@ -725,7 +725,7 @@ export default function HomePage() {
       <OfflineIndicator />
 
       {/* Mobile toggle bar */}
-      <div className="flex md:hidden border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-shrink-0">
+      <div className="flex md:hidden border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0">
         <button
           onClick={() => setMobileView("map")}
           className={`flex-1 py-2.5 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
@@ -761,7 +761,7 @@ export default function HomePage() {
         <aside className={`${mobileView === "feed" ? "flex" : "hidden"} md:flex flex-col flex-1 md:flex-none md:w-[30%] md:min-w-[260px] md:max-w-sm border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden`}>
           {/* Dept banner */}
           {historyDate && (
-            <div className="flex items-center justify-between px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800 flex-shrink-0">
+            <div className="flex items-center justify-between px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-800 shrink-0">
               <span className="text-xs text-amber-700 dark:text-amber-300 font-medium">
                 ⏪ {historyDate.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} — {new Date(historyDate.getTime() + 2 * 86400000).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
               </span>
@@ -777,12 +777,12 @@ export default function HomePage() {
             </div>
           )}
           {selectedDept && (
-            <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800 flex-shrink-0">
+            <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800 shrink-0">
               <span className="text-xs text-blue-700 dark:text-blue-300 font-medium truncate">
                 {DEPT_CODE_TO_NAME[selectedDept] ?? `Dép. ${selectedDept}`} ({selectedDept}) —{" "}
                 {deptEvents.length} événement{deptEvents.length !== 1 ? "s" : ""}
               </span>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   onClick={togglePinDept}
                   className={`text-xs transition-colors ${
@@ -816,7 +816,7 @@ export default function HomePage() {
               que ~130 px au fil (une carte visible). Leurs compteurs sont
               déjà repris par la barre d'onglets mobile et par les onglets du
               fil (« Tous / Carte / National »). */}
-          <div className="hidden md:block flex-shrink-0">
+          <div className="hidden md:block shrink-0">
             <TimelineBar
               categories={filters.categories}
               graviteMin={filters.gravite_min}

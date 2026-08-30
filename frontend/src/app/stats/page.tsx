@@ -78,7 +78,7 @@ export default function StatsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="flex items-center gap-4 px-4 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+      <header className="flex items-center gap-4 px-4 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-xs">
         <Link
           href="/"
           className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 transition-colors"
@@ -125,7 +125,7 @@ export default function StatsPage() {
               ].map(({ label, value }) => (
                 <div
                   key={label}
-                  className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center shadow-sm"
+                  className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center shadow-xs"
                 >
                   <p className="text-2xl font-black text-blue-700 dark:text-blue-400">{value}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{label}</p>
@@ -134,7 +134,7 @@ export default function StatsPage() {
             </div>
 
             {/* Date range */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm text-sm text-gray-600 dark:text-gray-300">
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-xs text-sm text-gray-600 dark:text-gray-300">
               <p>
                 Premier événement :{" "}
                 <span className="font-medium text-gray-800 dark:text-gray-100">{fmtDate(stats.oldest_event)}</span>
@@ -146,7 +146,7 @@ export default function StatsPage() {
             </div>
 
             {/* By category */}
-            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-xs">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">Par catégorie</h2>
               <BarChart
                 data={catEntries}
@@ -155,7 +155,7 @@ export default function StatsPage() {
             </section>
 
             {/* By source */}
-            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-xs">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
                 Par source <span className="font-normal text-gray-500 dark:text-gray-400">(top 15)</span>
               </h2>

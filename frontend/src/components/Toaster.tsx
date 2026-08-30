@@ -29,7 +29,7 @@ export default function Toaster() {
     <div
       aria-live="polite"
       aria-atomic="false"
-      className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[2000] flex flex-col items-center gap-2 pointer-events-none"
+      className="fixed bottom-12 left-1/2 -translate-x-1/2 z-2000 flex flex-col items-center gap-2 pointer-events-none"
     >
       {toasts.map((t) => (
         <div

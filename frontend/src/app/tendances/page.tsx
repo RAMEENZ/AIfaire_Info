@@ -186,7 +186,7 @@ export default function TendancesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="flex items-center gap-4 px-4 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+      <header className="flex items-center gap-4 px-4 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-xs">
         <Link
           href="/"
           className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 transition-colors"
@@ -240,7 +240,7 @@ export default function TendancesPage() {
               ].map(({ label, value }) => (
                 <div
                   key={label}
-                  className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center shadow-sm"
+                  className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center shadow-xs"
                 >
                   <p className="text-2xl font-black text-blue-700 dark:text-blue-400">{value}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{label}</p>
@@ -248,7 +248,7 @@ export default function TendancesPage() {
               ))}
             </div>
 
-            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-xs">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
                 Événements par jour
               </h2>
@@ -257,21 +257,21 @@ export default function TendancesPage() {
               <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3">
                 {totalByCat.map(({ key, label }) => (
                   <span key={key} className="flex items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
-                    <span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: catColor(key) }} />
+                    <span className="w-2 h-2 rounded-xs inline-block" style={{ backgroundColor: catColor(key) }} />
                     {label}
                   </span>
                 ))}
               </div>
             </section>
 
-            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-xs">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
                 Par catégorie <span className="font-normal text-gray-500 dark:text-gray-400">(cumul sur la période)</span>
               </h2>
               <HorizontalBars data={totalByCat} colorFn={catColor} />
             </section>
 
-            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+            <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-xs">
               <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
                 Départements les plus actifs <span className="font-normal text-gray-500 dark:text-gray-400">(top 15)</span>
               </h2>

@@ -37,14 +37,14 @@ export default function ShortcutsHelp() {
         onClick={() => setOpen(true)}
         aria-label="Aide et raccourcis clavier"
         title="Raccourcis clavier (?)"
-        className="hidden md:flex items-center justify-center w-7 h-7 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-xs font-semibold"
+        className="hidden md:flex items-center justify-center w-7 h-7 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-xs font-semibold"
       >
         ?
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 z-[1500] flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-1500 flex items-center justify-center bg-black/40 p-4"
           onClick={() => setOpen(false)}
         >
           <div
@@ -72,7 +72,7 @@ export default function ShortcutsHelp() {
               {SHORTCUTS.map((s) => (
                 <li key={s.keys} className="flex items-center justify-between gap-3 text-xs">
                   <span className="text-gray-600 dark:text-gray-300">{s.action}</span>
-                  <kbd className="px-1.5 py-0.5 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40 text-gray-700 dark:text-gray-200 font-mono text-[10px] whitespace-nowrap">
+                  <kbd className="px-1.5 py-0.5 rounded-sm border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900/40 text-gray-700 dark:text-gray-200 font-mono text-[10px] whitespace-nowrap">
                     {s.keys}
                   </kbd>
                 </li>

@@ -124,7 +124,7 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
       {open && settings && (
         <div
           ref={panelRef}
-          className="absolute right-0 top-9 z-[2000] w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 text-xs"
+          className="absolute right-0 top-9 z-2000 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 text-xs"
         >
           {!notificationsSupported() ? (
             <p className="text-gray-500 dark:text-gray-400">
@@ -222,7 +222,7 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
                 value={deptSearch}
                 onChange={(e) => setDeptSearch(e.target.value)}
                 placeholder="Filtrer (nom ou code)…"
-                className="w-full px-2 py-1 mb-1.5 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 focus:outline-none focus:border-blue-400 focus:bg-white dark:focus:bg-gray-800"
+                className="w-full px-2 py-1 mb-1.5 rounded-sm border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 focus:outline-hidden focus:border-blue-400 focus:bg-white dark:focus:bg-gray-800"
               />
               {deptCount > 0 && (
                 <button
@@ -232,7 +232,7 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
                   Tout désélectionner
                 </button>
               )}
-              <div className="max-h-40 overflow-y-auto border border-gray-100 dark:border-gray-700 rounded divide-y divide-gray-50">
+              <div className="max-h-40 overflow-y-auto border border-gray-100 dark:border-gray-700 rounded-sm divide-y divide-gray-50">
                 {filteredDepts.map((d) => {
                   const on = settings.departments.includes(d.code);
                   return (
