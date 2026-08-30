@@ -342,16 +342,18 @@ Les points 1 à 4 tiennent en une heure et referment la moitié du tableau de bo
 
 ## 11. Suites données (même branche)
 
-Les recommandations 1, 2 et 4 sont appliquées dans cette branche. Les constats A
-et B sont donc clos, et le fichier ci-dessus se lit comme l'état **avant**
-correction.
+Les recommandations 1 à 4 et 8 ont été appliquées et fusionnées. Les constats A
+et B sont clos, et tout ce qui précède se lit comme l'état **avant** correction.
+Seule la recommandation 9 (unification du schéma) reste ouverte, délibérément.
 
 | Recommandation | État | Vérification |
 |---|---|---|
 | 1 — supprimer l'import mort | ✅ appliquée | `ruff check .` passe, `pytest` : 541 passés |
 | 2 — corriger `.env.example` | ✅ appliquée | `Settings(_env_file=…)` charge ; deux tests de non-régression ajoutés |
-| 3 — fusionner #63, #60, #64 | ⏸ en attente | Écrit sur `main` : demande une décision explicite (voir ci-dessous) |
-| 4 — passer à Node 22 | ✅ appliquée | jsdom 30 + Node 22 : **70 tests passent** (mesuré) |
+| 3 — fusionner #63, #60, #64 | ✅ fusionnées | #60 et #64 sont passées au vert **sans un seul changement**, une fois (1) sur `main` |
+| 4 — passer à Node 22 | ✅ appliquée | jsdom 30 + Node 22 : **70 tests passent** (mesuré) ; #62 fusionnée ensuite |
+| 8 — migrations Next 16 et Tailwind 4 | ✅ appliquées | #67 et #68 ; #59 et #61 fermées comme obsolètes |
+| 9 — unifier le schéma | ⏸ non traitée | Chantier à dater : touche au schéma d'une base en production |
 
 Détails :
 
@@ -375,20 +377,42 @@ Détails :
   installé sous Node 22.22.2 fait passer les 70 tests, là où la CI en Node 20
   échouait sur `webidl.util.markAsUncloneable is not a function`. La PR #62 est
   donc débloquée par ce seul changement de version.
-  **Réserve honnête** : le démon Docker n'est pas disponible dans cet
-  environnement, la construction de l'image `node:22-alpine` n'a donc **pas** pu
-  être vérifiée ici. Le build Next 15 lui-même tourne sans erreur sous Node 22
-  (c'est celui qui a servi aux tests de bout en bout), et le job « Images
-  Docker » de la CI couvrira le reste.
+  Une réserve était posée ici : faute de démon Docker dans l'environnement de
+  vérification, l'image `node:22-alpine` n'avait pas pu être construite
+  localement. **Elle est levée** — le job « Images Docker » de la CI l'a
+  construite sans erreur sur #65, puis sur #67 et #68.
 
-### Pourquoi la recommandation 3 n'est pas appliquée
+### Les deux migrations majeures
 
-Fusionner #63, #60 et #64 écrit sur `main`, ce qui sort du cadre d'un correctif
-sur branche de travail. S'y ajoute une contrainte d'ordre : **#60 et #64 ne
-peuvent pas passer au vert avant que le correctif 1 n'atteigne `main`**, puisque
-c'est le lint de la branche de base qu'elles héritent. La séquence est donc :
+Traitées après coup, chacune dans sa propre PR, et chacune avec une surprise que
+le simple bump n'aurait pas révélée.
 
-1. fusionner la présente branche dans `main` ;
-2. relancer la CI de #60 et #64 — elles doivent virer au vert sans autre
-   changement ;
-3. fusionner #63, #60 et #64.
+**Tailwind 4** (#67) — le risque connu de la v4 est la couleur de bordure par
+défaut, qui passe de `gray-200` à `currentColor`. Sur les 84 classes `border*`
+du dépôt, **aucune** n'était dépourvue de couleur explicite : c'est ce qui
+rendait la migration abordable, et cela se vérifiait avant de commencer. Le
+codemod officiel a traité les renommages (26 `flex-shrink-0`, 6 `outline-none`,
+l'échelle `shadow`/`rounded`) et surtout `darkMode: "class"`, sans quoi les 456
+usages de `dark:` auraient cessé de suivre le bouton de thème.
+
+Ce que le codemod ne pouvait pas voir : la Preflight de la v4 écrit
+`font-family: var(--default-font-family, -apple-system, …)`, variable définie
+nulle part ici. Toute l'interface basculait sur cette pile de repli. Mesuré sur
+l'application montée — mêmes tailles, mêmes espacements, même largeur de carte,
+mais un bouton de filtre passant de **78,2 px à 73,4 px**. La police rendue
+n'était plus la même, partout, et aucun test ne l'aurait signalé : la
+typographie ne casse rien, elle décale. `--font-sans` est désormais déclarée
+explicitement.
+
+**Next 16** (#68) — Turbopack, moteur par défaut, refuse de démarrer si une
+configuration `webpack` traîne sans configuration `turbopack` en regard. Next
+propose de « faire taire l'erreur » avec un `turbopack: {}` vide ; le bloc
+incriminé ne posant qu'un `resolve.fallback = { fs: false }` inutile ici, il a
+été retiré plutôt que neutralisé. Le build signalait par ailleurs
+« `z-index` is currently not supported » à chaque passage : Satori empile dans
+l'ordre du document, l'image de partage a été rendue et regardée avant de
+retirer la propriété inopérante.
+
+Captures avant/après en 1366 px et 390 px, thèmes clair et sombre : celles de
+Next 16 sont **identiques à l'octet** à celles prises après Tailwind 4, qui sont
+elles-mêmes indiscernables de la référence v3.
