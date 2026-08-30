@@ -54,6 +54,17 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
+    # Connexion fournie par l'appelant (app.database.run_migrations, qui joue
+    # les migrations au démarrage du backend) : on la réutilise au lieu
+    # d'ouvrir un second moteur. Sans cela, l'application et Alembic
+    # ouvriraient deux connexions concurrentes sur la même base, et la
+    # migration s'exécuterait hors de la transaction de l'appelant.
+    connexion = config.attributes.get("connection")
+    if connexion is not None:
+        do_run_migrations(connexion)
+        return
+    # Invocation en ligne de commande (`alembic upgrade head`) : Alembic est
+    # seul, il ouvre son propre moteur.
     asyncio.run(run_async_migrations())
 
 

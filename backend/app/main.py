@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.database import init_db, migrate_db
+from app.database import run_migrations
 from app.api.routes.events import router as events_router
 from app.api.routes.health import router as health_router, healthz_router
 from app.api.routes.push import router as push_router
@@ -59,9 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "Set INGEST_API_KEY in your environment to restrict access."
         )
 
-    await init_db()
-    await migrate_db()
-    logger.info("Database initialized")
+    await run_migrations()
 
     start_scheduler()
 

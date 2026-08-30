@@ -104,7 +104,11 @@ jobs:
         working-directory: backend
         env:
           TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/faire_test
-        run: pytest tests/test_integration_api.py -q
+        # test_schema_migrations.py vérifie que la chaîne Alembic reproduit
+        # exactement models.py, et qu'une base construite par l'ancien chemin
+        # est estampillée plutôt que reconstruite. Il crée ses propres bases
+        # jetables pour ne pas marcher sur celle des tests d'API.
+        run: pytest tests/test_integration_api.py tests/test_schema_migrations.py -q
 
   # Tests de bout en bout de l'interface : détectent les régressions que ni le
   # typecheck ni les tests unitaires ne voient (fil écrasé, panneau non
