@@ -29,7 +29,7 @@ STARTED_AT = datetime.now(timezone.utc)
 
 # Liste canonique dérivée des connecteurs réellement enregistrés : évite la
 # dérive entre cette liste et CONNECTORS (auparavant figée à 8 noms, alors que
-# 15 connecteurs tournent — cert_fr, irsn, air_quality, opensky n'apparaissaient
+# 14 connecteurs tournent — cert_fr, irsn, air_quality, opensky n'apparaissaient
 # jamais dans la barre de statut).
 KNOWN_CONNECTORS = [c.name for c in CONNECTORS]
 

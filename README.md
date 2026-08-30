@@ -5,7 +5,7 @@ Vue cartographique unifiée de l'actualité publique française en quasi temps r
 ## Stack
 
 - **Backend** : Python 3.13 + FastAPI + GeoAlchemy2 + APScheduler
-- **Frontend** : Next.js 14 + Leaflet + Tailwind CSS
+- **Frontend** : Next.js 16 + Leaflet + Tailwind CSS 4
 - **BDD** : PostgreSQL 16 + PostGIS 3.4
 - **IA** : Mistral AI (extraction lieu + catégorie + teaser + briefs) — Ollama en fallback local
 - **Géocodage** : BAN (api-adresse.data.gouv.fr) pour les communes + tables locales pour départements (101 centroïdes statiques), régions et DOM-TOM

@@ -2,6 +2,11 @@
 
 *Agrégateur d'information géolocalisé pour la France — état au 3 août 2026*
 
+> **Instantané daté.** Ce rapport décrit le projet tel qu'il était le 3 août
+> 2026 et n'est pas tenu à jour : la pile a bougé depuis (Next.js 16,
+> Tailwind 4, Node 22), et le nombre de flux RSS aussi. Pour l'état courant,
+> voir le README et [`ANALYSE-CODE.md`](ANALYSE-CODE.md).
+
 ---
 
 ## 1. Résumé exécutif
@@ -16,7 +21,7 @@ d'actualités et d'un **brief quotidien** rédigé par IA.
 - **Stack** : Python 3.13 / FastAPI (backend), Next.js 14 / Leaflet (frontend),
   PostgreSQL 16 + PostGIS (base géospatiale), Mistral AI (extraction & briefs),
   le tout orchestré par Docker Compose et exposé via un tunnel Cloudflare.
-- **Sources** : 15 connecteurs, dont un agrégateur de **~868 flux RSS** de presse
+- **Sources** : 14 connecteurs, dont un agrégateur de **~868 flux RSS** de presse
   nationale et régionale.
 - **Principe** : une chaîne de traitement (pipeline) collecte, dédoublonne,
   analyse par IA, géolocalise et stocke les événements ; l'API les sert à un
@@ -75,7 +80,7 @@ aucune configuration CORS n'est nécessaire pour l'application elle-même.
 C'est le cœur du système. Pour chaque cycle d'ingestion :
 
 ```
-1. COLLECTE      Les 15 connecteurs interrogent leurs sources EN PARALLÈLE
+1. COLLECTE      Les 14 connecteurs interrogent leurs sources EN PARALLÈLE
                  (asyncio.gather), chacun avec un timeout de 120 s. Une source
                  en panne n'affecte pas les autres.
 
@@ -111,7 +116,7 @@ Un cycle complet prend **~1 à 2 minutes** (ex. 148 événements en ~1 min 40).
 
 ---
 
-## 5. Les sources (15 connecteurs)
+## 5. Les sources (14 connecteurs)
 
 | Connecteur | Domaine | Accès |
 |---|---|---|
@@ -496,7 +501,7 @@ backend/
 │   ├── maintenance.py     # backfill-locations, check-feeds, test-*, clean-extractions
 │   ├── models.py          # ORM (Event, ConnectorStatus, DailyBrief, PushSubscription, DailyStat)
 │   ├── data/communes_geo.csv   # 35k communes + coordonnées (embarqué)
-│   ├── connectors/        # 15 connecteurs de sources
+│   ├── connectors/        # 14 connecteurs de sources
 │   ├── pipeline/          # extractor, geocoder, ingestor, brief, sanitize, push, scheduler…
 │   └── api/routes/        # events.py, health.py, push.py
 ├── alembic/               # migrations (idempotentes)
