@@ -342,10 +342,10 @@ Les points 1 à 4 tiennent en une heure et referment la moitié du tableau de bo
 
 ## 11. Suites données (même branche)
 
-Les recommandations 1 à 5, 7 et 8 ont été appliquées et fusionnées. Les constats
-A, B, C, E et F sont clos, et tout ce qui précède se lit comme l'état **avant**
-correction. Restent ouvertes : la recommandation 6 (vendoriser le GeoJSON) et la
-9 (unification du schéma), cette dernière délibérément.
+Les recommandations 1 à 5 et 7 à 9 ont été appliquées et fusionnées. Les
+constats A, B, C, E, F et G sont clos, et tout ce qui précède se lit comme
+l'état **avant** correction. Reste ouverte : la recommandation 6 (vendoriser le
+GeoJSON départemental).
 
 | Recommandation | État | Vérification |
 |---|---|---|
@@ -357,7 +357,7 @@ correction. Restent ouvertes : la recommandation 6 (vendoriser le GeoJSON) et la
 | 6 — vendoriser le GeoJSON | ⏸ non traitée | Reste une dépendance tierce à l'exécution |
 | 7 — heures de brief, instruction Alembic | ✅ appliquée | Incluse dans #65 puis #70 |
 | 8 — migrations Next 16 et Tailwind 4 | ✅ appliquées | #67 et #68 ; #59 et #61 fermées comme obsolètes |
-| 9 — unifier le schéma | ⏸ non traitée | Chantier à dater : touche au schéma d'une base en production |
+| 9 — unifier le schéma | ✅ appliquée | Bascule **inerte** sur une base existante, prouvée sur PostGIS réel |
 | — healthcheck du frontend | ✅ ajouté | Hors recommandations : révélé par le déploiement du 30/08 (#70) |
 
 Détails :
@@ -441,3 +441,48 @@ rarement dans la même fenêtre de 120 s. Le correctif lève une impossibilité
 **structurelle** — aucune clé ne pouvait être relue — mais le gain restera
 latent tant que le trafic n'est pas concurrent. Le cache est désormais capable
 de servir ; il ne deviendra utile qu'avec de l'affluence.
+
+### Le constat G, et ce que l'unification a révélé
+
+Le point que le dépôt désignait lui-même comme son plus fragile. Trois
+mécanismes — `create_all` au démarrage, du DDL manuel dans `migrate_db()`, des
+révisions Alembic que rien n'exécutait — pour un seul schéma. Il n'en reste
+qu'un : Alembic, appliqué au démarrage.
+
+Le défaut central n'était pas la coexistence mais son cœur : **`0001_baseline`
+appelait `create_all`**. Une baseline qui vaut « ce que `models.py` dit
+aujourd'hui » n'est pas une baseline — elle se réécrit à chaque évolution des
+modèles, et rejouer l'historique ne reconstitue pas l'historique mais l'état
+courant. Elle est désormais figée en DDL explicite.
+
+Deux choses ont été trouvées en chemin, qu'aucune lecture n'avait données :
+
+- **Les révisions 0002 et 0003 posaient des `server_default` absents de
+  `models.py`** (`daily_stats.count`, `.departement`, `push_subscriptions
+  .gravite_min`, `.created_at`). Une base neuve construite par Alembic n'avait
+  donc **déjà pas** le même schéma que la production. Corrigé dans le sens sûr :
+  les migrations décrivent ce que la production a, on ne touche pas à la
+  production.
+- **Les index trigrammes n'existaient que dans `migrate_db()`.** Supprimer cette
+  fonction les aurait retirés des bases neuves sans que rien ne le signale : la
+  recherche aurait continué de fonctionner, en parcours séquentiel. Ils vivent
+  désormais dans la révision 0005.
+
+**Vérifié sur un PostgreSQL 16 + PostGIS réel**, monté pour l'occasion :
+
+| Ce qui a été comparé | Résultat |
+|---|---|
+| Base neuve migrée ⇄ base construite par l'ancien chemin | **96 objets identiques** — colonnes, types, défauts, index, contraintes, extensions |
+| Base existante peuplée, avant ⇄ après bascule | **aucun changement de schéma**, données intactes, base estampillée au dernier niveau |
+| Second passage des migrations | aucune révision rejouée |
+
+Cinq tests d'intégration (`tests/test_schema_migrations.py`) verrouillent ces
+propriétés dans la CI, dont celui qui compare le schéma migré à `models.py` —
+c'est lui qui avait révélé les `server_default`.
+
+Une observation laissée de côté, délibérément : `events` porte **deux index
+GiST identiques** sur `geom` — `ix_events_geom`, déclaré dans les modèles, et
+`idx_events_geom`, que GeoAlchemy2 crée d'office. La baseline les reproduit
+tous les deux, parce que son rôle est de décrire ce qui EST. En supprimer un est
+un correctif légitime, mais c'est une autre migration, avec sa propre
+justification et son propre risque.

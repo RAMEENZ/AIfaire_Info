@@ -32,8 +32,13 @@ def upgrade() -> None:
         sa.Column("categorie", sa.String(length=64), nullable=False),
         # "" = national/non localisé (pas NULL : les NULL sont distincts dans
         # une contrainte unique Postgres, ce qui casserait l'upsert ON CONFLICT).
-        sa.Column("departement", sa.String(length=3), nullable=False, server_default=""),
-        sa.Column("count", sa.Integer(), nullable=False, server_default="0"),
+        # PAS de server_default : `models.py` n'en déclare pas, et la table est
+        # CRÉÉE ici, pas altérée — un défaut serveur n'est nécessaire que pour
+        # ajouter une colonne NOT NULL à une table déjà peuplée. En déclarer un
+        # ici faisait diverger le schéma produit par Alembic de celui produit
+        # par l'ORM : deux installations, deux schémas.
+        sa.Column("departement", sa.String(length=3), nullable=False),
+        sa.Column("count", sa.Integer(), nullable=False),
         sa.UniqueConstraint(
             "jour", "categorie", "departement", name="uq_daily_stats_jour_cat_dept"
         ),

@@ -30,10 +30,11 @@ def upgrade() -> None:
         sa.Column("p256dh", sa.String(length=255), nullable=False),
         sa.Column("auth", sa.String(length=255), nullable=False),
         # "" = alertes nationales ; sinon code département.
-        sa.Column("departement", sa.String(length=3), nullable=False, server_default=""),
-        sa.Column("gravite_min", sa.Integer(), nullable=False, server_default="3"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
-                  server_default=sa.text("now()")),
+        # Pas de server_default (cf. 0002) : les valeurs par défaut sont
+        # côté Python dans `models.py`, et la table est créée, pas altérée.
+        sa.Column("departement", sa.String(length=3), nullable=False),
+        sa.Column("gravite_min", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("last_sent_at", sa.DateTime(timezone=True), nullable=True),
     )
     op.create_index("ix_push_dept_gravite", "push_subscriptions", ["departement", "gravite_min"])

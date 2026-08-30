@@ -86,8 +86,10 @@ docker compose exec backend python -m app.maintenance vapid-keys
 # → reporter VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_CONTACT_EMAIL
 #   dans le .env du serveur, puis :
 docker compose up -d backend
-docker compose exec backend alembic upgrade head   # table push_subscriptions
 ```
+
+La table `push_subscriptions` est créée par la migration `0003`, appliquée au
+démarrage : il n'y a pas d'étape supplémentaire.
 
 Fonctionnement : après chaque ingestion, les événements **nouvellement
 insérés** de gravité ≥ 2 déclenchent une notification vers les abonnés dont le
@@ -201,8 +203,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env  # puis éditer .env
 
-# Créer les tables
-python -c "import asyncio; from app.database import init_db; asyncio.run(init_db())"
+# Créer les tables (le démarrage le fait aussi tout seul)
+alembic upgrade head
 
 # Lancer
 uvicorn app.main:app --reload --port 8000
@@ -210,29 +212,45 @@ uvicorn app.main:app --reload --port 8000
 
 ### Migrations de schéma (Alembic)
 
-Le démarrage crée/complète toujours le schéma automatiquement (`init_db` +
-`migrate_db`, idempotents) — rien ne change pour l'existant. Alembic est la
-voie **pour les évolutions futures** :
+**Alembic est le seul maître du schéma.** Le backend applique les migrations à
+son démarrage : le conteneur peut être recréé par autoheal à tout moment, il
+doit rester autonome. Il n'y a rien à lancer à la main pour un déploiement
+ordinaire.
 
 ```bash
 cd backend
-alembic stamp head          # une seule fois sur une base EXISTANTE (marque la baseline)
 alembic upgrade head        # applique les migrations (crée tout sur une base neuve)
 alembic revision -m "..."   # nouvelle migration (opérations op.* explicites)
+alembic current             # niveau de la base
+alembic history             # historique des révisions
 ```
 
-En production : `docker compose exec backend alembic upgrade head`.
+En production, si l'on veut migrer sans redémarrer :
+`docker compose exec backend alembic upgrade head`.
 
-> **Trois mécanismes coexistent, et c'est le point le plus fragile du dépôt.**
-> Au démarrage, `init_db()` appelle `create_all` (crée les tables d'après
-> `models.py`) puis `migrate_db()` exécute du DDL écrit à la main
-> (`ALTER TABLE … IF NOT EXISTS`). Alembic, lui, n'est **jamais** lancé
-> automatiquement : ses quatre révisions décrivent des tables que `create_all`
-> a déjà produites. Rien n'est cassé — d'où le `alembic stamp head` ci-dessus,
-> qui évite le conflit — mais une colonne ajoutée demain a trois domiciles
-> possibles, et celui que ce README recommande n'est pas celui qui s'exécute.
-> Unifier demande de toucher au schéma d'une base en production : à faire
-> délibérément, pas au détour d'un correctif.
+Deux règles tiennent l'ensemble :
+
+1. **`0001_baseline` ne change plus jamais.** Elle décrit le schéma tel qu'il
+   était quand Alembic a pris la main, en DDL explicite. Toute évolution passe
+   par une nouvelle révision — jamais par une retouche de l'existante.
+2. **Ce que déclare une migration doit correspondre à `models.py`.**
+   `tests/test_schema_migrations.py` compare les deux sur une base réelle et
+   échoue à la moindre dérive. C'est ce test qui a révélé que les révisions
+   0002 et 0003 posaient des `server_default` absents des modèles : une base
+   neuve n'avait déjà pas le même schéma que la production.
+
+Une base antérieure à Alembic (schéma présent, pas de table `alembic_version`)
+est **estampillée** à la baseline au premier démarrage, puis migrée. Les
+révisions suivantes sont toutes gardées : sur une telle base, elles ne font
+rien. La bascule est inerte — même schéma, mêmes données.
+
+> **Historique.** Trois mécanismes ont longtemps coexisté : `create_all` au
+> démarrage, du DDL manuel dans `migrate_db()`, et des révisions Alembic que
+> rien n'exécutait. Une colonne ajoutée avait trois domiciles possibles, et
+> celui que ce README recommandait n'était pas celui qui s'exécutait. Les deux
+> premiers ont été supprimés ; ce qu'ils garantissaient — les colonnes ajoutées
+> par `ALTER TABLE`, les index trigrammes de recherche — vit désormais dans la
+> baseline et dans la révision 0005.
 
 ### Frontend
 
