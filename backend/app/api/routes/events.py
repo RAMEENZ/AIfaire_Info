@@ -64,7 +64,34 @@ async def invalidate_events_cache() -> int:
     return removed
 
 
+def _tronque_minute(valeur):
+    """Ramène un instant à la minute — POUR LA CLÉ DE CACHE UNIQUEMENT.
+
+    Le front calcule sa borne temporelle par `Date.now() - heures × 3600000`,
+    recalculée à chaque requête : elle porte donc les millisecondes. Reprise
+    telle quelle dans la clé, elle en faisait une clé NEUVE à chaque appel — deux
+    visiteurs arrivant à la même seconde produisaient deux clés distinctes et
+    deux requêtes PostGIS. Mesuré en production le 30/08/2026, après plusieurs
+    jours de service : `keyspace_hits:0`, `keyspace_misses:104`. Le cache
+    n'écrivait que des entrées qu'il ne relirait jamais.
+
+    Le coût de l'arrondi est borné et déjà consenti : deux requêtes regroupées
+    couvrent des fenêtres décalées d'au plus 60 s, alors que la réponse servie
+    peut de toute façon dater de REDIS_EVENTS_TTL (120 s par défaut). On ne
+    dégrade donc pas la fraîcheur au-delà de ce que le cache admet déjà.
+
+    La REQUÊTE, elle, garde la valeur exacte : seul le regroupement est arrondi.
+    """
+    if isinstance(valeur, datetime):
+        return valeur.replace(second=0, microsecond=0)
+    return valeur
+
+
 def _events_cache_key(**params) -> str:
+    params = {
+        cle: _tronque_minute(val) if cle in ("depuis", "avant") else val
+        for cle, val in params.items()
+    }
     raw = json.dumps(params, sort_keys=True, default=str)
     return f"events:{hashlib.md5(raw.encode()).hexdigest()}"
 
