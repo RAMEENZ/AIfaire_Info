@@ -394,8 +394,7 @@ Les points 1 à 4 tiennent en une heure et referment la moitié du tableau de bo
 Les neuf recommandations ont été appliquées et fusionnées. Les constats A, B,
 C, D, E, F, G et J sont clos, et tout ce qui précède se lit comme l'état
 **avant** correction. Restent ouvertes, par décision : les observations mineures
-du constat I, et le doublon d'index GiST sur `events.geom`, qui mérite sa propre
-migration et sa propre justification.
+du constat I.
 
 | Recommandation | État | Vérification |
 |---|---|---|
@@ -410,6 +409,7 @@ migration et sa propre justification.
 | 9 — unifier le schéma | ✅ appliquée | Bascule **inerte** sur une base existante, prouvée sur PostGIS réel |
 | — healthcheck du frontend | ✅ ajouté | Hors recommandations : révélé par le déploiement du 30/08 (#70) |
 | — exercice de restauration (constat J) | ✅ corrigé | Hors recommandations : script `restore-drill.sh`, dont l'échec est **mesuré** sur quatre sauvegardes défectueuses |
+| — doublon d'index GiST sur `events.geom` | ✅ supprimé | Révision 0006 ; les deux définitions étaient identiques au nom près (vérifié sur PostGIS) |
 
 Détails :
 
