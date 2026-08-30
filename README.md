@@ -110,6 +110,23 @@ privée ne doit jamais être commitée.
 - **Archive des briefs** : les briefs précédents (14 derniers) sont consultables depuis le panneau Brief (`GET /api/brief/history`).
 - **Bulles de la carte** : titre cliquable vers l'article d'origine, catégorie, gravité, lieu, résumé IA et tags. Le résumé est chargé à l'ouverture de la bulle ; en cas d'échec réseau, la bulle reste lisible et propose de réessayer plutôt que d'afficher un vide.
 
+### Données cartographiques et attributions
+
+- **Fonds de carte** : tuiles OpenStreetMap, attribuées dans la carte.
+- **Contours départementaux** : `frontend/public/departements.geojson`, servi par
+  l'application. Copie conforme de
+  [gregoiredavid/france-geojson](https://github.com/gregoiredavid/france-geojson)
+  (`departements-version-simplifiee.geojson`), issu de l'IGN Admin Express COG
+  (édition 2018), sous
+  [Licence Ouverte / Etalab](https://www.etalab.gouv.fr/licence-ouverte-open-licence/).
+  Le fichier était auparavant tiré de `raw.githubusercontent.com` à l'exécution,
+  chez chaque visiteur, sur une branche `master` non épinglée : le calque
+  dépendait d'un dépôt tiers, ne fonctionnait pas hors ligne, et imposait une
+  origine tierce de plus dans la CSP. La provenance et la somme de contrôle sont
+  documentées en tête de `frontend/src/components/FranceMap.tsx` ; pour le mettre
+  à jour, retélécharger le fichier, remplacer la somme, et incrémenter
+  `CACHE_VERSION` dans `frontend/public/sw.js`.
+
 ### Supervision externe (recommandé)
 
 Tout ce qui tourne sur le serveur meurt avec lui : ajoutez un moniteur externe

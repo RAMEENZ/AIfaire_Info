@@ -250,6 +250,15 @@ promesse affichée de l'application, et il impose de garder
 Le fichier simplifié pèse quelques centaines de kilo-octets : le poser dans
 `public/` clôt le sujet, comme cela a été fait pour les icônes Leaflet.
 
+**Clos le 30/08/2026.** Le fichier (569 299 octets, 96 départements, sha256
+`c08a1ad4…`) est copié tel quel dans `frontend/public/departements.geojson` —
+sans reformatage ni réduction de précision, pour que sa somme de contrôle reste
+comparable à l'amont. Les trois coûts tombent ensemble : `raw.githubusercontent.com`
+a été retiré de `connect-src` dans la CSP, le service worker sert désormais le
+calque hors ligne (il ignorait les requêtes cross-origin : le calque était
+simplement absent), et plus aucune branche `master` tierce n'est sur le chemin
+critique de la carte.
+
 ### E — Dérive documentaire sur les heures de brief
 
 `README.md:42` annonce 9h/14h/21h (conforme à `BRIEF_HOURS = "9,14,21"` et à la
@@ -382,10 +391,11 @@ Les points 1 à 4 tiennent en une heure et referment la moitié du tableau de bo
 
 ## 11. Suites données (même branche)
 
-Les recommandations 1 à 5 et 7 à 9 ont été appliquées et fusionnées. Les
-constats A, B, C, E, F, G et J sont clos, et tout ce qui précède se lit comme
-l'état **avant** correction. Reste ouverte : la recommandation 6 (vendoriser le
-GeoJSON départemental).
+Les neuf recommandations ont été appliquées et fusionnées. Les constats A, B,
+C, D, E, F, G et J sont clos, et tout ce qui précède se lit comme l'état
+**avant** correction. Restent ouvertes, par décision : les observations mineures
+du constat I, et le doublon d'index GiST sur `events.geom`, qui mérite sa propre
+migration et sa propre justification.
 
 | Recommandation | État | Vérification |
 |---|---|---|
@@ -394,7 +404,7 @@ GeoJSON départemental).
 | 3 — fusionner #63, #60, #64 | ✅ fusionnées | #60 et #64 sont passées au vert **sans un seul changement**, une fois (1) sur `main` |
 | 4 — passer à Node 22 | ✅ appliquée | jsdom 30 + Node 22 : **70 tests passent** (mesuré) ; #62 fusionnée ensuite |
 | 5 — clé de cache Redis | ✅ appliquée | **Vérifiée en production** : `+1 hit` sur le cas qui échouait (#70) |
-| 6 — vendoriser le GeoJSON | ⏸ non traitée | Reste une dépendance tierce à l'exécution |
+| 6 — vendoriser le GeoJSON | ✅ appliquée | 96 tracés rendus depuis `/departements.geojson`, zéro requête GitHub (E2E) ; `connect-src` allégé |
 | 7 — heures de brief, instruction Alembic | ✅ appliquée | Incluse dans #65 puis #70 |
 | 8 — migrations Next 16 et Tailwind 4 | ✅ appliquées | #67 et #68 ; #59 et #61 fermées comme obsolètes |
 | 9 — unifier le schéma | ✅ appliquée | Bascule **inerte** sur une base existante, prouvée sur PostGIS réel |

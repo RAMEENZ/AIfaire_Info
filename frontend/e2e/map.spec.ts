@@ -158,3 +158,50 @@ test.describe("carte de chaleur", () => {
     }
   });
 });
+
+/**
+ * Contours départementaux : servis par l'application (public/departements.geojson)
+ * et non plus tirés de raw.githubusercontent.com chez chaque visiteur, sur une
+ * branche `master` non épinglée.
+ *
+ * Trois choses seulement une vérification au navigateur peut établir : que le
+ * fichier est bien servi à cette URL, qu'il est assez valide pour que Leaflet en
+ * tire des tracés, et qu'aucune requête ne part encore vers GitHub. Un chemin
+ * erroné passerait la compilation et le build sans broncher — le calque
+ * disparaîtrait en silence, exactement comme il aurait disparu le jour où le
+ * fichier amont aurait été renommé.
+ */
+test.describe("contours départementaux", () => {
+  test("le calque vient de l'application, pas de GitHub", async ({ page }) => {
+    const requetes: string[] = [];
+    const reponses: string[] = [];
+    page.on("request", (r) => requetes.push(r.url()));
+    page.on("response", (r) => {
+      const chemin = new URL(r.url()).pathname;
+      if (chemin === "/departements.geojson") reponses.push(`${r.status()} ${chemin}`);
+    });
+
+    await mockApi(page, { total: 10 });
+    await page.goto("/");
+    await page.waitForSelector(".leaflet-container");
+
+    // Leaflet rend chaque département en <path>. Le compte attendu est 96
+    // (métropole ; l'outre-mer passe par les raccourcis DOM_TOM), mais on ne
+    // fige pas ce nombre : il dépend du fichier amont, pas du code. Un seuil
+    // large distingue « le calque est là » de « le calque a disparu », qui est
+    // la seule chose que ce test doit surveiller. Les marqueurs sont des
+    // divIcon, ils n'ajoutent aucun <path>.
+    await expect
+      .poll(() => page.locator(".leaflet-container path").count(), { timeout: 15_000 })
+      .toBeGreaterThan(80);
+
+    expect(
+      reponses,
+      "le GeoJSON est servi par l'application, en 200",
+    ).toContain("200 /departements.geojson");
+    expect(
+      requetes.filter((u) => u.includes("githubusercontent.com")),
+      "plus aucune requête vers GitHub",
+    ).toEqual([]);
+  });
+});

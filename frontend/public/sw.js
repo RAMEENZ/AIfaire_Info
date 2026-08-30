@@ -11,7 +11,7 @@
  *  - skipWaiting + clients.claim : une nouvelle version prend la main
  *    immédiatement, sans laisser un ancien worker piloter la page.
  */
-const CACHE_VERSION = "faire-info-v2";
+const CACHE_VERSION = "faire-info-v3";
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const API_CACHE = `${CACHE_VERSION}-api`;
 // Les événements ont leur propre cache : partageant celui des autres appels,
@@ -113,6 +113,28 @@ self.addEventListener("fetch", (event) => {
             return res;
           })
       )
+    );
+    return;
+  }
+
+  // Contours départementaux : réseau d'abord, cache en repli. Le fichier est
+  // désormais servi par l'application (il venait d'un dépôt GitHub tiers, que
+  // ce worker ignorait : les requêtes cross-origin sortent plus haut, le calque
+  // était donc simplement absent hors ligne). Son URL n'étant pas versionnée
+  // par empreinte, on ne le sert pas « cache d'abord » comme /_next/static :
+  // le réseau reste prioritaire, conformément au principe de ce fichier, et une
+  // mise à jour du fichier est prise en compte au premier chargement en ligne.
+  if (url.pathname === "/departements.geojson") {
+    event.respondWith(
+      fetch(request)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(RUNTIME_CACHE).then((c) => c.put(request, copy));
+          }
+          return res;
+        })
+        .catch(async () => (await caches.match(request)) || Response.error())
     );
     return;
   }
