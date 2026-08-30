@@ -69,7 +69,7 @@ export default function TimelineBar({
   }
 
   return (
-    <div className="border-b border-gray-100 dark:border-gray-700 px-3 pt-2 pb-1.5 bg-white dark:bg-gray-800 flex-shrink-0">
+    <div className="border-b border-gray-100 dark:border-gray-700 px-3 pt-2 pb-1.5 bg-white dark:bg-gray-800 shrink-0">
       <div className="flex items-center gap-2 mb-1.5">
         <button
           onClick={switchToLive}
@@ -104,7 +104,7 @@ export default function TimelineBar({
                   onHistoryDateChange(new Date(e.target.value + "T00:00:00Z"));
                 }
               }}
-              className="text-[10px] px-2 py-0.5 border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-blue-400 dark:bg-gray-700 dark:text-gray-200"
+              className="text-[10px] px-2 py-0.5 border border-gray-200 dark:border-gray-600 rounded-sm focus:outline-hidden focus:border-blue-400 dark:bg-gray-700 dark:text-gray-200"
             />
             <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">
               — 48h
@@ -128,7 +128,7 @@ export default function TimelineBar({
                 key={b.time}
                 onClick={() => switchToHistory(b.time.slice(0, 10))}
                 style={{ height, backgroundColor: color, flexGrow: 1, minWidth: 3 }}
-                className="rounded-sm opacity-60 hover:opacity-100 transition-opacity"
+                className="rounded-xs opacity-60 hover:opacity-100 transition-opacity"
                 title={`${dateLabel} : ${b.count} événement${b.count !== 1 ? "s" : ""}`}
               />
             );

@@ -128,7 +128,7 @@ function LocalBriefPanel({ dept }: { dept: string }) {
         {data.faits.map((f) => (
           <li key={f.id} className="flex items-start gap-1.5">
             <span
-              className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5"
+              className="w-1.5 h-1.5 rounded-full shrink-0 mt-1.5"
               style={{ backgroundColor: GRAVITE_CONFIG[f.gravite]?.color ?? "#6B7280" }}
             />
             <a

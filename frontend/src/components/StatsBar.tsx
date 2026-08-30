@@ -39,7 +39,7 @@ export default function StatsBar({ localCount, nationalCount, newestEventDate, e
   const activeCats = (Object.entries(catCounts) as [Categorie, number][]).sort((a, b) => b[1] - a[1]);
 
   return (
-    <div className="px-4 py-1.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+    <div className="px-4 py-1.5 bg-gray-50 dark:bg-gray-900/40 border-b border-gray-200 dark:border-gray-700 shrink-0">
       <div className="flex items-center gap-2 text-xs">
         <span className="font-semibold text-gray-700 dark:text-gray-200">{total}</span>
         <span className="text-gray-500 dark:text-gray-400">événements</span>

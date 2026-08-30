@@ -147,8 +147,8 @@ export default function EventMarker({ event, isSelected, onSelect }: EventMarker
             </div>
           ) : chargement ? (
             <div className="px-3 pb-2" aria-live="polite">
-              <div className="h-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse mb-1.5" />
-              <div className="h-3 w-3/4 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+              <div className="h-3 rounded-sm bg-gray-200 dark:bg-gray-700 animate-pulse mb-1.5" />
+              <div className="h-3 w-3/4 rounded-sm bg-gray-200 dark:bg-gray-700 animate-pulse" />
               <span className="sr-only">Chargement du résumé…</span>
             </div>
           ) : echec ? (
@@ -172,7 +172,7 @@ export default function EventMarker({ event, isSelected, onSelect }: EventMarker
               {complet.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs"
+                  className="px-1.5 py-0.5 rounded-sm bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs"
                 >
                   #{tag}
                 </span>

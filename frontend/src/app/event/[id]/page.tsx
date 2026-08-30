@@ -41,7 +41,7 @@ export default function EventPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="flex items-center gap-4 px-4 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+      <header className="flex items-center gap-4 px-4 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-xs">
         <a
           href={event ? `/?event=${event.id}` : "/"}
           className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
@@ -77,24 +77,24 @@ export default function EventPage() {
         )}
 
         {event && (
-          <article className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+          <article className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xs p-6">
             <div className="flex flex-wrap items-center gap-1.5 mb-3">
               <span
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-white text-xs font-medium"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-white text-xs font-medium"
                 style={{ backgroundColor: catConfig?.color ?? "#6B7280" }}
               >
                 {catConfig?.icon} {catConfig?.label ?? event.categorie}
               </span>
               {event.gravite >= 1 && (
                 <span
-                  className="inline-flex items-center px-2 py-0.5 rounded text-white text-xs font-medium"
+                  className="inline-flex items-center px-2 py-0.5 rounded-sm text-white text-xs font-medium"
                   style={{ backgroundColor: GRAVITE_CONFIG[event.gravite]?.color ?? "#6B7280" }}
                 >
                   {GRAVITE_CONFIG[event.gravite]?.label}
                 </span>
               )}
               {event.lieu_nom && event.lieu_nom !== "national" && (
-                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs">
+                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-sm bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs">
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
                   </svg>
@@ -123,7 +123,7 @@ export default function EventPage() {
                 {event.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs"
+                    className="px-1.5 py-0.5 rounded-sm bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs"
                   >
                     #{tag}
                   </span>
@@ -149,7 +149,7 @@ export default function EventPage() {
                 href={event.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-sm bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors"
               >
                 Lire l'article original
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">

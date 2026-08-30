@@ -109,7 +109,7 @@ export default function FilterBar({
         onClick={() => setMobileOpen((v) => !v)}
         aria-expanded={mobileOpen}
         aria-label="Afficher ou masquer les filtres"
-        className="md:hidden flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+        className="md:hidden flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
       >
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
@@ -250,7 +250,7 @@ export default function FilterBar({
               type="datetime-local"
               value={dateFrom}
               onChange={(e) => handleDateFrom(e.target.value)}
-              className="text-[10px] px-1.5 py-1 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:border-indigo-400 focus:outline-none focus:border-indigo-500 transition-colors"
+              className="text-[10px] px-1.5 py-1 border border-gray-300 dark:border-gray-600 rounded-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:border-indigo-400 focus:outline-hidden focus:border-indigo-500 transition-colors"
               title="Début de la période"
             />
             {dateFrom && !matchesPreset && (
@@ -272,7 +272,7 @@ export default function FilterBar({
             setShowDateRange(false);
             setDateFrom("");
           }}
-          className="flex items-center gap-1 text-xs px-2.5 py-1.5 md:px-2 md:py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          className="flex items-center gap-1 text-xs px-2.5 py-1.5 md:px-2 md:py-1 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           title="Réinitialiser tous les filtres"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -290,7 +290,7 @@ export default function FilterBar({
         href={urlFlux(API_BASE_URL, { filters, dept: selectedDept ?? null })}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-1 text-xs px-2.5 py-1.5 md:px-2 md:py-1 rounded border border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors ml-auto"
+        className="flex items-center gap-1 text-xs px-2.5 py-1.5 md:px-2 md:py-1 rounded-sm border border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors ml-auto"
         title="S'abonner en RSS aux événements correspondant aux filtres affichés"
       >
         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -307,7 +307,7 @@ export default function FilterBar({
         // qui ouvre le groupe de droite. Deux `ml-auto` dans la même rangée
         // auraient réparti l'espace ENTRE les deux boutons au lieu de les
         // regrouper.
-        className="flex items-center gap-1 text-xs px-3 py-1 rounded border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="flex items-center gap-1 text-xs px-3 py-1 rounded-sm border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         // « Actualiser les données » laissait croire que le bouton relançait
         // la collecte. Il ne fait que relire la base : si la dernière collecte
         // date de midi, il redonnera exactement les mêmes événements.

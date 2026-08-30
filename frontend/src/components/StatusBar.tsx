@@ -124,7 +124,7 @@ function ConnectorDot({ connector }: { connector: ConnectorStatus }) {
       aria-expanded={tooltipVisible}
     >
       <span
-        className="block w-2 h-2 rounded-full flex-shrink-0"
+        className="block w-2 h-2 rounded-full shrink-0"
         style={{ backgroundColor: color }}
         aria-hidden="true"
       />
@@ -162,7 +162,7 @@ function ConnectorDot({ connector }: { connector: ConnectorStatus }) {
             </span>
           )}
           {connector.last_error && (
-            <span className="block mt-1 text-red-300 break-words">
+            <span className="block mt-1 text-red-300 wrap-break-word">
               {connector.last_error}
             </span>
           )}
@@ -218,7 +218,7 @@ export default function StatusBar({
   }
 
   return (
-    <footer className="flex items-center gap-4 px-4 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] bg-gray-50 dark:bg-gray-900/40 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 z-10">
+    <footer className="flex items-center gap-4 px-4 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] bg-gray-50 dark:bg-gray-900/40 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 shrink-0 z-10">
       <span className="font-medium text-gray-600 dark:text-gray-300 hidden sm:block">Connecteurs :</span>
 
       {connectors.length === 0 ? (

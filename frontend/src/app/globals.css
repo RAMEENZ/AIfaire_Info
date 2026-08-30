@@ -1,8 +1,52 @@
-@import "leaflet/dist/leaflet.css";
+@import 'leaflet/dist/leaflet.css' layer(base);
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-brand: #1d4ed8;
+  --color-brand-light: #3b82f6;
+
+  /*
+    Pile de polices figée, et non héritée du défaut de Tailwind.
+
+    La v3 appliquait « ui-sans-serif, system-ui, … » à html. La Preflight de la
+    v4 écrit `font-family: var(--default-font-family, -apple-system,
+    BlinkMacSystemFont, …)` : la variable n'étant définie nulle part ici,
+    l'application retombait sur cette pile de repli. Mesuré au moment de la
+    migration : mêmes tailles, mêmes espacements, mais un bouton de filtre
+    passait de 78,2 px à 73,4 px de large — la police rendue n'était plus la
+    même, sur toute l'interface.
+
+    Aucun test ne l'aurait vu : la typographie ne casse rien, elle décale.
+    On déclare donc la pile explicitement, au lieu de dépendre du défaut d'une
+    version ou de l'autre.
+  */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --default-font-family: var(--font-sans);
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
 
 html,
 body {
