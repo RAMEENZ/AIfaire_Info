@@ -360,9 +360,38 @@ exactement comme en production. Reproduit et corrigé sur PostgreSQL réel :
 même dump, `role … does not exist` et sortie 3 sans le rôle, sortie 0 et toutes
 les vérifications au vert avec lui.
 
-C'est la leçon d'un exercice de restauration : le premier échec est plus
+**Deuxième échec, même soirée.** Le lancement suivant a échoué à son tour — et
+cette fois sans afficher la moindre erreur, alors que je venais d'ajouter cet
+affichage. Deux secondes entre « serveur prêt » et l'alerte.
+
+La cause : l'entrypoint de l'image PostgreSQL démarre un serveur **temporaire**
+pendant l'initialisation (création du rôle, de la base, installation de
+PostGIS), avec `listen_addresses=''`. Il accepte sur la socket unix mais pas en
+TCP. Ma sonde `pg_isready` passait par la socket : elle répondait « prêt » au
+bout de trois secondes, sur un serveur qui allait s'arrêter, et la restauration
+mourait avec lui. Mesuré sur le serveur :
+
+```
+--- à  3 s ---   socket : accepting connections (0)   tcp : no response (2)
+--- à 28 s ---                                        tcp : accepting     (0)
+```
+
+et dans le journal du conteneur, `listening on IPv4 address "0.0.0.0"`
+n'apparaît qu'après `PostgreSQL init process complete`. L'ouverture du port TCP
+est le signal exact de la fin d'initialisation ; la sonde passe donc par lui.
+Contre-épreuve sur banc d'essai local, même sauvegarde : avec l'ancienne sonde,
+« serveur prêt » immédiat puis échec ; avec la nouvelle, six secondes d'attente
+puis succès complet.
+
+Le silence, lui, reste partiellement inexpliqué : sur mon banc, psql annonce
+son erreur ; sur le serveur, il n'a rien dit. C'est pourquoi l'échec affiche
+désormais **aussi** le journal du conteneur — c'est lui qui a permis le
+diagnostic à la main, il devait être dans le script.
+
+C'est la leçon d'un exercice de restauration : les premiers échecs sont plus
 souvent le banc d'essai que la sauvegarde, et c'est précisément pourquoi il faut
-le faire tourner avant d'en avoir besoin.
+le faire tourner avant d'en avoir besoin. Deux défauts en deux lancements, tous
+deux dans l'outil de vérification — aucun dans les sauvegardes.
 
 ### K — Une modification de `nginx.conf` ne parvient jamais au conteneur
 
