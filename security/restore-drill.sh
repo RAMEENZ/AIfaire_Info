@@ -26,6 +26,11 @@
 set -euo pipefail
 
 DB_NAME="${DB_NAME:-faire_info}"
+# Rôle propriétaire des objets. Le dump de production est pris avec
+# `pg_dump -U faire_info` : il contient des `ALTER … OWNER TO faire_info`. Un
+# conteneur de test qui ignore ce rôle rejette la restauration dès la première
+# de ces instructions — un échec du banc d'essai, pas de la sauvegarde.
+DB_USER="${DB_USER:-faire_info}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/aifaire}"
 KEY_FILE="${KEY_FILE:-/etc/aifaire-backup.key}"
 # Même image que la production (docker-compose.yml) : restaurer sur une version
@@ -55,7 +60,7 @@ nettoyer() { docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true; }
 trap nettoyer EXIT
 fail() { log "ALERTE : $1"; notify "EXERCICE de restauration KO : $1"; exit 1; }
 
-psql_drill() { docker exec -i "${CONTAINER}" psql -U postgres -X -q "$@"; }
+psql_drill() { docker exec -i "${CONTAINER}" psql -U "${DB_USER}" -X -q "$@"; }
 
 # ── Pré-requis ───────────────────────────────────────────────────────────────
 command -v docker >/dev/null 2>&1 || fail "docker introuvable"
@@ -69,28 +74,44 @@ log "Sauvegarde retenue : ${LATEST}"
 # ── 1) Serveur jetable ───────────────────────────────────────────────────────
 # Pas de port publié : on entre par `docker exec`. Aucun risque de collision
 # avec la base de production, ni d'exposition réseau.
-docker run -d --name "${CONTAINER}" -e POSTGRES_PASSWORD=drill "${PG_IMAGE}" >/dev/null \
+#
+# POSTGRES_USER et POSTGRES_DB reprennent ceux du service `db` de production
+# (docker-compose.yml) : l'entrypoint de l'image crée alors le rôle ET la base
+# exactement comme en production, et l'image postgis installe l'extension dans
+# cette base. Sans cela, la restauration échouait sur
+# `role "faire_info" does not exist` — le dump portant les propriétaires, un
+# banc d'essai qui les ignore accuse la sauvegarde à tort.
+docker run -d --name "${CONTAINER}" \
+  -e POSTGRES_USER="${DB_USER}" -e POSTGRES_PASSWORD=drill -e POSTGRES_DB="${DB_NAME}" \
+  "${PG_IMAGE}" >/dev/null \
   || fail "impossible de démarrer ${PG_IMAGE}"
 
 # `sleep 15` était un pari sur la vitesse de démarrage ; on attend le serveur.
 deadline=$(( $(date +%s) + BOOT_TIMEOUT ))
-until docker exec "${CONTAINER}" pg_isready -U postgres >/dev/null 2>&1; do
+until docker exec "${CONTAINER}" pg_isready -U "${DB_USER}" -d "${DB_NAME}" >/dev/null 2>&1; do
   (( $(date +%s) < deadline )) || fail "le serveur de test n'accepte pas les connexions après ${BOOT_TIMEOUT}s"
   sleep 1
 done
 log "Serveur de test prêt (${PG_IMAGE})."
 
 # ── 2) Restauration ──────────────────────────────────────────────────────────
-docker exec "${CONTAINER}" createdb -U postgres "${DB_NAME}" \
-  || fail "createdb ${DB_NAME} a échoué"
-
+# La base existe déjà (créée par l'entrypoint, cf. POSTGRES_DB ci-dessus).
+#
 # ON_ERROR_STOP=1 : la moindre instruction en échec avorte la restauration et
-# fait sortir psql en 3. C'est tout l'intérêt de l'exercice.
+# fait sortir psql en 3. C'est tout l'intérêt de l'exercice — sans ce drapeau,
+# psql sort 0 après une erreur au milieu du script et une restauration à moitié
+# appliquée passerait pour un succès.
+journal="$(mktemp)"
 if ! openssl enc -d -aes-256-cbc -pbkdf2 -pass "file:${KEY_FILE}" -in "${LATEST}" 2>/dev/null \
      | gunzip \
-     | psql_drill -d "${DB_NAME}" -v ON_ERROR_STOP=1 >/dev/null; then
+     | psql_drill -d "${DB_NAME}" -v ON_ERROR_STOP=1 >/dev/null 2>"${journal}"; then
+  # Montrer l'erreur de PostgreSQL : elle dit si la sauvegarde est en cause ou
+  # si c'est l'environnement de test qui ne sait pas l'accueillir.
+  tail -5 "${journal}" >&2 || true
+  rm -f "${journal}"
   fail "la restauration de ${LATEST} a échoué (déchiffrement, décompression ou SQL)"
 fi
+rm -f "${journal}"
 log "Restauration terminée sans erreur SQL."
 
 # ── 3) Vérifications sur la base restaurée ───────────────────────────────────
