@@ -31,7 +31,7 @@ doublée d'un fil et d'un brief rédigé trois fois par jour.
 | Frontend `src/` + `e2e/` | 7 870 lignes (39 `.ts`, 23 `.tsx`) |
 | Tests frontend | **70 unitaires (Vitest) + 56 de bout en bout (Playwright)** |
 | Flux RSS | **848** entrées dans `presse_rss.py` (conforme au README) |
-| Connecteurs | 15 |
+| Connecteurs | 14 |
 | Historique git | 50 commits, tous entre le 02 et le 22/08/2026 |
 
 Le rapport de test / code est de ~1 pour 2,4 côté backend. C'est élevé, et la
@@ -342,9 +342,10 @@ Les points 1 à 4 tiennent en une heure et referment la moitié du tableau de bo
 
 ## 11. Suites données (même branche)
 
-Les recommandations 1 à 4 et 8 ont été appliquées et fusionnées. Les constats A
-et B sont clos, et tout ce qui précède se lit comme l'état **avant** correction.
-Seule la recommandation 9 (unification du schéma) reste ouverte, délibérément.
+Les recommandations 1 à 5, 7 et 8 ont été appliquées et fusionnées. Les constats
+A, B, C, E et F sont clos, et tout ce qui précède se lit comme l'état **avant**
+correction. Restent ouvertes : la recommandation 6 (vendoriser le GeoJSON) et la
+9 (unification du schéma), cette dernière délibérément.
 
 | Recommandation | État | Vérification |
 |---|---|---|
@@ -352,8 +353,12 @@ Seule la recommandation 9 (unification du schéma) reste ouverte, délibérémen
 | 2 — corriger `.env.example` | ✅ appliquée | `Settings(_env_file=…)` charge ; deux tests de non-régression ajoutés |
 | 3 — fusionner #63, #60, #64 | ✅ fusionnées | #60 et #64 sont passées au vert **sans un seul changement**, une fois (1) sur `main` |
 | 4 — passer à Node 22 | ✅ appliquée | jsdom 30 + Node 22 : **70 tests passent** (mesuré) ; #62 fusionnée ensuite |
+| 5 — clé de cache Redis | ✅ appliquée | **Vérifiée en production** : `+1 hit` sur le cas qui échouait (#70) |
+| 6 — vendoriser le GeoJSON | ⏸ non traitée | Reste une dépendance tierce à l'exécution |
+| 7 — heures de brief, instruction Alembic | ✅ appliquée | Incluse dans #65 puis #70 |
 | 8 — migrations Next 16 et Tailwind 4 | ✅ appliquées | #67 et #68 ; #59 et #61 fermées comme obsolètes |
 | 9 — unifier le schéma | ⏸ non traitée | Chantier à dater : touche au schéma d'une base en production |
+| — healthcheck du frontend | ✅ ajouté | Hors recommandations : révélé par le déploiement du 30/08 (#70) |
 
 Détails :
 
@@ -416,3 +421,23 @@ retirer la propriété inopérante.
 Captures avant/après en 1366 px et 390 px, thèmes clair et sombre : celles de
 Next 16 sont **identiques à l'octet** à celles prises après Tailwind 4, qui sont
 elles-mêmes indiscernables de la référence v3.
+
+### Le constat C, de bout en bout
+
+C'est le seul constat de ce rapport dont la boucle a été fermée jusqu'à la
+mesure en production. Elle mérite d'être écrite, parce que chaque maillon
+disait quelque chose que le précédent ne pouvait pas dire.
+
+| Étape | Ce qu'on a appris |
+|---|---|
+| **Lecture** | `_events_cache_key` reprend `depuis` tel quel ; le front l'envoie à la milliseconde, recalculé à chaque requête |
+| **Mesure (30/08)** | `keyspace_hits:0` · `keyspace_misses:104` — pas un taux faible : aucune réutilisation, jamais |
+| **Correctif (#70)** | `depuis` et `avant` arrondis à la minute dans la clé seulement ; six tests de non-régression |
+| **Vérification (30/08)** | Deux requêtes ne différant que par les microsecondes : `+1 miss`, puis **`+1 hit`** |
+
+Une nuance que la mesure a apportée et que la lecture seule ne donnait pas :
+avec ~106 requêtes sur toute la vie du conteneur Redis, deux visiteurs tombent
+rarement dans la même fenêtre de 120 s. Le correctif lève une impossibilité
+**structurelle** — aucune clé ne pouvait être relue — mais le gain restera
+latent tant que le trafic n'est pas concurrent. Le cache est désormais capable
+de servir ; il ne deviendra utile qu'avec de l'affluence.
