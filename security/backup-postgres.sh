@@ -23,12 +23,20 @@
 # puis passer RCLONE_REMOTE au cron :
 #   30 2 * * *  WEBHOOK_URL=… RCLONE_REMOTE=b2:aifaire-backups /opt/aifaire/security/backup-postgres.sh >> /var/log/aifaire-backup.log 2>&1
 #
-# Restauration :
+# Restauration (production, après incident) — le dump est produit sans
+# --create : il ne recrée PAS la base et ne fait que rejouer des CREATE/COPY.
+# L'appliquer sur une base non vide accumule les « already exists » ; on repart
+# donc d'une base neuve, et ON_ERROR_STOP=1 fait échouer la restauration au
+# premier problème au lieu de la laisser à moitié appliquée :
+#   docker compose stop backend
+#   docker compose exec -T db dropdb   -U faire_info --if-exists faire_info
+#   docker compose exec -T db createdb -U faire_info faire_info
 #   openssl enc -d -aes-256-cbc -pbkdf2 -pass file:/etc/aifaire-backup.key \
 #     -in faire_info-AAAA-MM-JJ.sql.gz.enc | gunzip | \
-#     docker compose exec -T db psql -U faire_info -d faire_info
-# Test de restauration périodique : voir security/README.md (§ exercice de
-# restauration — une sauvegarde jamais restaurée n'est qu'un espoir).
+#     docker compose exec -T db psql -U faire_info -d faire_info -v ON_ERROR_STOP=1
+#   docker compose start backend
+# Test de restauration périodique : security/restore-drill.sh (une sauvegarde
+# jamais restaurée n'est qu'un espoir).
 #
 set -euo pipefail
 
