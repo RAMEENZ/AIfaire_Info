@@ -55,8 +55,15 @@ notify() {
        "${WEBHOOK_URL}" >/dev/null 2>&1 || true
 }
 # Le conteneur part quoi qu'il arrive : un exercice qui laisse des débris
-# derrière lui ne sera plus jamais lancé.
-nettoyer() { docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true; }
+# derrière lui ne sera plus jamais lancé. KEEP_CONTAINER=1 le garde, pour
+# inspecter la base restaurée après un échec (`docker exec -it … psql`).
+nettoyer() {
+  if [[ -n "${KEEP_CONTAINER:-}" ]]; then
+    log "Conteneur conservé (KEEP_CONTAINER) : ${CONTAINER}"
+    return 0
+  fi
+  docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
+}
 trap nettoyer EXIT
 fail() { log "ALERTE : $1"; notify "EXERCICE de restauration KO : $1"; exit 1; }
 
@@ -87,12 +94,27 @@ docker run -d --name "${CONTAINER}" \
   || fail "impossible de démarrer ${PG_IMAGE}"
 
 # `sleep 15` était un pari sur la vitesse de démarrage ; on attend le serveur.
+#
+# On sonde en TCP, PAS sur la socket unix, et c'est le point délicat. Pendant
+# son initialisation (création du rôle, de la base, installation de PostGIS),
+# l'entrypoint de l'image démarre un serveur TEMPORAIRE avec
+# `listen_addresses=''` : il accepte sur la socket unix, pas en TCP. Une sonde
+# par la socket répond donc « prêt » au bout de trois secondes, sur un serveur
+# qui va s'arrêter — et la restauration mourait avec lui. Mesuré le 30/08/2026
+# sur le serveur de production :
+#
+#     à  3 s   socket : accepting connections (0)   tcp : no response (2)
+#     à 28 s                                        tcp : accepting  (0)
+#
+# et dans le journal du conteneur, `listening on IPv4 address "0.0.0.0"`
+# n'apparaît qu'APRÈS « PostgreSQL init process complete ». L'ouverture du port
+# TCP est donc le signal exact de « l'initialisation est finie ».
 deadline=$(( $(date +%s) + BOOT_TIMEOUT ))
-until docker exec "${CONTAINER}" pg_isready -U "${DB_USER}" -d "${DB_NAME}" >/dev/null 2>&1; do
+until docker exec "${CONTAINER}" pg_isready -h 127.0.0.1 -U "${DB_USER}" -d "${DB_NAME}" >/dev/null 2>&1; do
   (( $(date +%s) < deadline )) || fail "le serveur de test n'accepte pas les connexions après ${BOOT_TIMEOUT}s"
   sleep 1
 done
-log "Serveur de test prêt (${PG_IMAGE})."
+log "Serveur de test prêt (${PG_IMAGE}) — initialisation terminée."
 
 # ── 2) Restauration ──────────────────────────────────────────────────────────
 # La base existe déjà (créée par l'entrypoint, cf. POSTGRES_DB ci-dessus).
@@ -107,7 +129,15 @@ if ! openssl enc -d -aes-256-cbc -pbkdf2 -pass "file:${KEY_FILE}" -in "${LATEST}
      | psql_drill -d "${DB_NAME}" -v ON_ERROR_STOP=1 >/dev/null 2>"${journal}"; then
   # Montrer l'erreur de PostgreSQL : elle dit si la sauvegarde est en cause ou
   # si c'est l'environnement de test qui ne sait pas l'accueillir.
+  #
+  # Et le journal du conteneur avec, car psql ne dit pas tout : quand la
+  # restauration tournait contre le serveur temporaire de l'initialisation,
+  # elle échouait SANS un mot d'erreur. Un exercice qui échoue en silence est
+  # le défaut même qu'il est censé supprimer.
+  log "Sortie de psql :"
   tail -5 "${journal}" >&2 || true
+  log "Journal du conteneur de test :"
+  docker logs --tail 20 "${CONTAINER}" 2>&1 | sed 's/^/    /' >&2 || true
   rm -f "${journal}"
   fail "la restauration de ${LATEST} a échoué (déchiffrement, décompression ou SQL)"
 fi
