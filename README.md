@@ -425,6 +425,27 @@ cd /opt/aifaire
 ./deploy.sh backend         # ne (re)construit que le backend
 SKIP_PULL=1 ./deploy.sh     # déploie l'état local sans git pull
 ALLOW_DEV=1  ./deploy.sh    # autorise un déploiement hors production (dev)
+SKIP_NGINX=1 ./deploy.sh    # ne vérifie pas la configuration nginx servie
+```
+
+**nginx ne se recharge pas, il se recrée.** `docker-compose.yml` monte *un
+fichier* (`./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro`), et un bind
+mount de fichier unique est attaché à l'inode, pas au chemin. Or `git pull` ne
+modifie pas un fichier en place : il écrit un temporaire et le renomme
+par-dessus. Le conteneur continue donc de lire l'ancien fichier, et
+`nginx -s reload` recharge fidèlement… l'ancienne configuration, en répondant
+`signal process started`. Un durcissement de CSP est resté inappliqué de cette
+façon le 30/08/2026, sans qu'aucune commande ne le signale.
+
+`deploy.sh` compare désormais le fichier **dans le conteneur** à celui du dépôt
+et recrée nginx quand ils diffèrent — après avoir validé la nouvelle
+configuration dans un conteneur jetable, pour qu'une erreur de syntaxe fasse
+échouer le déploiement au lieu de faire tomber le site. En cas d'intervention
+manuelle, le bon geste est :
+
+```bash
+docker compose up -d --force-recreate --no-deps nginx
+curl -sI http://127.0.0.1:8088/ | grep -i content-security-policy   # vérifier le SERVI
 ```
 
 ## Architecture des composants backend

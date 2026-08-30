@@ -346,6 +346,47 @@ Corrigé non par une réécriture du bloc de README — c'est ce format qui a pe
 la dérive — mais par un script exécutable, `security/restore-drill.sh`, dont le
 code de sortie a un sens et qui peut donc être planifié et alerter.
 
+### K — Une modification de `nginx.conf` ne parvient jamais au conteneur
+
+Trouvé le 30/08/2026 en déployant les correctifs précédents, et invisible par la
+lecture seule : c'est un comportement de Docker, pas une ligne de code.
+
+`docker-compose.yml` monte **un fichier**, pas un dossier :
+
+```yaml
+- ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+```
+
+Un bind mount de fichier unique est attaché à l'**inode**. `git pull` ne modifie
+pas un fichier en place : il écrit un temporaire et le renomme par-dessus, ce
+qui produit un nouvel inode. Le conteneur continue de lire l'ancien, qui survit
+à sa propre suppression tant que le montage existe.
+
+Mesuré : après un `git pull` amenant la CSP allégée, puis un
+`docker compose exec nginx nginx -s reload` qui a répondu
+`signal process started`, l'en-tête réellement servi contenait toujours
+`connect-src … https://raw.githubusercontent.com`. Le fichier sur le disque
+était pourtant le bon. Seul `docker compose up -d --force-recreate nginx` a
+corrigé la situation ; la comparaison qui l'a établie porte sur trois sources à
+la fois — le fichier de l'hôte, le fichier vu par le conteneur, et l'en-tête lu
+sur le fil.
+
+Deux enseignements, au-delà du correctif :
+
+1. `deploy.sh` ne touchait pas à nginx (`SERVICES=(backend frontend)`), et rien
+   dans le dépôt ne signalait qu'il fallait s'en occuper à la main. Le prochain
+   changement de configuration aurait échoué de la même façon.
+2. **Une vérification qui porte sur le fichier ne vaut rien ici** : c'est
+   l'en-tête servi, ou la configuration lue par le conteneur, qui fait foi. Ma
+   première commande de diagnostic comparait le texte des fichiers et ne pouvait
+   pas distinguer les deux cas — elle cherchait une chaîne qui subsiste dans un
+   commentaire du fichier corrigé.
+
+Corrigé par une étape de `deploy.sh` qui compare le fichier **dans le conteneur**
+à celui du dépôt, valide la nouvelle configuration dans un conteneur jetable
+avant de toucher à celui qui sert, puis recrée. Une configuration invalide fait
+désormais échouer le déploiement en laissant le site debout.
+
 ## 9. Ce qui distingue ce dépôt
 
 Il faut le dire clairement, parce que c'est rare : **la qualité d'ingénierie est
@@ -392,7 +433,7 @@ Les points 1 à 4 tiennent en une heure et referment la moitié du tableau de bo
 ## 11. Suites données (même branche)
 
 Les neuf recommandations ont été appliquées et fusionnées. Les constats A, B,
-C, D, E, F, G et J sont clos, et tout ce qui précède se lit comme l'état
+C, D, E, F, G, J et K sont clos, et tout ce qui précède se lit comme l'état
 **avant** correction. Restent ouvertes, par décision : les observations mineures
 du constat I.
 
@@ -410,6 +451,7 @@ du constat I.
 | — healthcheck du frontend | ✅ ajouté | Hors recommandations : révélé par le déploiement du 30/08 (#70) |
 | — exercice de restauration (constat J) | ✅ corrigé | Hors recommandations : script `restore-drill.sh`, dont l'échec est **mesuré** sur quatre sauvegardes défectueuses |
 | — doublon d'index GiST sur `events.geom` | ✅ supprimé | Révision 0006 ; les deux définitions étaient identiques au nom près (vérifié sur PostGIS) |
+| — nginx ne relit pas sa configuration (constat K) | ✅ corrigé | Trouvé en production ; `deploy.sh` compare le fichier **dans le conteneur** et recrée. Six scénarios rejoués |
 
 Détails :
 

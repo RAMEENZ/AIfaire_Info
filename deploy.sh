@@ -16,6 +16,7 @@
 # Variables d'environnement reconnues :
 #   SKIP_PULL=1   → saute l'étape git pull
 #   ALLOW_DEV=1   → n'exige pas APP_ENV=production (déploiement de dev assumé)
+#   SKIP_NGINX=1  → ne vérifie pas la configuration nginx servie (voir étape 6)
 #   HEALTH_TIMEOUT=120  → délai max (s) d'attente du healthcheck backend
 #
 set -euo pipefail
@@ -135,6 +136,81 @@ if printf '%s\n' "${SERVICES[@]}" | grep -qx backend; then
   Vérifie le .env et relance, ou force avec ALLOW_DEV=1."
   fi
   ok "Backend en cours d'exécution : APP_ENV=$running_env"
+fi
+
+# ── 6) nginx : la configuration SERVIE doit être celle du dépôt ───────────────
+# Mesuré le 30/08/2026, et invisible autrement : docker-compose.yml monte UN
+# FICHIER (./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro). Un bind mount
+# de fichier unique est attaché à l'inode, pas au chemin — or `git pull` ne
+# modifie pas un fichier en place : il écrit un temporaire et le renomme
+# par-dessus. Le conteneur continue donc de lire l'ANCIEN fichier, qui survit à
+# sa propre suppression tant que le montage existe.
+#
+# `nginx -s reload` n'y change rien : il recharge fidèlement ce que le conteneur
+# voit, et répond « signal process started ». Ce jour-là, un durcissement de CSP
+# est resté inappliqué sans qu'aucune commande ne le signale — le fichier était
+# bon sur le disque, le rechargement disait avoir réussi, et la politique servie
+# était l'ancienne. Seule la recréation du conteneur remonte le montage.
+#
+# On ne compare donc pas des commits, qui ne diraient rien de ce que le
+# conteneur lit : on compare le fichier DANS le conteneur au fichier du dépôt.
+# Ça attrape aussi une édition faite à la main et jamais appliquée, et le cas
+# `SKIP_PULL=1`.
+verifier_nginx() {
+  local cid servie attendu i
+
+  cid="$(docker compose ps -q nginx 2>/dev/null || true)"
+  if [ -z "$cid" ]; then
+    log "nginx : conteneur absent — démarrage"
+    docker compose up -d --no-deps nginx || { err "nginx : démarrage impossible"; return 1; }
+    return 0
+  fi
+
+  attendu="$(cat nginx/nginx.conf)"
+  servie="$(docker compose exec -T nginx cat /etc/nginx/conf.d/default.conf 2>/dev/null || true)"
+  [ -n "$servie" ] || { err "nginx : configuration illisible dans le conteneur"; return 1; }
+
+  if [ "$servie" = "$attendu" ]; then
+    ok "nginx : la configuration servie est celle du dépôt"
+    return 0
+  fi
+
+  log "nginx : le conteneur lit une configuration différente du dépôt — recréation"
+
+  # VALIDER AVANT DE TOUCHER au conteneur qui sert. Une configuration invalide
+  # ferait tomber le site entier ; ici, l'échec laisse nginx intact et servant
+  # l'ancienne configuration. `compose run` monte le fichier à neuf (donc la
+  # bonne version) et rejoint le réseau du projet — sans quoi `nginx -t`
+  # échouerait à résoudre backend:8000 et frontend:3000, qui tournent déjà
+  # puisque l'étape 4 les a validés.
+  local sortie_test
+  if ! sortie_test="$(docker compose run --rm --no-deps nginx nginx -t 2>&1)"; then
+    err "nginx : la configuration du dépôt est INVALIDE — conteneur laissé intact"
+    printf '%s\n' "$sortie_test" | tail -20
+    return 1
+  fi
+
+  docker compose up -d --force-recreate --no-deps nginx \
+    || { err "nginx : recréation échouée"; return 1; }
+
+  # Le conteneur vient de redémarrer : quelques essais avant de conclure.
+  for i in 1 2 3 4 5; do
+    servie="$(docker compose exec -T nginx cat /etc/nginx/conf.d/default.conf 2>/dev/null || true)"
+    [ -n "$servie" ] && break
+    sleep 2
+  done
+
+  if [ "$servie" != "$attendu" ]; then
+    err "nginx : après recréation, la configuration servie diffère TOUJOURS du dépôt"
+    return 1
+  fi
+  ok "nginx : configuration à jour (conteneur recréé)"
+}
+
+if [ "${SKIP_NGINX:-0}" = "1" ]; then
+  log "Vérification nginx sautée (SKIP_NGINX=1)"
+else
+  verifier_nginx || die "Déploiement échoué : nginx ne sert pas la configuration du dépôt."
 fi
 
 ok "Déploiement terminé."
