@@ -346,6 +346,24 @@ Corrigé non par une réécriture du bloc de README — c'est ce format qui a pe
 la dérive — mais par un script exécutable, `security/restore-drill.sh`, dont le
 code de sortie a un sens et qui peut donc être planifié et alerter.
 
+**Suite, le 30/08 au soir.** Le premier lancement sur le serveur a échoué :
+`ERROR: role "faire_info" does not exist`. La sauvegarde n'était pas en cause —
+le banc d'essai l'était. Le dump de production est pris avec
+`pg_dump -U faire_info` et porte donc neuf `ALTER … OWNER TO faire_info` ; le
+conteneur jetable, démarré sans `POSTGRES_USER`, ne connaissait pas ce rôle et
+rejetait la restauration à la première de ces instructions. Mes essais locaux ne
+pouvaient pas l'attraper : le rôle existait dans mon cluster.
+
+Le conteneur reprend désormais les `POSTGRES_USER` et `POSTGRES_DB` du service
+`db` de production, ce qui fait créer le rôle et la base par l'entrypoint,
+exactement comme en production. Reproduit et corrigé sur PostgreSQL réel :
+même dump, `role … does not exist` et sortie 3 sans le rôle, sortie 0 et toutes
+les vérifications au vert avec lui.
+
+C'est la leçon d'un exercice de restauration : le premier échec est plus
+souvent le banc d'essai que la sauvegarde, et c'est précisément pourquoi il faut
+le faire tourner avant d'en avoir besoin.
+
 ### K — Une modification de `nginx.conf` ne parvient jamais au conteneur
 
 Trouvé le 30/08/2026 en déployant les correctifs précédents, et invisible par la
