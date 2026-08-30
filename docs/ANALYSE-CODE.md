@@ -16,7 +16,7 @@ Une application web qui agrège l'actualité publique française en quasi temps 
 la catégorise et la géolocalise par IA, puis l'affiche sur une carte de France
 doublée d'un fil et d'un brief rédigé trois fois par jour.
 
-- **Backend** : Python / FastAPI, 15 connecteurs, ordonnanceur APScheduler, PostgreSQL + PostGIS.
+- **Backend** : Python / FastAPI, 14 connecteurs, ordonnanceur APScheduler, PostgreSQL + PostGIS.
 - **Frontend** : Next.js 15 (App Router), React 19, Leaflet, Tailwind, PWA avec service worker.
 - **IA** : Mistral (extraction lieu/catégorie/résumé/tags + briefs), repli Ollama, puis repli par règles.
 - **Exploitation** : Docker Compose (7 services), nginx interne, tunnel Cloudflare comme unique porte d'entrée.

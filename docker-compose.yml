@@ -121,6 +121,28 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    # Sans healthcheck, `docker compose ps` et deploy.sh ne pouvaient dire que
+    # « running » : le conteneur ne s'est pas arrêté. C'est une information
+    # pauvre — un serveur Next qui démarre puis échoue à servir resterait
+    # « running » indéfiniment, et autoheal n'aurait rien à redémarrer. Le
+    # déploiement du 30/08/2026, qui remplaçait toute la chaîne de build
+    # (Tailwind 4, Next 16, Turbopack, Node 22), s'est validé sur ce seul mot.
+    #
+    # On demande donc au serveur de RÉPONDRE. `GET /` est une page prérendue
+    # statiquement : elle n'appelle pas le backend, la sonde teste bien le
+    # frontend et lui seul. Node est présent dans l'image (c'est lui qui sert),
+    # inutile d'y ajouter curl.
+    healthcheck:
+      test: ["CMD", "node", "-e", "const r=require('http').get({host:'127.0.0.1',port:3000,path:'/'},s=>process.exit(s.statusCode<400?0:1));r.setTimeout(8000,()=>process.exit(1));r.on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      # Next standalone démarre en une seconde ; la marge couvre une VM chargée
+      # juste après un build, sans ouvrir une fenêtre où l'on servirait du vide.
+      start_period: 20s
+    # Même traitement que le backend : autoheal redémarre ce qui devient malade.
+    labels:
+      autoheal: "true"
     restart: unless-stopped
 
   nginx:
