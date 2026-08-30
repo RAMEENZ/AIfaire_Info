@@ -31,8 +31,33 @@ const DOM_TOM = [
   { code: "988", name: "N-Calédonie",  center: [-20.90, 165.60] as [number, number], zoom:  8 },
 ];
 
-const DEPT_GEOJSON_URL =
-  "https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements-version-simplifiee.geojson";
+// Contours départementaux servis par l'application, plus par un dépôt tiers.
+//
+// Ils étaient tirés à l'exécution, chez chaque visiteur, de
+// raw.githubusercontent.com/gregoiredavid/france-geojson sur une branche
+// `master` non épinglée. C'est la dépendance que le projet a précisément
+// supprimée en août pour leaflet.heat. Le risque est ici moindre — de la
+// donnée, pas du code exécutable — mais les trois autres coûts demeuraient :
+// le calque disparaît si le fichier est renommé en amont, il ne peut pas
+// fonctionner hors ligne alors que c'est une promesse affichée, et il imposait
+// `connect-src https://raw.githubusercontent.com` dans la CSP (retiré avec ce
+// changement).
+//
+// Provenance du fichier public/departements.geojson, copié tel quel :
+//   source   gregoiredavid/france-geojson, departements-version-simplifiee.geojson
+//   données  IGN Admin Express COG (édition 2018), simplifiées via Mapshaper
+//   licence  Licence Ouverte / Open Licence (Etalab) — réutilisation libre
+//            sous réserve de mentionner la paternité (voir l'attribution de la
+//            carte, plus bas)
+//   sha256   c08a1ad48299763b50ef649f05a911c1021500c94719a1aa22a9d06191e43fc3
+//   taille   569 299 octets (96 départements métropolitains ; l'outre-mer est
+//            servi par les raccourcis DOM_TOM ci-dessus)
+//
+// Conservé octet pour octet, sans reformatage ni réduction de précision : la
+// somme de contrôle reste comparable à l'amont, ce qui rend la provenance
+// vérifiable. Pour le mettre à jour, retélécharger le fichier, remplacer la
+// somme ci-dessus, et incrémenter CACHE_VERSION dans public/sw.js.
+const DEPT_GEOJSON_URL = "/departements.geojson";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createClusterCustomIcon(cluster: any) {
@@ -410,7 +435,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
         ref={mapRef}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &middot; contours <a href="https://www.etalab.gouv.fr/licence-ouverte-open-licence/">IGN Admin Express (Licence Ouverte)</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {deptGeoJSON && (
