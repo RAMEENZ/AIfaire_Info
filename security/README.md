@@ -11,6 +11,7 @@ aucun port web entrant), stack Docker, base PostgreSQL/PostGIS.
 | `harden-server.sh` | UFW, fail2ban, durcissement SSH, MAJ auto, arrêt Apache2 | Serveur (root, SSH) |
 | `backup-postgres.sh` | Sauvegarde chiffrée + **vérifiée** (intégrité avant publication) + rétention | Serveur (cron 02h30) |
 | `backup-verify.sh` | Contrôle quotidien : dernier backup récent + déchiffrable + valide (alerte webhook sinon) | Serveur (cron 08h00) |
+| `restore-drill.sh` | Exercice de restauration : restaure vraiment la dernière sauvegarde dans un conteneur jetable et contrôle la base obtenue | Serveur (à la main ou cron trimestriel) |
 | `cloudflare-setup.md` | WAF, Rate Limiting, Access, HSTS via le dashboard CF | Dashboard Cloudflare |
 
 ### Sauvegardes : fiabilité
@@ -29,7 +30,8 @@ crontab -e   # puis :
 #   30 2 * * *  WEBHOOK_URL=https://ntfy.sh/ton-topic /opt/aifaire/security/backup-postgres.sh >> /var/log/aifaire-backup.log 2>&1
 #   0  8 * * *  WEBHOOK_URL=https://ntfy.sh/ton-topic /opt/aifaire/security/backup-verify.sh   >> /var/log/aifaire-backup.log 2>&1
 ```
-Restauration : voir l'en-tête de `backup-postgres.sh`.
+Restauration : voir l'en-tête de `backup-postgres.sh`. Vérifier qu'elle marche
+vraiment : `restore-drill.sh` (§ exercice de restauration).
 
 ## Déjà appliqué dans le code (Tier 1)
 
@@ -70,18 +72,33 @@ n'est qu'un espoir. Le test se fait dans un conteneur jetable, sans toucher à
 la production :
 
 ```bash
-LATEST=$(ls -1t /var/backups/aifaire/faire_info-*.sql.gz.enc | head -1)
-docker run -d --name restore-test -e POSTGRES_PASSWORD=test postgis/postgis:16-3.4
-sleep 15
-openssl enc -d -aes-256-cbc -pbkdf2 -pass file:/etc/aifaire-backup.key -in "$LATEST" \
-  | gunzip | docker exec -i restore-test psql -U postgres
-docker exec restore-test psql -U postgres -d faire_info \
-  -c "SELECT count(*) AS events FROM events; SELECT count(*) AS stats FROM daily_stats;"
-docker rm -f restore-test
+sudo /opt/aifaire/security/restore-drill.sh          # dernière sauvegarde
+sudo /opt/aifaire/security/restore-drill.sh /var/backups/aifaire/faire_info-2026-08-01.sql.gz.enc
 ```
 
-Si les deux `count(*)` renvoient des valeurs plausibles, l'exercice est réussi.
-Noter la date du dernier exercice ici : _(dernier test : à faire)_.
+Le script restaure réellement la sauvegarde dans un conteneur
+`postgis/postgis:16-3.4` jetable, puis vérifie que la base obtenue est
+exploitable : les cinq tables applicatives présentes, PostGIS active, au moins
+un événement (`MIN_EVENTS`), la géométrie relisible et `alembic_version`
+renseignée. Sortie 0 = exercice réussi ; 1 = alerte (webhook si `WEBHOOK_URL`).
+Chaque réussite s'inscrit dans `/var/backups/aifaire/.last-restore-drill`.
+
+Planifiable, tant qu'à faire — un exercice qu'on se promet de lancer ne se
+lance pas :
+
+```bash
+0 6 1 */3 *  WEBHOOK_URL=https://ntfy.sh/ton-topic /opt/aifaire/security/restore-drill.sh >> /var/log/aifaire-backup.log 2>&1
+```
+
+> **Ce qui figurait ici avant était un mode opératoire qui ne pouvait pas
+> aboutir**, et que rien n'exécutait — d'où le « dernier test : à faire » resté
+> tel quel. `pg_dump -d faire_info` (sans `--create`) ne contient ni
+> `CREATE DATABASE` ni `\connect` : tout atterrissait dans la base `postgres`,
+> et l'étape de vérification échouait sur « database "faire_info" does not
+> exist ». Plus grave, sans `-v ON_ERROR_STOP=1`, `psql` sort **0** même après
+> une erreur au milieu du script (mesuré : 0 sans le drapeau, 3 avec) : une
+> restauration à moitié appliquée passait pour un succès. Un exercice de
+> restauration qui ne peut pas échouer ne vérifie rien.
 
 ### Hostname du tunnel : config locale non versionnée
 

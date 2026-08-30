@@ -297,6 +297,46 @@ planifié nulle part.
 - La version Python diverge : `Dockerfile` et CI en 3.13, mais rien n'empêche un
   contributeur de développer en 3.11 — la suite y passe intégralement (vérifié).
 
+### J — L'exercice de restauration documenté ne pouvait pas aboutir
+
+Découvert le 30/08 en relisant `security/README.md` pour répondre à « il me
+reste quoi à faire ? ». Le dépôt soigne ses sauvegardes : chiffrement AES-256,
+vérification d'intégrité **avant** publication, rétention, contrôle quotidien de
+fraîcheur et de déchiffrabilité. Il documente aussi, à juste titre, qu'« une
+sauvegarde jamais restaurée n'est qu'un espoir » — et propose un mode opératoire
+trimestriel. Ce mode opératoire ne pouvait pas passer, et rien ne pouvait le
+dire : il vivait dans un bloc de README que personne n'exécutait. La ligne
+« _(dernier test : à faire)_ » était restée telle quelle.
+
+Deux défauts, mesurés sur un PostgreSQL 16 + PostGIS local :
+
+1. Le script de sauvegarde appelle `pg_dump -U faire_info -d faire_info`, **sans
+   `--create`**. J'ai compté les instructions concernées dans le dump produit :
+
+   ```
+   --- le dump contient-il CREATE DATABASE / \connect ? ---
+   0
+   ```
+
+   Envoyé à `psql -U postgres` comme le prescrivait le mode opératoire, tout
+   atterrissait dans la base `postgres` — en affichant `CREATE TABLE`, `COPY 1`,
+   c'est-à-dire en ayant l'air de réussir. La vérification suivante tombait sur
+   `FATAL: database "faire_info" does not exist`, un message qui accuse la
+   sauvegarde là où le fautif est la procédure.
+
+2. Sans `-v ON_ERROR_STOP=1`, `psql` sort **0** malgré une erreur au milieu du
+   script (mesuré : `0` sans le drapeau, `3` avec). J'ai fabriqué une sauvegarde
+   valide dont le SQL échoue à mi-parcours : l'ancienne procédure la restaure à
+   moitié et sort `0`.
+
+Le second défaut est le plus sérieux. Un exercice de restauration a une seule
+raison d'être : échouer quand la sauvegarde ne vaut rien. Celui-ci ne le pouvait
+pas.
+
+Corrigé non par une réécriture du bloc de README — c'est ce format qui a permis
+la dérive — mais par un script exécutable, `security/restore-drill.sh`, dont le
+code de sortie a un sens et qui peut donc être planifié et alerter.
+
 ## 9. Ce qui distingue ce dépôt
 
 Il faut le dire clairement, parce que c'est rare : **la qualité d'ingénierie est
@@ -343,7 +383,7 @@ Les points 1 à 4 tiennent en une heure et referment la moitié du tableau de bo
 ## 11. Suites données (même branche)
 
 Les recommandations 1 à 5 et 7 à 9 ont été appliquées et fusionnées. Les
-constats A, B, C, E, F et G sont clos, et tout ce qui précède se lit comme
+constats A, B, C, E, F, G et J sont clos, et tout ce qui précède se lit comme
 l'état **avant** correction. Reste ouverte : la recommandation 6 (vendoriser le
 GeoJSON départemental).
 
@@ -359,6 +399,7 @@ GeoJSON départemental).
 | 8 — migrations Next 16 et Tailwind 4 | ✅ appliquées | #67 et #68 ; #59 et #61 fermées comme obsolètes |
 | 9 — unifier le schéma | ✅ appliquée | Bascule **inerte** sur une base existante, prouvée sur PostGIS réel |
 | — healthcheck du frontend | ✅ ajouté | Hors recommandations : révélé par le déploiement du 30/08 (#70) |
+| — exercice de restauration (constat J) | ✅ corrigé | Hors recommandations : script `restore-drill.sh`, dont l'échec est **mesuré** sur quatre sauvegardes défectueuses |
 
 Détails :
 
