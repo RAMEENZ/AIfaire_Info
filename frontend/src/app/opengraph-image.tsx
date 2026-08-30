@@ -68,7 +68,11 @@ export default function Image() {
             flexDirection: "column",
             justifyContent: "center",
             padding: "0 90px",
-            zIndex: 1,
+            // Pas de `zIndex` : Satori, qui rend cette image, ne le gère pas et
+            // le signale à chaque build depuis Next 16 (« `z-index` is currently
+            // not supported »). Il empile dans l'ordre du document, et ce bloc
+            // est déclaré APRÈS les deux cercles décoratifs — il passe donc
+            // au-dessus sans qu'on ait à le demander. Rendu vérifié.
           }}
         >
           <div style={{ display: "flex", alignItems: "baseline" }}>
