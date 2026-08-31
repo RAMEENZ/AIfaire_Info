@@ -417,6 +417,27 @@ souvent le banc d'essai que la sauvegarde, et c'est précisément pourquoi il fa
 le faire tourner avant d'en avoir besoin. **Quatre défauts en quatre lancements,
 tous les quatre dans l'outil de vérification — aucun dans les sauvegardes.**
 
+**Cinquième lancement, 31/08/2026 à 11h13 — réussi.**
+
+```
+✓ Restauration terminée sans erreur SQL.
+✓ Les cinq tables applicatives sont présentes.
+✓ OK : 1281 événement(s), 897 géolocalisé(s), schéma au niveau
+  0006_drop_duplicate_geom_index.
+✓ Exercice de restauration réussi.
+```
+
+La sauvegarde chiffrée du 31/08 se restaure intégralement dans un conteneur
+vierge : les cinq tables, PostGIS, 1281 événements dont 897 géolocalisés, et le
+schéma au dernier niveau de migration. Onze secondes du déchiffrement au
+verdict. La ligne « dernier test : à faire » de l'ancien mode opératoire a
+cessé d'être vraie, et elle a été remplacée par une trace machine
+(`/var/backups/aifaire/.last-restore-drill`) plutôt que par une date à noter à
+la main.
+
+C'est le premier moment de cette analyse où l'on peut écrire que les
+sauvegardes du projet sont restaurables, et non qu'elles ont l'air de l'être.
+
 ### K — Une modification de `nginx.conf` ne parvient jamais au conteneur
 
 Trouvé le 30/08/2026 en déployant les correctifs précédents, et invisible par la
