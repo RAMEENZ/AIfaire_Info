@@ -77,11 +77,14 @@ sudo /opt/aifaire/security/restore-drill.sh /var/backups/aifaire/faire_info-2026
 ```
 
 Le script restaure réellement la sauvegarde dans un conteneur
-`postgis/postgis:16-3.4` jetable, démarré avec les mêmes `POSTGRES_USER` et
-`POSTGRES_DB` que le service `db` de production — le dump porte les
-propriétaires (`ALTER … OWNER TO faire_info`), et un conteneur qui ignore ce
-rôle rejette la restauration en accusant la sauvegarde à tort. Il vérifie
-ensuite que la base obtenue est exploitable : les cinq tables applicatives présentes, PostGIS active, au moins
+`postgis/postgis:16-3.4` jetable, avec le même `POSTGRES_USER` que le service
+`db` de production — le dump porte les propriétaires
+(`ALTER … OWNER TO faire_info`), et un conteneur qui ignore ce rôle rejette la
+restauration en accusant la sauvegarde à tort. La cible, elle, est créée à part
+depuis `template1`, donc **vierge** : un dump complet crée lui-même ses schémas
+(`tiger`, `topology`) et ses extensions, et se heurterait à ceux que l'image
+installe d'office. C'est aussi la situation réelle d'un sinistre — une machine
+neuve. Il vérifie ensuite que la base obtenue est exploitable : les cinq tables applicatives présentes, PostGIS active, au moins
 un événement (`MIN_EVENTS`), la géométrie relisible et `alembic_version`
 renseignée. Sortie 0 = exercice réussi ; 1 = alerte (webhook si `WEBHOOK_URL`).
 Chaque réussite s'inscrit dans `/var/backups/aifaire/.last-restore-drill`.

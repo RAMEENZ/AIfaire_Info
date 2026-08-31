@@ -31,6 +31,15 @@ DB_NAME="${DB_NAME:-faire_info}"
 # conteneur de test qui ignore ce rôle rejette la restauration dès la première
 # de ces instructions — un échec du banc d'essai, pas de la sauvegarde.
 DB_USER="${DB_USER:-faire_info}"
+# Base créée par l'entrypoint de l'image, et volontairement DIFFÉRENTE de la
+# cible de restauration. L'image postgis installe postgis, postgis_topology,
+# fuzzystrmatch et postgis_tiger_geocoder dans POSTGRES_DB : la base y arrive
+# donc avec les schémas `tiger`, `tiger_data` et `topology` déjà créés. Or un
+# dump complet est AUTONOME — il crée lui-même ces schémas et ces extensions.
+# Restaurer dans la base préparée par l'image faisait échouer le dump sur
+# `ERROR: schema "tiger" already exists`. On laisse donc l'image préparer une
+# base d'amorçage dont on ne fait rien, et on crée la cible à part, vierge.
+BOOTSTRAP_DB="${BOOTSTRAP_DB:-drill_bootstrap}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/aifaire}"
 KEY_FILE="${KEY_FILE:-/etc/aifaire-backup.key}"
 # Même image que la production (docker-compose.yml) : restaurer sur une version
@@ -101,14 +110,13 @@ log "Sauvegarde retenue : ${LATEST}"
 # Pas de port publié : on entre par `docker exec`. Aucun risque de collision
 # avec la base de production, ni d'exposition réseau.
 #
-# POSTGRES_USER et POSTGRES_DB reprennent ceux du service `db` de production
-# (docker-compose.yml) : l'entrypoint de l'image crée alors le rôle ET la base
-# exactement comme en production, et l'image postgis installe l'extension dans
-# cette base. Sans cela, la restauration échouait sur
-# `role "faire_info" does not exist` — le dump portant les propriétaires, un
-# banc d'essai qui les ignore accuse la sauvegarde à tort.
+# POSTGRES_USER reprend celui du service `db` de production : l'entrypoint crée
+# alors le rôle propriétaire, sans lequel le dump — qui porte ses
+# `ALTER … OWNER TO faire_info` — est rejeté dès la première de ces
+# instructions. POSTGRES_DB, en revanche, pointe sur une base d'amorçage dont
+# on ne se sert pas : voir BOOTSTRAP_DB plus haut.
 docker run -d --name "${CONTAINER}" \
-  -e POSTGRES_USER="${DB_USER}" -e POSTGRES_PASSWORD=drill -e POSTGRES_DB="${DB_NAME}" \
+  -e POSTGRES_USER="${DB_USER}" -e POSTGRES_PASSWORD=drill -e POSTGRES_DB="${BOOTSTRAP_DB}" \
   "${PG_IMAGE}" >/dev/null \
   || fail "impossible de démarrer ${PG_IMAGE}"
 
@@ -130,7 +138,7 @@ docker run -d --name "${CONTAINER}" \
 # TCP est donc le signal exact de « l'initialisation est finie ».
 debut=$(date +%s)
 deadline=$(( debut + BOOT_TIMEOUT ))
-until docker exec "${CONTAINER}" pg_isready -h 127.0.0.1 -U "${DB_USER}" -d "${DB_NAME}" >/dev/null 2>&1; do
+until docker exec "${CONTAINER}" pg_isready -h 127.0.0.1 -U "${DB_USER}" -d "${BOOTSTRAP_DB}" >/dev/null 2>&1; do
   attendu=$(( $(date +%s) - debut ))
   (( $(date +%s) < deadline )) \
     || fail "le serveur de test n'accepte pas les connexions en TCP après ${BOOT_TIMEOUT}s"
@@ -144,7 +152,13 @@ done
 log "Serveur de test prêt (${PG_IMAGE}) — initialisation terminée."
 
 # ── 2) Restauration ──────────────────────────────────────────────────────────
-# La base existe déjà (créée par l'entrypoint, cf. POSTGRES_DB ci-dessus).
+# Cible VIERGE, créée depuis template1. L'image postgis ne touche que
+# `template_postgis` et `POSTGRES_DB` : une base issue de template1 n'a donc ni
+# extension ni schéma préinstallé, et le dump peut se déployer intégralement,
+# comme il le ferait sur une machine neuve après un sinistre. C'est d'ailleurs
+# ce que l'exercice doit prouver.
+docker exec "${CONTAINER}" createdb -U "${DB_USER}" -T template1 "${DB_NAME}" \
+  || fail "création de la base cible ${DB_NAME} impossible"
 #
 # ON_ERROR_STOP=1 : la moindre instruction en échec avorte la restauration et
 # fait sortir psql en 3. C'est tout l'intérêt de l'exercice — sans ce drapeau,
