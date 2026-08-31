@@ -33,6 +33,52 @@ crontab -e   # puis :
 Restauration : voir l'en-tête de `backup-postgres.sh`. Vérifier qu'elle marche
 vraiment : `restore-drill.sh` (§ exercice de restauration).
 
+### L'alerte : configurée n'est pas fonctionnelle
+
+Les trois scripts alertent par la même fonction :
+
+```bash
+curl -fsS -m 15 ... "${WEBHOOK_URL}" >/dev/null 2>&1 || true
+```
+
+Le `|| true` est délibéré — un webhook injoignable ne doit pas faire échouer une
+sauvegarde par ailleurs réussie. Mais il rend un **webhook cassé silencieux** :
+le terminal affiche exactement la même chose que la notification soit partie ou
+non. Une ligne de cron qui contient `WEBHOOK_URL` n'est donc pas une alerte qui
+fonctionne.
+
+Le vérifier une fois, sans toucher aux sauvegardes — on retire la passphrase,
+ce qui fait échouer la vérification pour une raison connue :
+
+```bash
+sudo mv /etc/aifaire-backup.key /etc/aifaire-backup.key.bak
+sudo WEBHOOK_URL=https://ntfy.sh/ton-topic /opt/aifaire/security/backup-verify.sh
+sudo mv /etc/aifaire-backup.key.bak /etc/aifaire-backup.key
+sudo /opt/aifaire/security/backup-verify.sh      # pour finir sur un vert
+```
+
+Attendu : `ALERTE : passphrase absente`, sortie 1, **et une notification reçue**.
+Si le terminal alerte et que le téléphone reste muet, c'est le webhook qu'il faut
+reprendre. Pour isoler `curl`, dont le script masque le code de sortie :
+
+```bash
+TOPIC=$(sudo crontab -l | head -1 | sed -n 's|.*ntfy.sh/\([^ ]*\).*|\1|p')
+curl -fsS -m 15 -H 'Content-Type: application/json' \
+  -d '{"text":"test","content":"test"}' "https://ntfy.sh/$TOPIC"; echo "curl : $?"
+```
+
+Deux détails qui se découvrent sinon à la première vraie alerte :
+
+- **Le format du message.** La charge utile est `{"text": …, "content": …}` —
+  `text` est la clé de Slack, `content` celle de Discord, et l'un ou l'autre
+  affiche un message propre sans rien changer. **ntfy prend le corps brut comme
+  message** : la notification montrera le JSON tel quel. Lisible, mais laid.
+- **Le nom du topic ntfy est le seul secret.** Sans authentification, qui le
+  connaît lit les alertes et peut y publier. Ces messages ne contiennent ni
+  identifiant ni donnée — seulement « la sauvegarde a échoué » — mais autant
+  tirer le nom au hasard (`openssl rand -hex 6`) plutôt que de le choisir
+  lisible.
+
 ## Déjà appliqué dans le code (Tier 1)
 
 Ces correctifs sont **dans le repo** (commités), pas à refaire :
