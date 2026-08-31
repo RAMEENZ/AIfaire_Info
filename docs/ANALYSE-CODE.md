@@ -388,10 +388,34 @@ son erreur ; sur le serveur, il n'a rien dit. C'est pourquoi l'échec affiche
 désormais **aussi** le journal du conteneur — c'est lui qui a permis le
 diagnostic à la main, il devait être dans le script.
 
+**Troisième et quatrième échecs.** Le troisième n'a rien dit du tout — délai
+dépassé, sans l'état ni le journal du conteneur. Le diagnostic ajouté au
+deuxième ne couvrait que l'échec de restauration ; il est passé dans `fail()`,
+donc sur tous les chemins. Le quatrième lancement s'est alors expliqué seul :
+
+```
+ERROR:  schema "tiger" already exists
+STATEMENT:  CREATE SCHEMA tiger;
+```
+
+Miroir exact du premier problème. L'image `postgis` installe quatre extensions
+dans `POSTGRES_DB` — la base y arrive avec les schémas `tiger`, `tiger_data` et
+`topology` déjà créés. Or un dump complet est **autonome** : il crée lui-même
+ces schémas (vérifié : trois `CREATE SCHEMA` et cinq `CREATE EXTENSION` dans le
+dump de production). En pointant `POSTGRES_DB` sur la cible, je faisais entrer
+en collision le dump et le travail de l'image. D'abord le conteneur n'en savait
+pas assez, puis il en savait trop.
+
+La cible est désormais créée à part depuis `template1`, que l'image ne touche
+pas — donc vierge. C'est aussi la situation réelle d'un sinistre : une machine
+neuve. Reproduit et corrigé sur PostgreSQL réel, même dump : `schema "tiger"
+already exists` et sortie 3 dans une base préparée par l'image, sortie 0 et
+toutes les vérifications au vert dans une base issue de `template1`.
+
 C'est la leçon d'un exercice de restauration : les premiers échecs sont plus
 souvent le banc d'essai que la sauvegarde, et c'est précisément pourquoi il faut
-le faire tourner avant d'en avoir besoin. Deux défauts en deux lancements, tous
-deux dans l'outil de vérification — aucun dans les sauvegardes.
+le faire tourner avant d'en avoir besoin. **Quatre défauts en quatre lancements,
+tous les quatre dans l'outil de vérification — aucun dans les sauvegardes.**
 
 ### K — Une modification de `nginx.conf` ne parvient jamais au conteneur
 
