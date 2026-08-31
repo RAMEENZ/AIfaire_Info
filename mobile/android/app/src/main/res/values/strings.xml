@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">(ai)Faire Info</string>
+    <string name="title_activity_main">(ai)Faire Info</string>
+    <string name="package_name">io.qzz.ramenz.aifaire</string>
+    <string name="custom_url_scheme">io.qzz.ramenz.aifaire</string>
+</resources>

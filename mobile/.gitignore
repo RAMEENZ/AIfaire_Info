@@ -1,0 +1,22 @@
+node_modules/
+dist/
+
+# Sortie et cache de Gradle
+android/build/
+android/app/build/
+android/.gradle/
+android/captures/
+android/local.properties
+
+# Généré par `npx cap sync` à partir de frontend/out — jamais édité à la main.
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/app/capacitor.build.gradle
+android/capacitor.settings.gradle
+android/capacitor-cordova-android-plugins/
+
+# Clé de signature : ne doit jamais entrer dans le dépôt.
+android/keystore.properties
+*.jks
+*.keystore

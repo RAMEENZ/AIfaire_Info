@@ -9,6 +9,11 @@ import type { MetadataRoute } from "next";
  * majoritairement composé de 404 — ce qui dégrade la confiance qu'un moteur
  * accorde au site, alors que le but recherché est l'inverse.
  */
+// Contenu identique à chaque requête : le figer au build. Sans cette ligne,
+// `output: export` (build APK) refuse la route, qu'il prend pour un
+// gestionnaire dynamique à exécuter côté serveur.
+export const dynamic = "force-static";
+
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 export default function sitemap(): MetadataRoute.Sitemap {

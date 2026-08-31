@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
-import { ALL_CATEGORIES, CATEGORY_CONFIG, GRAVITE_CONFIG, SOURCE_LABELS, readableTextColor } from "@/lib/constants";
+import { ALL_CATEGORIES, CATEGORY_CONFIG, GRAVITE_CONFIG, SOURCE_LABELS, permalienEvenement, readableTextColor } from "@/lib/constants";
 import { SORT_OPTIONS, SortMode, sortComparator } from "@/lib/sortEvents";
 import { ecrireStockage, lireStockage } from "@/lib/stockage";
 import { Categorie, Event } from "@/lib/types";
@@ -96,7 +96,7 @@ function ShareButton({ eventId }: { eventId: string }) {
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation();
     // Permalien vers la page événement dédiée (lisible sans contexte carte).
-    const url = `${window.location.origin}/event/${eventId}`;
+    const url = permalienEvenement(eventId);
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);

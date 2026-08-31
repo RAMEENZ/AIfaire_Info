@@ -16,6 +16,10 @@ import { ImageResponse } from "next/og";
  * dépôt et un aléa de build ; le jeu n'en vaut pas la chandelle pour une
  * image de partage.
  */
+// L'image est identique à chaque requête : la déclarer statique la fige au
+// build. Sans cette ligne, `output: export` (build APK) refuse la route, qui
+// lui apparaît comme un gestionnaire dynamique à exécuter côté serveur.
+export const dynamic = "force-static";
 export const alt = "(ai)Faire Info — actualités et alertes géolocalisées en France";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";

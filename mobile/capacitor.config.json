@@ -1,0 +1,11 @@
+{
+  "appId": "io.qzz.ramenz.aifaire",
+  "appName": "(ai)Faire Info",
+  "webDir": "../frontend/out",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

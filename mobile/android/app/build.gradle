@@ -1,0 +1,92 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "io.qzz.ramenz.aifaire"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "io.qzz.ramenz.aifaire"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        // Numéro de version pilotable depuis build-apk.sh (APP_VERSION_CODE /
+        // APP_VERSION_NAME). Android refuse d'installer une mise à jour dont
+        // le versionCode n'a pas augmenté : le figer dans le dépôt condamnait
+        // toute réinstallation par-dessus la précédente.
+        // Variables intermédiaires volontaires : écrit en une ligne,
+        // `versionCode (expr).toInteger()` se lit en Groovy comme un appel de
+        // méthode dont on chaîne le retour — le résultat était affecté avant
+        // conversion, puis `.toInteger()` s'appliquait à `null`.
+        def codeVersion = (project.findProperty("appVersionCode") ?: "1").toString()
+        def nomVersion = (project.findProperty("appVersionName") ?: "1.0.0").toString()
+        versionCode codeVersion.toInteger()
+        versionName nomVersion
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    // Signature de la variante « release ».
+    //
+    // Aucune clé n'est versionnée — un dépôt n'est pas un coffre. Elle est
+    // lue depuis android/keystore.properties (ignoré par git) ou, à défaut,
+    // depuis l'environnement. Sans clé, la variante release se construit
+    // quand même mais ressort NON SIGNÉE : Android refusera de l'installer.
+    // Pour un usage hors boutique, c'est `assembleDebug` qu'il faut — il est
+    // signé par la clé de débogage et s'installe tel quel.
+    signingConfigs {
+        release {
+            def props = new Properties()
+            def fichier = rootProject.file("keystore.properties")
+            if (fichier.exists()) {
+                fichier.withInputStream { props.load(it) }
+            }
+            def chemin = props.getProperty("storeFile") ?: System.getenv("ANDROID_KEYSTORE_FILE")
+            if (chemin) {
+                storeFile file(chemin)
+                storePassword props.getProperty("storePassword") ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias props.getProperty("keyAlias") ?: System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword props.getProperty("keyPassword") ?: System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (signingConfigs.release.storeFile != null) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
