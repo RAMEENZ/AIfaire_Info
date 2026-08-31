@@ -107,6 +107,30 @@ export const FRANCE_BOUNDS: [[number, number], [number, number]] = [
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
 
+/**
+ * Origine publique du site, racine des permaliens partagés.
+ *
+ * `window.location.origin` ne suffit plus depuis que le front est aussi
+ * empaqueté en application Android (Capacitor) : la WebView y sert les
+ * fichiers depuis `https://localhost`, adresse qui n'existe que dans le
+ * téléphone. Un lien copié depuis l'application aurait été inouvrable par son
+ * destinataire — silencieusement, puisqu'il a l'air d'une URL valide.
+ *
+ * NEXT_PUBLIC_SITE_URL est fournie au build (docker-compose pour le web,
+ * build-apk.sh pour l'APK). Sans elle — le cas du `next dev` sur un port
+ * quelconque — on retombe sur l'origine courante, qui est alors la bonne.
+ */
+export function permalienBase(): string {
+  const configuree = process.env.NEXT_PUBLIC_SITE_URL;
+  if (configuree) return configuree.replace(/\/+$/, "");
+  return typeof window !== "undefined" ? window.location.origin : "";
+}
+
+/** Permalien partageable vers la page d'un événement. */
+export function permalienEvenement(id: string): string {
+  return `${permalienBase()}/event/${id}`;
+}
+
 // Sondage complet du fil. Le flux SSE (/events/stream) pousse déjà les
 // nouveautés en direct : ce sondage n'est qu'un filet de sécurité, il n'a pas
 // besoin d'être fréquent. Passé de 5 à 15 min — sur mobile, chaque cycle

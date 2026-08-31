@@ -1,0 +1,23 @@
+{
+  "name": "aifaire-info-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Enveloppe Android (Capacitor) du front (ai)Faire Info — génération d'APK.",
+  "scripts": {
+    "assets": "node tools/make-assets.mjs",
+    "sync": "cap sync android",
+    "open": "cap open android",
+    "apk:debug": "./build-apk.sh debug",
+    "apk:release": "./build-apk.sh release"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/core": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.0.0",
+    "sharp": "^0.35.4"
+  }
+}

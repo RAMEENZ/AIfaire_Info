@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   ALL_CATEGORIES,
   CATEGORY_CONFIG,
   SOURCE_LABELS,
+  permalienEvenement,
 } from "./constants";
 
 // Noms canoniques des connecteurs backend (app/pipeline/ingestor.py::CONNECTORS).
@@ -31,5 +32,31 @@ describe("constants", () => {
       expect(cfg.icon).toBeTruthy();
       expect(cfg.letter).toBeTruthy();
     }
+  });
+});
+
+describe("permalienEvenement", () => {
+  const initial = process.env.NEXT_PUBLIC_SITE_URL;
+  afterEach(() => {
+    if (initial === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+    else process.env.NEXT_PUBLIC_SITE_URL = initial;
+  });
+
+  it("bâtit le lien sur l'origine publique configurée", () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://exemple.fr";
+    expect(permalienEvenement("abc")).toBe("https://exemple.fr/event/abc");
+  });
+
+  it("tolère une barre oblique finale sans la doubler", () => {
+    process.env.NEXT_PUBLIC_SITE_URL = "https://exemple.fr/";
+    expect(permalienEvenement("abc")).toBe("https://exemple.fr/event/abc");
+  });
+
+  // Sans origine configurée (next dev), on retombe sur celle du navigateur —
+  // jsdom sert http://localhost:3000. C'est le cas où l'origine courante EST
+  // la bonne ; dans l'APK elle ne l'est pas, d'où la variable de build.
+  it("retombe sur l'origine courante quand rien n'est configuré", () => {
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    expect(permalienEvenement("abc")).toBe(`${window.location.origin}/event/abc`);
   });
 });

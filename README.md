@@ -6,6 +6,7 @@ Vue cartographique unifiée de l'actualité publique française en quasi temps r
 
 - **Backend** : Python 3.13 + FastAPI + GeoAlchemy2 + APScheduler
 - **Frontend** : Next.js 16 + Leaflet + Tailwind CSS 4
+- **Mobile** : Capacitor 8 — APK Android embarquant l'export statique du front (`mobile/`)
 - **BDD** : PostgreSQL 16 + PostGIS 3.4
 - **IA** : Mistral AI (extraction lieu + catégorie + teaser + briefs) — Ollama en fallback local
 - **Géocodage** : BAN (api-adresse.data.gouv.fr) pour les communes + tables locales pour départements (101 centroïdes statiques), régions et DOM-TOM
@@ -281,6 +282,27 @@ npm run dev
 Interface disponible sur http://localhost:3000  
 API + Swagger : http://localhost:8000/docs _(nécessite `ENABLE_DOCS=true` dans `.env`)_
 
+### Application Android (APK)
+
+Le front est aussi empaquetable en application Android, sans rien changer au
+site : `frontend/` garde sa sortie `standalone` pour Docker, et l'export
+statique n'est qu'un second mode déclenché par `NEXT_OUTPUT=export`, que seul
+`mobile/` utilise.
+
+```bash
+cd mobile
+npm install
+./build-apk.sh debug     # → mobile/dist/aifaire-info-1.0.0-debug.apk
+```
+
+Les fichiers du front sont **embarqués dans l'APK** : l'application démarre
+sans réseau et n'appelle l'API que pour les données. Elle est pour cette API
+une origine tierce (`https://localhost`), ce qui impose d'y ajouter cette
+origine — voir `mobile/README.md`, section « Prérequis côté serveur : CORS ».
+
+Prérequis : JDK 21 et le SDK Android. Détails, signature d'une version release
+et régénération des icônes : [`mobile/README.md`](mobile/README.md).
+
 ### Tests (backend)
 
 Suite de tests unitaires hors-ligne (pas de base de données ni de réseau requis) :
@@ -399,7 +421,7 @@ comme configurables sans l'être réellement. Les valeurs construites par
 | `HOURLY_ALERT_INGESTION` | `true` | Passage horaire des sources d'alerte (météo, crues, séismes) sans coût LLM |
 | `LOG_DIR` | _(vide)_ | Répertoire de logs persistants (rotation 5×10 Mo) ; `/app/logs` en prod |
 | `FEED_SKIP_RUNS` | `8` | Nb de cycles d'ingestion pendant lesquels un flux mort est sauté avant re-test |
-| `CORS_ORIGINS` | `*` | Origines CORS autorisées (séparées par virgule) |
+| `CORS_ORIGINS` | `*` | Origines CORS autorisées (séparées par virgule). `*` neutralisé en production ; ajouter `https://localhost` pour l'APK Android |
 | `GIT_SHA` | _(vide)_ | Commit déployé, exposé par `GET /` (diagnostic « quelle version tourne ? ») |
 
 ## Production (Docker Compose)
