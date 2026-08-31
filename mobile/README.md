@@ -77,6 +77,31 @@ NEXT_PUBLIC_API_BASE_URL=https://mon-domaine/api APP_VERSION_CODE=2 \
   ./build-apk.sh debug
 ```
 
+## Lisibilité sur téléphone
+
+Le front est partagé avec le site : rien ici n'est propre à l'APK. Les
+ajustements tactiles sont donc tous posés **sous le point de rupture `sm`**
+(639 px) et rétablis au-delà — le site en version bureau garde ses dimensions
+au pixel près, et le site consulté au téléphone profite des mêmes gains.
+
+Ce qui a été réglé :
+
+- **Marges d'encoche.** Visant l'API 36, l'application est dessinée bord à
+  bord : sans `env(safe-area-inset-top)`, l'en-tête passait sous l'horloge et
+  la batterie. Sur le web ces `env()` valent zéro, le site est intact.
+- **Cibles tactiles.** 29 commandes mesuraient moins de 44 px de côté ; il en
+  reste 4, dont 3 sont les liens d'attribution de Leaflet — des mentions
+  légales, pas des commandes.
+- **Typographie de lecture.** Titre d'événement 14 → 16 px, résumé 12 → 14 px,
+  métadonnées 11 → 12 px.
+- **Panneau DOM-TOM replié par défaut.** Déplié, ses onze territoires
+  mangeaient près d'un tiers de la carte. Une pastille de couleur sur l'onglet
+  replié signale toujours une alerte outre-mer.
+
+Les commandes de Leaflet sont figées à 30 px par sa feuille de style, hors de
+portée d'une classe utilitaire : elles sont reprises dans un bloc média en fin
+de `frontend/src/app/globals.css`.
+
 ## Prérequis côté serveur : CORS
 
 **À faire une fois, sinon l'application s'ouvre mais reste vide.**

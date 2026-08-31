@@ -108,14 +108,14 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
       <button
         ref={btnRef}
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${
+        className={`flex items-center justify-center gap-1 text-xs px-2 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 sm:py-1 rounded border transition-colors ${
           active
             ? "border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
             : "border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
         }`}
         title="Alertes navigateur"
       >
-        <svg className="w-3.5 h-3.5" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+        <svg className="w-5 h-5 sm:w-3.5 sm:h-3.5" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
         </svg>
         <span className="hidden lg:inline">Alertes</span>
@@ -124,7 +124,7 @@ export default function AlertSettings({ onChange }: AlertSettingsProps) {
       {open && settings && (
         <div
           ref={panelRef}
-          className="absolute right-0 top-9 z-2000 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 text-xs"
+          className="absolute right-0 top-12 sm:top-9 z-2000 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 text-xs"
         >
           {!notificationsSupported() ? (
             <p className="text-gray-500 dark:text-gray-400">

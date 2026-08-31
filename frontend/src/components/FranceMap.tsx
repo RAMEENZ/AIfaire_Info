@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { MapContainer, TileLayer, GeoJSON, useMap, useMapEvents } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import type { Map as LeafletMap, Layer } from "leaflet";
@@ -108,7 +108,7 @@ function MapLegend() {
     <div className="absolute bottom-7 right-2 z-1000">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-7 h-7 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md text-gray-600 dark:text-gray-300 hover:text-blue-700 text-xs font-bold flex items-center justify-center"
+        className="w-11 h-11 sm:w-7 sm:h-7 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-md text-gray-600 dark:text-gray-300 hover:text-blue-700 text-sm sm:text-xs font-bold flex items-center justify-center"
         title="Légende"
         aria-label="Afficher la légende de la carte"
       >
@@ -289,14 +289,14 @@ function GeoSearch() {
         value={query}
         onChange={(e) => { setQuery(e.target.value); setNotFound(false); }}
         placeholder="Rechercher une ville…"
-        className={`px-2 py-1 text-xs rounded border shadow-md bg-white dark:bg-gray-800 w-36 focus:outline-hidden transition-colors ${
+        className={`px-2 py-2.5 sm:py-1 min-h-11 sm:min-h-0 text-sm sm:text-xs rounded border shadow-md bg-white dark:bg-gray-800 w-36 focus:outline-hidden transition-colors ${
           notFound ? "border-red-400 placeholder-red-400" : "border-gray-200 dark:border-gray-700 focus:border-blue-400"
         }`}
       />
       <button
         type="submit"
         disabled={loading || !query.trim()}
-        className="px-2 py-1 text-xs rounded-sm border border-gray-200 dark:border-gray-700 shadow-md bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 disabled:opacity-40 transition-colors"
+        className="px-3 py-2.5 sm:px-2 sm:py-1 min-h-11 sm:min-h-0 text-sm sm:text-xs rounded-sm border border-gray-200 dark:border-gray-700 shadow-md bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 disabled:opacity-40 transition-colors"
         title="Rechercher"
         aria-label="Rechercher une ville sur la carte"
       >
@@ -313,6 +313,12 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
 
   // Feature 2: heatmap toggle
   const [showHeatmap, setShowHeatmap] = useState(false);
+  // Panneau DOM-TOM replié par défaut sur petit écran. Déplié, ses onze
+  // territoires occupaient près d'un tiers de la hauteur de carte sur un
+  // téléphone — au bénéfice d'une navigation qui sert rarement, et au
+  // détriment de la carte, qui est l'écran d'accueil. À partir de `sm` le
+  // panneau reste ouvert en permanence comme avant, cet état est ignoré.
+  const [domTomOuvert, setDomTomOuvert] = useState(false);
 
   // Feature 4: watch zone
   const [watchMode, setWatchMode] = useState(false);
@@ -409,6 +415,19 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onSelectDept, deptMaxGravite, showRiskLayer]);
 
+  // Gravité maximale outre-mer, pour signaler une alerte même panneau replié.
+  // Sans elle, replier le panneau sur téléphone aurait masqué l'information
+  // qui justifie son existence — les pastilles d'alerte des territoires.
+  const alerteDomTom = useMemo(() => {
+    const codes = DOM_TOM.map((t) => t.code);
+    const maxG = events.reduce((m, e) => {
+      const code = e.lieu_code_insee;
+      if (!code || !codes.some((c) => code.startsWith(c))) return m;
+      return Math.max(m, e.gravite);
+    }, 0);
+    return maxG >= 3 ? "#EF4444" : maxG >= 2 ? "#F97316" : maxG >= 1 ? "#F59E0B" : null;
+  }, [events]);
+
   const handleMapClick = (lat: number, lon: number) => {
     if (!watchMode) return;
     setWatchZone((prev) => ({ lat, lon, radius: prev?.radius ?? 50 }));
@@ -482,7 +501,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
       <div className="absolute top-2 right-2 z-1000">
         <button
           onClick={() => setShowRiskLayer((v) => !v)}
-          className={`px-2.5 py-1 text-[11px] font-medium rounded border shadow-md transition-colors ${
+          className={`px-3 py-3 sm:px-2.5 sm:py-1 min-h-11 sm:min-h-0 text-xs sm:text-[11px] font-medium rounded border shadow-md transition-colors ${
             showRiskLayer
               ? "bg-red-600 text-white border-red-700 hover:bg-red-700"
               : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-blue-700"
@@ -497,7 +516,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
       <div className="absolute bottom-16 right-2 z-1000">
         <button
           onClick={() => setShowHeatmap((v) => !v)}
-          className={`px-2 py-1 rounded text-xs font-medium border shadow-md transition-colors ${
+          className={`px-3 py-3 sm:px-2 sm:py-1 min-h-11 sm:min-h-0 rounded text-xs font-medium border shadow-md transition-colors ${
             showHeatmap
               ? "bg-orange-500 text-white border-orange-600"
               : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:text-orange-500"
@@ -520,7 +539,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
               return !v;
             });
           }}
-          className={`px-2 py-1 rounded text-xs font-medium border shadow-md transition-colors ${
+          className={`px-3 py-3 sm:px-2 sm:py-1 min-h-11 sm:min-h-0 rounded text-xs font-medium border shadow-md transition-colors ${
             watchMode
               ? "bg-indigo-600 text-white border-indigo-700"
               : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:text-indigo-600"
@@ -567,8 +586,23 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
       {/* Panneau de navigation DOM-TOM */}
       <div className="absolute bottom-7 left-2 z-1000">
         <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xs border border-gray-200 dark:border-gray-700 rounded-lg shadow-md px-2 py-1.5">
-          <p className="text-[9px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">DOM-TOM</p>
-          <div className="flex flex-wrap gap-1 max-w-[200px]">
+          <button
+            onClick={() => setDomTomOuvert((v) => !v)}
+            aria-expanded={domTomOuvert}
+            className="sm:hidden flex items-center gap-1 min-h-11 pr-1 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide"
+          >
+            <span aria-hidden="true">{domTomOuvert ? "▾" : "▸"}</span>
+            DOM-TOM
+            {alerteDomTom && (
+              <span
+                className="w-2 h-2 rounded-full border border-white"
+                style={{ backgroundColor: alerteDomTom }}
+                title="Alerte en cours outre-mer"
+              />
+            )}
+          </button>
+          <p className="hidden sm:block text-[9px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">DOM-TOM</p>
+          <div className={`${domTomOuvert ? "flex" : "hidden"} sm:flex flex-wrap gap-1 max-w-[200px]`}>
             {DOM_TOM.map((t) => {
               const territoryEvents = events.filter((e) => e.lieu_code_insee?.startsWith(t.code) ?? false);
               const maxG = territoryEvents.reduce((m, e) => Math.max(m, e.gravite), 0);
@@ -577,7 +611,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
                 <button
                   key={t.code}
                   onClick={() => flyTo(t.center, t.zoom)}
-                  className="relative px-1.5 py-0.5 text-[10px] font-medium bg-gray-50 dark:bg-gray-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-gray-200 dark:border-gray-700 rounded-sm text-gray-600 dark:text-gray-300 hover:text-blue-700 transition-colors"
+                  className="relative px-2 py-2 sm:px-1.5 sm:py-0.5 text-xs sm:text-[10px] font-medium bg-gray-50 dark:bg-gray-900/40 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-gray-200 dark:border-gray-700 rounded-sm text-gray-600 dark:text-gray-300 hover:text-blue-700 transition-colors"
                   title={alertColor ? `${t.name} — ${territoryEvents.length} alerte(s)` : `Aller sur ${t.name}`}
                 >
                   {t.name}
@@ -592,7 +626,7 @@ export default function FranceMap({ events, selectedEvent, onSelectEvent, onSele
             })}
             <button
               onClick={() => flyTo(FRANCE_CENTER, FRANCE_DEFAULT_ZOOM)}
-              className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-sm transition-colors"
+              className="px-2 py-2 sm:px-1.5 sm:py-0.5 text-xs sm:text-[10px] font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-sm transition-colors"
               title="Retour France métropolitaine"
             >
               ← Métropole

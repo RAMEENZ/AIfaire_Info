@@ -494,7 +494,15 @@ export default function HomePage() {
         disposition découle de ce que les éléments SONT, pas d'une correction
         appliquée à partir d'une certaine taille d'écran.
       */}
-      <header className="flex flex-col gap-1.5 px-3 py-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-xs z-10 shrink-0">
+      {/* Les marges d'encoche ne sont pas de la coquetterie : empaqueté en
+          application Android (mobile/), le front est dessiné SOUS la barre
+          d'état — Android 15 impose l'affichage bord à bord aux applications
+          visant l'API 35+, et Capacitor laisse la WebView s'y étendre puisque
+          la page déclare `viewport-fit=cover`. Sans ces marges, le titre et
+          les boutons passaient sous l'horloge et la batterie. Sur le web les
+          `env()` valent zéro : le site est inchangé. Les insets latéraux
+          couvrent le paysage, où l'encoche passe sur le côté. */}
+      <header className="flex flex-col gap-1.5 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] pl-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-xs z-10 shrink-0">
         {/* Bande 1 — identité, outils, état */}
         <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center mr-4">
@@ -597,7 +605,7 @@ export default function HomePage() {
             onClick={() => setMobileMenuOpen((v) => !v)}
             aria-label="Plus d'options"
             aria-expanded={mobileMenuOpen}
-            className="flex items-center justify-center w-8 h-8 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+            className="flex items-center justify-center w-11 h-11 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
@@ -607,7 +615,7 @@ export default function HomePage() {
             <>
               {/* Voile : ferme le menu au tap en dehors */}
               <div className="fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)} aria-hidden="true" />
-              <div className="absolute right-0 top-9 z-50 w-48 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg py-1">
+              <div className="absolute right-0 top-12 sm:top-9 z-50 w-48 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg py-1">
                 <a
                   href="/stats"
                   className="block px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50"
@@ -664,7 +672,7 @@ export default function HomePage() {
         <button
           onClick={toggleDark}
           aria-label={darkMode ? "Passer en mode clair" : "Passer en mode sombre"}
-          className="flex items-center justify-center w-7 h-7 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          className="flex items-center justify-center w-11 h-11 sm:w-7 sm:h-7 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           title={darkMode ? "Passer en mode clair" : "Passer en mode sombre"}
         >
           {darkMode ? (
@@ -728,22 +736,22 @@ export default function HomePage() {
       <div className="flex md:hidden border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0">
         <button
           onClick={() => setMobileView("map")}
-          className={`flex-1 py-2.5 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
+          className={`flex-1 py-3.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
             mobileView === "map" ? "text-blue-700 dark:text-blue-300 border-b-2 border-blue-700 bg-blue-50 dark:bg-blue-900/30" : "text-gray-500 dark:text-gray-400"
           }`}
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
           </svg>
           Carte ({localEvents.length})
         </button>
         <button
           onClick={() => setMobileView("feed")}
-          className={`flex-1 py-2.5 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
+          className={`flex-1 py-3.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
             mobileView === "feed" ? "text-blue-700 dark:text-blue-300 border-b-2 border-blue-700 bg-blue-50 dark:bg-blue-900/30" : "text-gray-500 dark:text-gray-400"
           }`}
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
           </svg>
           Actualités ({allEvents.length})

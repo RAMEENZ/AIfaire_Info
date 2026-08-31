@@ -134,13 +134,13 @@ export default function PushSettings({ pinnedDept }: { pinnedDept?: string | nul
           ? `Recevoir les alertes graves de ${DEPT_CODE_TO_NAME[pinnedDept] ?? pinnedDept}`
           : "Recevoir les alertes graves (épinglez un département pour cibler)"
       }
-      className={`flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors disabled:opacity-50 ${
+      className={`flex items-center justify-center gap-1 text-xs px-2 min-w-11 min-h-11 sm:min-w-0 sm:min-h-0 sm:py-1 rounded border transition-colors disabled:opacity-50 ${
         subscribed
           ? "border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30"
           : "border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
       }`}
     >
-      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+      <svg className="w-5 h-5 sm:w-3 sm:h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
         <path
           strokeLinecap="round"
           strokeLinejoin="round"

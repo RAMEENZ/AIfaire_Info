@@ -78,7 +78,7 @@ export default function StatsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <header className="flex items-center gap-4 px-4 py-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-xs">
+      <header className="flex items-center gap-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-xs">
         <Link
           href="/"
           className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 transition-colors"

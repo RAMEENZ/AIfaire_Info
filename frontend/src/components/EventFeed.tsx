@@ -102,17 +102,21 @@ function ShareButton({ eventId }: { eventId: string }) {
       setTimeout(() => setCopied(false), 1500);
     }).catch(() => {});
   };
+  // L'icône fait 12 px, mais la zone touchée doit en faire 44 : la marge
+  // négative absorbe le supplément pour que rien ne bouge à l'écran, ici comme
+  // sur le site. Sans elle, viser ce bouton au doigt tenait du pari — et le
+  // manquer ouvre l'article, la carte entière étant cliquable.
   return (
     <button
       onClick={handleShare}
       title="Copier le lien vers cet événement"
       aria-label="Copier le lien vers cet événement"
-      className="text-gray-500 dark:text-gray-400 hover:text-blue-500 transition-colors shrink-0"
+      className="flex items-center justify-center w-11 h-11 -m-2.5 sm:w-auto sm:h-auto sm:m-0 text-gray-500 dark:text-gray-400 hover:text-blue-500 transition-colors shrink-0"
     >
       {copied ? (
-        <span className="text-green-500 text-[10px] font-semibold">✓</span>
+        <span className="text-green-500 text-xs sm:text-[10px] font-semibold">✓</span>
       ) : (
-        <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+        <svg className="w-4 h-4 sm:w-3 sm:h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
         </svg>
       )}
@@ -166,7 +170,11 @@ function EventCard({
         className="block group"
       >
         {/* Carte sélectionnée = dépliée : titre et résumé complets, détails. */}
-        <p className={`text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-700 leading-snug ${selected ? "" : "line-clamp-2"}`}>
+        {/* Titre et résumé montent d'un cran sous `sm`. La densité d'origine
+            vise un grand écran qu'on survole ; à bout de bras, 12 px de résumé
+            se déchiffrent au lieu de se lire. Au-delà de `sm`, tout reprend
+            ses tailles exactes. */}
+        <p className={`text-base sm:text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-700 leading-snug ${selected ? "" : "line-clamp-2"}`}>
           {event.titre}
         </p>
       </a>
@@ -211,14 +219,14 @@ function EventCard({
         )}
 
         {event.resume_ia && (
-          <p className={`w-full text-xs text-gray-500 dark:text-gray-400 mt-0.5 ${selected ? "" : "line-clamp-2"}`}>
+          <p className={`w-full text-sm sm:text-xs text-gray-500 dark:text-gray-400 mt-0.5 ${selected ? "" : "line-clamp-2"}`}>
             {event.resume_ia}
           </p>
         )}
 
         {/* Détails supplémentaires quand la carte est dépliée */}
         {selected && (
-          <div className="w-full mt-1.5 pt-1.5 border-t border-blue-100 dark:border-blue-800 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
+          <div className="w-full mt-1.5 pt-1.5 border-t border-blue-100 dark:border-blue-800 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-[11px] text-gray-500 dark:text-gray-400">
             {event.lieu_niveau && event.lieu_niveau !== "national" && (
               <span>
                 Localisation : {event.lieu_niveau}
@@ -263,7 +271,7 @@ function EventCard({
         )}
       </div>
 
-      <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+      <div className="mt-1.5 flex items-center justify-between gap-2 text-[13px] sm:text-xs text-gray-500 dark:text-gray-400">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="inline-block px-1.5 py-0.5 rounded-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-medium shrink-0 truncate max-w-[120px]">
             {sourceLabel}

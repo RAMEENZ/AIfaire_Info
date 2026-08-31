@@ -178,3 +178,32 @@ main {
 .dark :focus-visible {
   outline-color: #60a5fa;
 }
+
+/* ── Confort tactile sur petit écran ─────────────────────────────────────────
+ *
+ * Le reste de l'interface est dimensionné pour une souris, qui vise au pixel.
+ * Un doigt, non : Android comme iOS recommandent 48 dp / 44 pt de côté. Les
+ * commandes de Leaflet, elles, sont figées à 30 px par sa feuille de style —
+ * hors de portée d'une classe utilitaire, d'où ce bloc.
+ *
+ * Le point de rupture 639px est celui de `sm` dans Tailwind : au-delà, tout
+ * reprend exactement ses dimensions d'origine, le site en version bureau ne
+ * bouge pas.
+ */
+@media (max-width: 639px) {
+  .leaflet-control-zoom a {
+    width: 44px;
+    height: 44px;
+    line-height: 44px;
+    font-size: 22px;
+  }
+
+  /* L'attribution passait sur deux lignes et chevauchait le panneau DOM-TOM.
+     Réduite d'un cran, elle tient sur une ligne. Son contenu reste entier :
+     les licences ODbL et Licence Ouverte l'exigent, ce n'est pas un ornement. */
+  .leaflet-control-attribution {
+    font-size: 10px;
+    line-height: 1.35;
+    padding: 1px 5px;
+  }
+}
