@@ -14,8 +14,31 @@ import app.models  # noqa: F401 — enregistre Event/ConnectorStatus/DailyBrief 
 
 config = context.config
 
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# Configuration du logging : réservée à l'invocation EN LIGNE DE COMMANDE.
+#
+# `fileConfig()` fait deux choses destructrices quand l'application pilote
+# Alembic dans son propre process (au démarrage, via app.database.run_migrations) :
+#
+#   1. `disable_existing_loggers=True` (le défaut) DÉSACTIVE tous les loggers
+#      déjà créés. Ceux de `app.*` naissent à l'import de `main.py`, donc bien
+#      avant : `app.pipeline.brief`, `app.pipeline.extractor`, `app.pipeline.robots`…
+#      cessaient d'émettre quoi que ce soit, à n'importe quel niveau.
+#   2. Elle REMPLACE les handlers de la racine par ceux d'alembic.ini (une
+#      console stderr, racine à WARNING) — décrochant au passage le
+#      RotatingFileHandler que `main.py` venait d'installer sur LOG_DIR.
+#
+# Mesuré en production : après la bascule vers Alembic (30/08/2026), le backend
+# est devenu MUET — plus une ligne applicative dans `logs/backend.log` ni sur
+# stdout, la dernière étant celle d'Alembic elle-même, à l'instant du basculement.
+# Quand Mistral est tombé le 03/09, aucune trace n'a été écrite : c'est
+# exactement la cécité que les logs persistants avaient été ajoutés pour
+# supprimer, après la panne de 07/2026.
+#
+# `config.attributes["connection"]` est le discriminant, déjà utilisé plus bas
+# par run_migrations_online() : l'application le pose, la CLI jamais. En CLI on
+# configure donc le logging, mais sans faire taire les loggers existants.
+if config.config_file_name is not None and config.attributes.get("connection") is None:
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # URL depuis la config applicative (.env / variables d'environnement) — jamais
 # en dur dans alembic.ini.
