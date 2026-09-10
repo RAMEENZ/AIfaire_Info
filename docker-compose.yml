@@ -65,7 +65,10 @@ services:
       METEO_FRANCE_API_KEY: ${METEO_FRANCE_API_KEY:-}
       INGEST_API_KEY: ${INGEST_API_KEY:-}
       FETCH_FULL_ARTICLES: ${FETCH_FULL_ARTICLES:-true}
-      MAX_PRESSE_ARTICLES: ${MAX_PRESSE_ARTICLES:-120}
+      # Ce plafond fixe la consommation LLM (1 appel/article × 3 ingestions/jour).
+      # Aligné sur le défaut de config.py : à 120, le quota du palier gratuit
+      # Mistral s'épuisait (panne du 03/09/2026). Une valeur dans .env l'emporte.
+      MAX_PRESSE_ARTICLES: ${MAX_PRESSE_ARTICLES:-40}
       APP_ENV: ${APP_ENV:-production}
       LOG_LEVEL: INFO
       REDIS_URL: redis://redis:6379

@@ -87,10 +87,24 @@ class Settings(BaseSettings):
     # leurs quatre tentatives en 429, et ces 5 articles sont EXACTEMENT ceux
     # ressortis sans tags et avec un résumé recopié du titre. Coût : une
     # ingestion de MAX_PRESSE_ARTICLES articles dure au moins
-    # MAX_PRESSE_ARTICLES × cette valeur (120 s pour 120 articles à 1 s), à
+    # MAX_PRESSE_ARTICLES × cette valeur (40 s pour 40 articles à 1 s), à
     # comparer aux minutes que prend déjà l'enrichissement. Mettre 0 pour
     # désactiver ; augmenter si des 429 subsistent dans les journaux.
     MISTRAL_MIN_INTERVAL_SECONDS: float = 1.0
+
+    # Disjoncteur : après ce nombre d'échecs DÉFINITIFS consécutifs (tentatives
+    # épuisées), on cesse d'appeler Mistral pendant le repos ci-dessous, puis on
+    # retente. La reprise sur 429 suppose une fenêtre qui se rouvre ; un quota
+    # épuisé, lui, refuse indéfiniment. Panne du 03/09/2026 : quota de
+    # complétions épuisé sept jours durant, pendant lesquels chaque ingestion a
+    # continué d'émettre ~105 articles × 4 tentatives d'appels voués à l'échec,
+    # trois fois par jour, en ajoutant plusieurs minutes d'attente par run pour
+    # exactement le même résultat (le repli par règles). Mettre 0 pour désactiver.
+    MISTRAL_CIRCUIT_THRESHOLD: int = 5
+    # Repos avant nouvelle tentative. 15 min : assez court pour qu'un rétablissement
+    # (quota mensuel réarmé, incident amont résolu) soit repris au run suivant,
+    # assez long pour qu'un run de 40 articles n'en paie que le seuil ci-dessus.
+    MISTRAL_CIRCUIT_COOLDOWN_SECONDS: int = 900
 
     # Ollama : fallback local si MISTRAL_API_KEY est vide
     OLLAMA_BASE_URL: str = ""
@@ -112,11 +126,23 @@ class Settings(BaseSettings):
     # Désactiver si la VM a un accès internet limité ou pour économiser la bande passante.
     FETCH_FULL_ARTICLES: bool = True
 
-    # Plafond d'articles de presse traités par cycle d'ingestion (les plus
-    # récents). Chaque article passe par le LLM (classement + résumé + lieu),
-    # ~12 s sur CPU avec un petit modèle : sans plafond, un run de ~1000 articles
-    # sature le CPU pendant plus d'une heure avant le moindre commit. 120 ≈ 12 min.
-    MAX_PRESSE_ARTICLES: int = 120
+    # Plafond d'articles de presse traités par cycle d'ingestion. La sélection
+    # est diversifiée (round-robin par flux, cf. presse_rss._select_diverse) :
+    # baisser ce plafond réduit le VOLUME, pas la variété géographique.
+    #
+    # Chaque article coûte un appel LLM (classement + résumé + lieu). C'est donc
+    # ce plafond qui fixe la consommation : 3 ingestions/jour × ce nombre, plus
+    # trois briefs. À 120, cela faisait ~360 appels/jour — au-delà de ce que le
+    # palier gratuit de Mistral encaisse : le quota s'est épuisé le 03/09/2026,
+    # et l'enrichissement est retombé sur les règles pendant une semaine (résumés
+    # recopiés du titre, aucun tag) sans que rien ne le signale.
+    #
+    # 40 → ~120 appels/jour, à tenir dans le palier gratuit. Le fil de presse
+    # perd en volume ce qu'il regagne en qualité d'enrichissement : mieux vaut
+    # 40 articles classés et résumés que 105 traités par regex. À ajuster en
+    # regardant `tagged_pct_24h` dans /api/metrics — s'il reste à 100 %, le
+    # quota tient et ce plafond peut remonter.
+    MAX_PRESSE_ARTICLES: int = 40
 
     # Délai maximal accordé à la phase de collecte (fetch) d'un connecteur. Au-delà,
     # on abandonne CE connecteur (0 événement, erreur enregistrée) sans bloquer les
@@ -165,6 +191,16 @@ class Settings(BaseSettings):
     # n'est pas exigée : l'ingestion de démarrage peut prendre >10 min
     # (MAX_PRESSE_ARTICLES × LLM) et la base peut légitimement être vide/stale.
     HEALTHZ_BOOT_GRACE_MINUTES: int = 30
+
+    # Âge du brief au-delà duquel on alerte (app/pipeline/freshness.py). Le
+    # brief est le SEUL indicateur qui se fige quand le modèle de langage tombe :
+    # il n'a aucun repli, là où l'extraction retombe silencieusement sur les
+    # règles et où l'ingestion continue de tourner — donc /healthz et l'alerte
+    # de staleness voient des données parfaitement fraîches.
+    # Panne du 03/09/2026 : brief figé sept jours, aucune alerte possible.
+    # Avec BRIEF_HOURS="9,14,21", le plus grand écart normal est de 12 h
+    # (21h → 9h) : 30 h = deux créneaux manqués d'affilée, plus une marge.
+    BRIEF_MAX_AGE_HOURS: int = 30
 
     # Passage horaire des sources d'alerte (météo, crues, séismes) en plus des
     # 3 ingestions complètes quotidiennes. APIs structurées, aucun coût LLM :

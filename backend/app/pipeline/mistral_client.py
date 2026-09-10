@@ -56,6 +56,73 @@ async def _respecter_la_cadence() -> None:
 # transitoires côté serveur. Un 401 ou un 400 ne se répareront pas en attendant.
 _CODES_REESSAYABLES = frozenset({429, 500, 502, 503, 504})
 
+
+# ── Disjoncteur ──────────────────────────────────────────────────────────────
+# La reprise sur 429 suppose que la fenêtre se rouvre « bientôt ». C'est vrai
+# d'une limite de débit, faux d'un QUOTA ÉPUISÉ : le refus est alors permanent,
+# et chaque article paie quand même ses MISTRAL_MAX_RETRIES tentatives.
+#
+# Mesuré en production : quota de complétions épuisé le 03/09/2026 (HTTP 429
+# « rate_limited », y compris sur une requête isolée, sept jours durant). Chaque
+# ingestion a continué d'émettre ~105 articles × 4 tentatives = 420 appels voués
+# à l'échec, trois fois par jour — de l'ordre de 10 000 appels perdus, et
+# plusieurs minutes d'attente ajoutées à chaque run pour un résultat identique
+# (le repli par règles).
+#
+# Même remède que pour les flux RSS morts (FeedCircuitBreaker) : après
+# MISTRAL_CIRCUIT_THRESHOLD échecs DÉFINITIFS d'affilée, on cesse d'appeler
+# pendant MISTRAL_CIRCUIT_COOLDOWN_SECONDS, puis on retente. L'extraction
+# retombe immédiatement sur les règles, sans attendre ; le brief échoue tout de
+# suite au lieu de mettre une minute à le faire.
+_echecs_consecutifs = 0
+_circuit_ouvert_jusqua = 0.0
+
+
+def _circuit_est_ouvert() -> bool:
+    return time.monotonic() < _circuit_ouvert_jusqua
+
+
+def _noter_echec(etiquette: str) -> None:
+    """Comptabilise un échec définitif ; ouvre le circuit au seuil."""
+    global _echecs_consecutifs, _circuit_ouvert_jusqua
+    _echecs_consecutifs += 1
+    seuil = settings.MISTRAL_CIRCUIT_THRESHOLD
+    if seuil > 0 and _echecs_consecutifs >= seuil and not _circuit_est_ouvert():
+        repos = settings.MISTRAL_CIRCUIT_COOLDOWN_SECONDS
+        _circuit_ouvert_jusqua = time.monotonic() + repos
+        logger.warning(
+            "Mistral : %d échecs définitifs d'affilée — appels suspendus %d s "
+            "(l'extraction retombe sur les règles, le brief ne sera pas produit). "
+            "Dernier contexte : %s",
+            _echecs_consecutifs, repos, etiquette or "—",
+        )
+
+
+def _noter_succes() -> None:
+    """Referme le circuit ; signale un rétablissement après panne."""
+    global _echecs_consecutifs, _circuit_ouvert_jusqua
+    if _echecs_consecutifs >= settings.MISTRAL_CIRCUIT_THRESHOLD > 0:
+        logger.warning("Mistral : rétabli après %d échecs consécutifs", _echecs_consecutifs)
+    _echecs_consecutifs = 0
+    _circuit_ouvert_jusqua = 0.0
+
+
+def etat_disjoncteur() -> dict[str, Any]:
+    """État du disjoncteur — pour la supervision et les tests."""
+    restant = max(0.0, _circuit_ouvert_jusqua - time.monotonic())
+    return {
+        "ouvert": _circuit_est_ouvert(),
+        "echecs_consecutifs": _echecs_consecutifs,
+        "reprise_dans_secondes": round(restant),
+    }
+
+
+def reinitialiser_disjoncteur() -> None:
+    """Remet le disjoncteur à zéro (tests, et redémarrage à chaud)."""
+    global _echecs_consecutifs, _circuit_ouvert_jusqua
+    _echecs_consecutifs = 0
+    _circuit_ouvert_jusqua = 0.0
+
 # Client partagé : `chat()` est appelé une fois par article, soit jusqu'à
 # MAX_PRESSE_ARTICLES fois par ingestion, plus le brief. Un client par appel
 # rouvrait une connexion et refaisait une poignée de main TLS à chaque fois,
@@ -121,6 +188,12 @@ async def chat(
     if not settings.MISTRAL_API_KEY:
         return None
 
+    # Circuit ouvert : on n'appelle pas. Sans clé configurée on est sorti plus
+    # haut, donc aucun risque de compter comme « panne » une absence de clé.
+    if _circuit_est_ouvert():
+        logger.debug("Mistral %s : circuit ouvert, appel ignoré", etiquette)
+        return None
+
     charge: dict[str, Any] = {
         "model": settings.MISTRAL_MODEL,
         "messages": messages,
@@ -145,13 +218,16 @@ async def chat(
                 timeout=timeout,
             )
             resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]["content"].strip()
+            contenu = resp.json()["choices"][0]["message"]["content"].strip()
+            _noter_succes()
+            return contenu
 
         except httpx.HTTPStatusError as exc:
             code = exc.response.status_code
             if code not in _CODES_REESSAYABLES or tentative == tentatives - 1:
                 logger.warning("Mistral %s : HTTP %d%s", etiquette, code,
                                " (dernière tentative)" if code in _CODES_REESSAYABLES else "")
+                _noter_echec(f"{etiquette} HTTP {code}")
                 return None
             attente = _delai_avant_reprise(exc.response, tentative)
             logger.info("Mistral %s : HTTP %d, reprise dans %.1f s (%d/%d)",
@@ -162,6 +238,7 @@ async def chat(
             # Coupure réseau : même traitement qu'un 5xx.
             if tentative == tentatives - 1:
                 logger.warning("Mistral %s : %s (dernière tentative)", etiquette, exc)
+                _noter_echec(f"{etiquette} {type(exc).__name__}")
                 return None
             attente = _delai_avant_reprise(None, tentative)
             logger.info("Mistral %s : %s, reprise dans %.1f s (%d/%d)",
@@ -171,6 +248,7 @@ async def chat(
         except Exception as exc:
             # Réponse illisible, JSON inattendu… : rien à gagner à insister.
             logger.warning("Mistral %s : %s", etiquette, exc)
+            _noter_echec(f"{etiquette} {type(exc).__name__}")
             return None
 
     return None
