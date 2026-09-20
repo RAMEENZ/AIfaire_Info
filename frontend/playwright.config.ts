@@ -28,6 +28,23 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:3000",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    // Service worker neutralisé pendant les tests. `page.route()` n'intercepte
+    // PAS les requêtes émises par un service worker : dès que celui-ci prend
+    // la main (skipWaiting + clients.claim, donc en quelques centaines de
+    // millisecondes), les appels d'API lui passent par-dessus et la simulation
+    // d'e2e/fixtures.ts cesse de s'appliquer. Les tests qui agissent APRÈS le
+    // chargement initial — « charger plus », recherche, Actualiser, clic sur un
+    // marqueur — tombaient alors en timeout, sans rapport avec ce qu'ils
+    // vérifient.
+    //
+    // La suite n'en couvrait pas moins qu'avant : elle ne tenait que parce que
+    // l'API y est CROSS-ORIGIN (NEXT_PUBLIC_API_BASE_URL non défini au build →
+    // http://localhost:8000/api, quand la page est servie sur 127.0.0.1:3000),
+    // cas que le worker laissait sortir. En production l'API est same-origin
+    // sous /api : le worker l'intercepte, et l'a toujours fait. Ce chemin-là
+    // n'a donc jamais été exercé ici, et ce réglage ne retire aucune
+    // couverture — il rend seulement la simulation déterministe.
+    serviceWorkers: "block",
   },
   projects: [
     {
