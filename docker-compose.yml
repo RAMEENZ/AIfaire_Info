@@ -61,7 +61,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://faire_info:${POSTGRES_PASSWORD:?Definis POSTGRES_PASSWORD dans .env}@db:5432/faire_info
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
-      MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-small-latest}
+      MISTRAL_MODEL: ${MISTRAL_MODEL:-open-mistral-nemo}
       METEO_FRANCE_API_KEY: ${METEO_FRANCE_API_KEY:-}
       INGEST_API_KEY: ${INGEST_API_KEY:-}
       FETCH_FULL_ARTICLES: ${FETCH_FULL_ARTICLES:-true}
