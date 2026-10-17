@@ -67,7 +67,7 @@ class Settings(BaseSettings):
 
     # Mistral AI (prioritaire sur Ollama quand la clé est renseignée)
     MISTRAL_API_KEY: str = ""
-    MISTRAL_MODEL: str = "mistral-small-latest"
+    MISTRAL_MODEL: str = "open-mistral-nemo"
 
     # Tentatives par appel Mistral, reprises comprises. Un HTTP 429 (« trop de
     # requêtes ») n'est pas une panne : il se résout en patientant. Sans reprise,
