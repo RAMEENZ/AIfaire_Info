@@ -76,7 +76,7 @@ async def _insert_events(session_factory, count: int, **overrides):
                     lieu_confiance_geo=0.9,
                     geom="SRID=4326;POINT(4.85 45.75)",
                     resume_ia=overrides.get("resume", "Résumé " * 80),
-                    tags=[],
+                    tags=overrides.get("tags", []),
                     score_confiance=1.0,
                     created_at=now - timedelta(minutes=i),
                 )
@@ -546,3 +546,54 @@ async def test_feed_accepte_les_parametres_du_bouton_abonnement(client):
     # l'assertion `not.toContain("%2C")` du test frontend.
     mauvais = await client.get("/api/feed.rss?categories=meteo,transport")
     assert mauvais.status_code == 422
+
+
+async def test_metrics_signale_une_extraction_degradee(client):
+    """`tagged_pct_24h` : le témoin qui aurait rendu la panne du 03/09 visible.
+
+    L'extraction par règles renvoie TOUJOURS zéro tag
+    (extractor._rule_based_extract) ; l'extraction LLM en pose presque toujours.
+    Quand le quota Mistral s'est épuisé, le pipeline a basculé sur les regex
+    pendant sept jours : le fil continuait de se remplir, les 14 connecteurs
+    restaient « ok » et /healthz voyait des données fraîches. Aucun indicateur
+    ne bougeait. Celui-ci serait tombé à 0 %.
+    """
+    await _insert_events(client.session_factory, 3, tags=["incendie", "gard"])
+    await _insert_events(client.session_factory, 1)  # sans tag : repli par règles
+
+    metrics = (await client.get("/api/metrics")).json()
+    assert metrics["presse_last_24h"] == 4
+    assert metrics["tagged_pct_24h"] == 75
+
+    # Les sources structurées ne passent jamais par le modèle : les compter
+    # diluerait le signal jusqu'à le rendre inutile.
+    await _insert_events(client.session_factory, 20, source="meteo_france")
+    metrics = (await client.get("/api/metrics")).json()
+    assert metrics["presse_last_24h"] == 4, "seule la presse doit compter"
+    assert metrics["tagged_pct_24h"] == 75
+
+
+async def test_metrics_expose_l_age_du_brief(client):
+    """Le brief n'a aucun repli : c'est le premier indicateur à se figer.
+
+    Resté à 168 h pendant la panne, sans que rien ne le signale — le site
+    servait indéfiniment le brief du 3 septembre.
+    """
+    from app.models import DailyBrief
+
+    metrics = (await client.get("/api/metrics")).json()
+    assert metrics["brief_age_hours"] is None, "aucun brief : pas d'âge à donner"
+
+    now = datetime.now(timezone.utc)
+    async with client.session_factory() as session:
+        session.add(DailyBrief(
+            date=now - timedelta(days=7),
+            content="Brief figé",
+            event_count=37,
+            generated_at=now - timedelta(hours=168),
+        ))
+        await session.commit()
+
+    metrics = (await client.get("/api/metrics")).json()
+    assert 167 <= metrics["brief_age_hours"] <= 169
+    assert metrics["llm_circuit"]["ouvert"] is False

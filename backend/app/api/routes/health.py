@@ -11,6 +11,7 @@ from app.config import settings
 from app.database import get_db
 from app.models import ConnectorStatus, Event
 from app.pipeline.ingestor import CONNECTORS, ingestion_in_progress
+from app.pipeline.mistral_client import etat_disjoncteur
 from app.pipeline.scheduler import get_next_ingest_time, ingest_hours
 from app.schemas import HealthResponse, ConnectorStatusSchema
 
@@ -265,6 +266,44 @@ async def metrics(db: AsyncSession = Depends(get_db)) -> dict:
     ).scalar_one()
     newest = (await db.execute(select(func.max(Event.date_publication)))).scalar_one()
 
+    # Part d'articles de presse réellement enrichis par le LLM, sur 24 h.
+    # `tags` est le témoin fiable : l'extraction par règles en renvoie TOUJOURS
+    # zéro (extractor._rule_based_extract), l'extraction LLM en pose presque
+    # toujours. Une chute de ce ratio = le modèle ne répond plus et le pipeline
+    # a basculé sur les regex — dégradation jusqu'ici invisible : le fil
+    # continuait de se remplir, tous les connecteurs restaient « ok », et
+    # /healthz voyait des données fraîches.
+    # Panne du 03/09/2026 : ce ratio serait resté à 0 % pendant sept jours.
+    # Restreint à presse_rss : les autres sources sont structurées et ne
+    # passent jamais par le modèle — les inclure diluerait le signal.
+    presse_24h = (
+        await db.execute(
+            select(func.count())
+            .select_from(Event)
+            .where(Event.date_publication >= h24_ago, Event.source == "presse_rss")
+        )
+    ).scalar_one()
+    presse_taggee_24h = (
+        await db.execute(
+            select(func.count())
+            .select_from(Event)
+            .where(
+                Event.date_publication >= h24_ago,
+                Event.source == "presse_rss",
+                func.coalesce(func.array_length(Event.tags, 1), 0) > 0,
+            )
+        )
+    ).scalar_one()
+
+    # Âge du dernier brief. Il n'a aucun repli (brief.py n'appelle que Mistral) :
+    # c'est donc le premier indicateur à se figer quand le modèle tombe, et le
+    # seul visible par un lecteur du site. Resté à 168 h pendant la panne.
+    from app.models import DailyBrief
+
+    dernier_brief = (
+        await db.execute(select(func.max(DailyBrief.generated_at)))
+    ).scalar_one()
+
     rows = {row.name: row for row in (await db.execute(select(ConnectorStatus))).scalars().all()}
     status_counts = {"ok": 0, "warning": 0, "error": 0}
     for name in KNOWN_CONNECTORS:
@@ -281,6 +320,14 @@ async def metrics(db: AsyncSession = Depends(get_db)) -> dict:
         "localized_last_24h": localized_24h,
         "localized_pct_24h": round(100 * localized_24h / events_24h) if events_24h else None,
         "newest_event": newest.isoformat() if newest else None,
+        # Santé de l'enrichissement IA : distincte de celle des connecteurs.
+        "presse_last_24h": presse_24h,
+        "tagged_pct_24h": round(100 * presse_taggee_24h / presse_24h) if presse_24h else None,
+        "brief_age_hours": (
+            round((now - _tz(dernier_brief)).total_seconds() / 3600, 1)
+            if dernier_brief else None
+        ),
+        "llm_circuit": etat_disjoncteur(),
         "connectors": {"total": len(KNOWN_CONNECTORS), **status_counts},
         "ingestion_in_progress": ingestion_in_progress(),
         "next_ingest_at": next_ingest_at_iso(),

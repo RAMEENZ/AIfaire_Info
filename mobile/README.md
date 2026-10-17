@@ -15,6 +15,15 @@ démarre et affiche le dernier fil connu même sans réseau — précisément la
 situation où on l'ouvre. Une simple enveloppe autour de l'URL du site aurait
 montré la page d'erreur du navigateur.
 
+La seconde moitié de cette promesse — le **fil**, et pas seulement la coquille —
+a longtemps manqué sans que rien ne le signale. Le service worker n'interceptait
+que les requêtes de sa propre origine ; or ici les données sont **cross-origin**
+(`https://localhost` → domaine public), donc aucune réponse de l'API n'était mise
+en cache. L'application s'ouvrait hors ligne sur un fil vide. Le worker reconnaît
+désormais l'API à son chemin (`/api/…`), quelle que soit son origine. Sur le site,
+où l'API est servie en same-origin par nginx, rien ne change : c'était le même
+code produisant deux comportements.
+
 **Le site web n'est pas modifié.** `frontend/` continue de se construire en
 `output: "standalone"` pour Docker ; l'export statique est un second mode,
 déclenché par `NEXT_OUTPUT=export`, que seul ce dossier utilise. Les deux

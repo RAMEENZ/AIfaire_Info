@@ -363,3 +363,41 @@ async def test_le_doublon_geom_est_supprime_sur_une_base_existante(base_neuve):
     await run_migrations()
 
     assert await gist() == {"ix_events_geom"}
+
+
+async def test_les_migrations_ne_baillonnent_pas_l_application(base_neuve):
+    """Après les migrations, l'application doit encore pouvoir se journaliser.
+
+    C'est le contrôle de bout en bout du correctif d'`alembic/env.py` : il
+    emprunte le vrai chemin de production (`run_migrations()` au démarrage,
+    avec la connexion fournie par l'application), là où
+    `tests/test_logging_alembic.py` n'inspecte que la garde.
+
+    Panne réelle : `fileConfig()` sans garde désactivait tous les loggers `app.*`
+    et décrochait le RotatingFileHandler de LOG_DIR. Le backend a été muet du
+    30/08/2026 au 10/09 — dont toute la panne Mistral du 03/09, dont il ne reste
+    aucune trace écrite.
+    """
+    import logging
+
+    from app.database import run_migrations
+
+    logger = logging.getLogger("app.pipeline.brief")
+    logger.disabled = False
+    racine = logging.getLogger()
+    temoin = logging.NullHandler()
+    racine.addHandler(temoin)
+
+    try:
+        await run_migrations()
+
+        assert logger.disabled is False, (
+            "les migrations ont désactivé les loggers applicatifs : le backend "
+            "redeviendrait muet à chaque démarrage"
+        )
+        assert temoin in racine.handlers, (
+            "les migrations ont remplacé les handlers de la racine : les logs "
+            "persistants (LOG_DIR) seraient décrochés à chaque démarrage"
+        )
+    finally:
+        racine.removeHandler(temoin)

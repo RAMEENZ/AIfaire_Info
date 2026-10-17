@@ -11,7 +11,7 @@
  *  - skipWaiting + clients.claim : une nouvelle version prend la main
  *    immédiatement, sans laisser un ancien worker piloter la page.
  */
-const CACHE_VERSION = "faire-info-v3";
+const CACHE_VERSION = "faire-info-v4";
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const API_CACHE = `${CACHE_VERSION}-api`;
 // Les événements ont leur propre cache : partageant celui des autres appels,
@@ -96,7 +96,22 @@ self.addEventListener("fetch", (event) => {
   // ni les flux SSE (connexion longue, incompatible avec une mise en cache).
   if (request.method !== "GET") return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
+
+  // L'API peut vivre sur une AUTRE origine que la page, et c'est le cas de
+  // l'application Android : la WebView Capacitor sert les fichiers embarqués
+  // depuis https://localhost, tandis que les données viennent du domaine
+  // public. La règle « même origine seulement » les faisait donc sortir d'ici
+  // sans jamais être mises en cache — l'application démarrait bien hors ligne
+  // (sa coquille est dans l'APK) mais avec un fil VIDE, alors que
+  // mobile/README.md promet « le dernier fil connu même sans réseau ». Sur le
+  // site, la même ligne ne posait aucun problème : l'API y est servie en
+  // same-origin par nginx, sous /api. Un seul code, deux comportements.
+  //
+  // On reconnaît donc l'API à son CHEMIN, quelle que soit son origine. Aucune
+  // collision avec l'autre appel tiers de l'application (Nominatim, dont les
+  // chemins sont /search et /reverse), et le site est inchangé.
+  const estAPI = url.pathname.startsWith("/api/");
+  if (url.origin !== self.location.origin && !estAPI) return;
   if (url.pathname.includes("/events/stream")) return;
 
   // Assets versionnés par empreinte : immuables, cache d'abord.
@@ -140,7 +155,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // API : réseau d'abord, cache en repli si la requête échoue (hors ligne).
-  if (url.pathname.startsWith("/api/")) {
+  if (estAPI) {
     // Les événements et le brief sont ce qu'on veut relire hors ligne ; le
     // reste (santé, métriques, tendances) n'a aucune valeur différée.
     const estContenu =
