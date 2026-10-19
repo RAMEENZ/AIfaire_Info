@@ -1,4 +1,4 @@
-fastapi==0.143.0
+fastapi==0.143.2
 uvicorn[standard]==0.54.0
 sqlalchemy==2.1.4
 geoalchemy2==0.20.0
@@ -6,8 +6,8 @@ asyncpg==0.32.0
 apscheduler==3.11.3
 httpx==0.28.1
 feedparser==6.0.14
-pydantic==2.14.0
-pydantic-settings==2.15.0
+pydantic==2.14.1
+pydantic-settings==2.16.0
 alembic==1.20.0
 greenlet==3.5.6
 trafilatura==2.3.1
