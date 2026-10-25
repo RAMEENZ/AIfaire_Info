@@ -64,7 +64,7 @@ function ProchaineMaj({ iso, rythme }: { iso: string; rythme: string }) {
       type="button"
       className="relative text-gray-500 dark:text-gray-400 cursor-default"
       {...handlers}
-      aria-label={`Prochaine mise à jour ${quand}. ${rythme}`}
+      aria-label={`Prochaine MàJ ${quand}. Prochaine mise à jour : ${rythme}`}
       aria-expanded={ouvert}
     >
       {/* Sous 768 px la barre est étroite : on abrège le libellé, sans

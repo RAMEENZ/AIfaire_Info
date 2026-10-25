@@ -524,7 +524,7 @@ export default function HomePage() {
               .then(() => toast("Lien copié dans le presse-papiers ✓", "success"))
               .catch(() => toast("Impossible de copier le lien", "error"));
           }}
-          aria-label="Copier le lien avec les filtres actuels"
+          aria-label="Partager : copier le lien avec les filtres actuels"
           className="hidden md:flex items-center gap-1 text-xs px-2 py-1 rounded-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
           title="Copier le lien avec les filtres actuels"
         >
