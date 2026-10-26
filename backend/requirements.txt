@@ -1,14 +1,14 @@
-fastapi==0.143.2
+fastapi==0.161.1
 uvicorn[standard]==0.54.0
-sqlalchemy==2.1.4
+sqlalchemy==2.1.6
 geoalchemy2==0.20.0
 asyncpg==0.32.0
 apscheduler==3.11.3
 httpx==0.28.1
 feedparser==6.0.14
 pydantic==2.14.1
-pydantic-settings==2.16.0
-alembic==1.20.0
+pydantic-settings==2.16.1
+alembic==1.20.1
 greenlet==3.5.6
 trafilatura==2.3.1
 # L'extra [asyncio] n'existe plus depuis redis 8 : le client async est
