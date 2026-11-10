@@ -176,8 +176,12 @@ function HeatmapLayer({ events, active }: { events: Event[]; active: boolean }) 
       // du code exécutable servi par unpkg s'exécutait chez le lecteur sans
       // aucun contrôle d'intégrité, et la carte de chaleur était de toute
       // façon indisponible hors ligne.
+      // Depuis leaflet.heat v1.0.0, le point d'entrée par défaut n'ajoute
+      // plus L.heatLayer par effet de bord (module ES qui exporte la
+      // classe HeatLayer à la place) : il faut le sous-chemin explicite
+      // vers le build qui restaure ce comportement.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (!(L as any).heatLayer) await import("leaflet.heat");
+      if (!(L as any).heatLayer) await import("leaflet.heat/dist/leaflet-heat-global.js");
       if (annule) return;
 
       const points = events
