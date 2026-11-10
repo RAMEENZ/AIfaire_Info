@@ -159,8 +159,13 @@ function HeatmapLayer({ events, active }: { events: Event[]; active: boolean }) 
   useEffect(() => {
     if (typeof window === "undefined" || !active) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let heatLayer: any = null;
+    // Cast via `unknown` au point de création : le .d.ts de leaflet.heat
+    // declare `extends L.Layer` en impostant son propre "leaflet" (ligne
+    // visee par son peerDependencies "^1.9.0 || ^2.0.0-beta.1"), structurellement
+    // proche mais pas identique au `Layer` de @types/leaflet 1.9.x que ce
+    // projet utilise ailleurs -- d'ou addTo/removeLayer rejetes par tsc
+    // alors que la classe reelle herite bel et bien de L.Layer a l'execution.
+    let heatLayer: import("leaflet").Layer | null = null;
     // Le chargement du greffon reste asynchrone (import dynamique). Sans ce
     // drapeau, un effet relancé AVANT la résolution voyait heatLayer encore
     // nul : le nettoyage ne retirait rien, puis la promesse ajoutait un calque
@@ -170,28 +175,44 @@ function HeatmapLayer({ events, active }: { events: Event[]; active: boolean }) 
     let annule = false;
 
     (async () => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const L = require("leaflet") as typeof import("leaflet");
       // Empaqueté avec l'application plutôt que tiré d'un CDN à l'exécution :
       // du code exécutable servi par unpkg s'exécutait chez le lecteur sans
       // aucun contrôle d'intégrité, et la carte de chaleur était de toute
       // façon indisponible hors ligne.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (!(L as any).heatLayer) await import("leaflet.heat");
+      // Depuis leaflet.heat v1.0.0, le point d'entrée par défaut est un
+      // module ES qui exporte directement la classe HeatLayer (plus de
+      // patch du global L.heatLayer — ce point d'entrée est le seul exposé
+      // par le champ "exports" du package, pas de sous-chemin "global"
+      // accessible depuis un bundler).
+      const { HeatLayer } = await import("leaflet.heat");
       if (annule) return;
 
       const points = events
         .filter((e) => e.lieu_lat != null && e.lieu_lon != null)
-        .map((e) => [e.lieu_lat!, e.lieu_lon!, Math.min(1, (e.gravite + 1) / 4)]);
+        .map(
+          (e): [number, number, number] => [
+            e.lieu_lat!,
+            e.lieu_lon!,
+            Math.min(1, (e.gravite + 1) / 4),
+          ],
+        );
       if (points.length === 0) return;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      heatLayer = (L as any).heatLayer(points, {
+      // Cast: le .d.ts de leaflet.heat resout son propre "leaflet" vers un
+      // `Layer` structurellement different de celui de @types/leaflet 1.9.x
+      // utilise par le reste du projet (deux paquets de types distincts),
+      // d'ou le rejet de tsc malgre `HeatLayer extends L.Layer` a la source
+      // et a l'execution (confirme en lisant le .d.ts publie). On bascule
+      // vers le `Layer` du projet juste apres construction, puis on
+      // n'utilise plus que l'API (addTo/removeLayer) de ce type-la.
+      const layer = new HeatLayer(points, {
         radius: 25,
         blur: 20,
         maxZoom: 10,
         gradient: { 0.4: "#3B82F6", 0.65: "#F59E0B", 1: "#EF4444" },
-      }).addTo(map);
+      }) as unknown as import("leaflet").Layer;
+      layer.addTo(map);
+      heatLayer = layer;
     })().catch(console.error);
 
     return () => {
