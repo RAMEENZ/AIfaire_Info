@@ -159,8 +159,9 @@ function HeatmapLayer({ events, active }: { events: Event[]; active: boolean }) 
   useEffect(() => {
     if (typeof window === "undefined" || !active) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let heatLayer: any = null;
+    let heatLayer: InstanceType<
+      typeof import("leaflet.heat").HeatLayer
+    > | null = null;
     // Le chargement du greffon reste asynchrone (import dynamique). Sans ce
     // drapeau, un effet relancé AVANT la résolution voyait heatLayer encore
     // nul : le nettoyage ne retirait rien, puis la promesse ajoutait un calque
@@ -170,18 +171,16 @@ function HeatmapLayer({ events, active }: { events: Event[]; active: boolean }) 
     let annule = false;
 
     (async () => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const L = require("leaflet") as typeof import("leaflet");
       // Empaqueté avec l'application plutôt que tiré d'un CDN à l'exécution :
       // du code exécutable servi par unpkg s'exécutait chez le lecteur sans
       // aucun contrôle d'intégrité, et la carte de chaleur était de toute
       // façon indisponible hors ligne.
-      // Depuis leaflet.heat v1.0.0, le point d'entrée par défaut n'ajoute
-      // plus L.heatLayer par effet de bord (module ES qui exporte la
-      // classe HeatLayer à la place) : il faut le sous-chemin explicite
-      // vers le build qui restaure ce comportement.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (!(L as any).heatLayer) await import("leaflet.heat/dist/leaflet-heat-global.js");
+      // Depuis leaflet.heat v1.0.0, le point d'entrée par défaut est un
+      // module ES qui exporte directement la classe HeatLayer (plus de
+      // patch du global L.heatLayer — ce point d'entrée est le seul exposé
+      // par le champ "exports" du package, pas de sous-chemin "global"
+      // accessible depuis un bundler).
+      const { HeatLayer } = await import("leaflet.heat");
       if (annule) return;
 
       const points = events
@@ -189,8 +188,7 @@ function HeatmapLayer({ events, active }: { events: Event[]; active: boolean }) 
         .map((e) => [e.lieu_lat!, e.lieu_lon!, Math.min(1, (e.gravite + 1) / 4)]);
       if (points.length === 0) return;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      heatLayer = (L as any).heatLayer(points, {
+      heatLayer = new HeatLayer(points, {
         radius: 25,
         blur: 20,
         maxZoom: 10,
